@@ -3,24 +3,33 @@ import 'package:carcare_customer_mobile/features/booking/presentation/controller
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('loads branch-scoped services and calculates selection totals', () async {
-    final controller = ServiceSelectionController(
-      FakeServiceRepository(delay: Duration.zero),
-      'auto-doctor-sbd',
-    );
+  test(
+    'loads branch-scoped services and calculates selection totals',
+    () async {
+      final controller = ServiceSelectionController(
+        FakeServiceRepository(delay: Duration.zero),
+        'auto-doctor-sbd',
+      );
 
-    await controller.load();
+      await controller.load();
 
-    expect(controller.categories.map((item) => item.id), isNot(contains('tires')));
-    expect(controller.services.map((item) => item.id), isNot(contains('tire-change')));
+      expect(
+        controller.categories.map((item) => item.id),
+        isNot(contains('tires')),
+      );
+      expect(
+        controller.services.map((item) => item.id),
+        isNot(contains('tire-change')),
+      );
 
-    controller.toggleService('oil-change');
-    controller.toggleService('computer-diagnostics');
+      controller.toggleService('oil-change');
+      controller.toggleService('computer-diagnostics');
 
-    expect(controller.selectedServices, hasLength(2));
-    expect(controller.totalPrice, 135000);
-    expect(controller.totalDurationMinutes, 85);
-  });
+      expect(controller.selectedServices, hasLength(2));
+      expect(controller.totalPrice, 135000);
+      expect(controller.totalDurationMinutes, 85);
+    },
+  );
 
   test('filters services by category without clearing the selection', () async {
     final controller = ServiceSelectionController(

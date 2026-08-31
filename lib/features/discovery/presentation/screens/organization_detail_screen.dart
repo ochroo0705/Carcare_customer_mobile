@@ -32,17 +32,17 @@ class OrganizationDetailScreen extends StatelessWidget {
             ? const Center(child: CircularProgressIndicator())
             : organization == null
             ? _NotFound(onBack: onBack)
-            : _OrganizationDetails(
-                organization: organization!,
-                onBook: onBook,
-              ),
+            : _OrganizationDetails(organization: organization!, onBook: onBook),
       ),
     ),
   );
 }
 
 class _OrganizationDetails extends StatefulWidget {
-  const _OrganizationDetails({required this.organization, required this.onBook});
+  const _OrganizationDetails({
+    required this.organization,
+    required this.onBook,
+  });
 
   final Organization organization;
   final void Function(Organization organization, Branch branch) onBook;
@@ -138,7 +138,6 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
       const _BookingSteps(),
     ],
   );
-
 }
 
 class _OrganizationHero extends StatelessWidget {

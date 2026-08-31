@@ -88,14 +88,15 @@ class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
       children: [
-        _BookingContext(organization: widget.organization, branch: widget.branch),
+        _BookingContext(
+          organization: widget.organization,
+          branch: widget.branch,
+        ),
         const SizedBox(height: 22),
         Text(
           'Ямар үйлчилгээ хэрэгтэй вэ?',
-          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.5,
-          ),
+          style: Theme.of(context).textTheme.headlineSmall
+              ?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -0.5),
         ),
         const SizedBox(height: 6),
         Text(
@@ -152,9 +153,8 @@ class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
         children: [
           Text(
             'Үйлчилгээ сонгогдлоо',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(context).textTheme.titleLarge
+                ?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 10),
           Text(
@@ -195,7 +195,8 @@ class _BookingContext extends StatelessWidget {
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.14),
+            color: Theme.of(context).colorScheme.primary
+                .withValues(alpha: 0.14),
             borderRadius: BorderRadius.circular(AppRadii.medium),
           ),
           child: Icon(
@@ -210,9 +211,8 @@ class _BookingContext extends StatelessWidget {
             children: [
               Text(
                 organization.name,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 2),
               Text(
@@ -277,7 +277,9 @@ class _ServiceCard extends StatelessWidget {
               color: selected ? scheme.primary : Colors.transparent,
               borderRadius: BorderRadius.circular(9),
               border: Border.all(
-                color: selected ? scheme.primary : CarCareTheme.of(context).glassBorder,
+                color: selected
+                    ? scheme.primary
+                    : CarCareTheme.of(context).glassBorder,
                 width: 1.5,
               ),
             ),
@@ -292,21 +294,29 @@ class _ServiceCard extends StatelessWidget {
               children: [
                 Text(
                   service.name,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   service.description,
-                  style: TextStyle(color: scheme.onSurfaceVariant, height: 1.35),
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    height: 1.35,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 14,
                   children: [
-                    _Meta(icon: Icons.schedule_outlined, label: _durationLabel(service.durationMinutes)),
-                    _Meta(icon: Icons.payments_outlined, label: _money(service.price)),
+                    _Meta(
+                      icon: Icons.schedule_outlined,
+                      label: _durationLabel(service.durationMinutes),
+                    ),
+                    _Meta(
+                      icon: Icons.payments_outlined,
+                      label: _money(service.price),
+                    ),
                   ],
                 ),
               ],
@@ -353,7 +363,9 @@ class _SelectionSummary extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        border: Border(top: BorderSide(color: CarCareTheme.of(context).glassBorder)),
+        border: Border(
+          top: BorderSide(color: CarCareTheme.of(context).glassBorder),
+        ),
       ),
       child: Row(
         children: [
@@ -362,12 +374,13 @@ class _SelectionSummary extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$count үйлчилгээ · ${_durationLabel(totalDurationMinutes)}'),
+                Text(
+                  '$count үйлчилгээ · ${_durationLabel(totalDurationMinutes)}',
+                ),
                 Text(
                   _money(totalPrice),
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ],
             ),

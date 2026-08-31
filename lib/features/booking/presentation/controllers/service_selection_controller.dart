@@ -22,11 +22,10 @@ class ServiceSelectionController extends ChangeNotifier {
       .where((service) => _selectedServiceIds.contains(service.id))
       .toList(growable: false);
 
-  int get totalPrice => selectedServices.fold(0, (sum, item) => sum + item.price);
-  int get totalDurationMinutes => selectedServices.fold(
-    0,
-    (sum, item) => sum + item.durationMinutes,
-  );
+  int get totalPrice =>
+      selectedServices.fold(0, (sum, item) => sum + item.price);
+  int get totalDurationMinutes =>
+      selectedServices.fold(0, (sum, item) => sum + item.durationMinutes);
 
   List<BookableService> get visibleServices => selectedCategoryId == null
       ? services
