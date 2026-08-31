@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/app/app.dart';
+import 'package:carcare_customer_mobile/features/booking/data/fake_service_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,7 @@ void main() {
   testWidgets('shows organizations and opens details', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -41,13 +43,23 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(bookingButton);
     await tester.pumpAndSettle();
-    expect(find.text('Захиалга эхлүүлэх'), findsOneWidget);
-    expect(find.text('Үйлчилгээ сонгох — дараагийн шат'), findsOneWidget);
+    expect(find.text('Үйлчилгээ сонгох'), findsOneWidget);
+    expect(find.text('Компьютер оношилгоо'), findsOneWidget);
+    expect(find.text('4 дугуй солих'), findsNothing);
+
+    await tester.tap(
+      find.byKey(const ValueKey('service-computer-diagnostics')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('1 үйлчилгээ · 40 мин'), findsOneWidget);
+    expect(find.text('50 000 ₮'), findsWidgets);
+    expect(find.byKey(const ValueKey('continue-to-time')), findsOneWidget);
   });
 
   testWidgets('shows an explicit empty state', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           scenario: FakeOrganizationScenario.empty,
           delay: Duration.zero,
@@ -61,6 +73,7 @@ void main() {
   testWidgets('filters the organization list from search', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -80,6 +93,7 @@ void main() {
   testWidgets('shows an error with retry action', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           scenario: FakeOrganizationScenario.error,
           delay: Duration.zero,

@@ -10,12 +10,14 @@ class OrganizationDetailScreen extends StatelessWidget {
     required this.organization,
     required this.isLoading,
     required this.onBack,
+    required this.onBook,
     super.key,
   });
 
   final Organization? organization;
   final bool isLoading;
   final VoidCallback onBack;
+  final void Function(Organization organization, Branch branch) onBook;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -30,16 +32,20 @@ class OrganizationDetailScreen extends StatelessWidget {
             ? const Center(child: CircularProgressIndicator())
             : organization == null
             ? _NotFound(onBack: onBack)
-            : _OrganizationDetails(organization: organization!),
+            : _OrganizationDetails(
+                organization: organization!,
+                onBook: onBook,
+              ),
       ),
     ),
   );
 }
 
 class _OrganizationDetails extends StatefulWidget {
-  const _OrganizationDetails({required this.organization});
+  const _OrganizationDetails({required this.organization, required this.onBook});
 
   final Organization organization;
+  final void Function(Organization organization, Branch branch) onBook;
 
   @override
   State<_OrganizationDetails> createState() => _OrganizationDetailsState();
@@ -124,11 +130,7 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
                   key: ValueKey(_selectedBranch!.id),
                   organization: organization,
                   branch: _selectedBranch!,
-                  onBook: () => _showBookingHandoff(
-                    context,
-                    organization,
-                    _selectedBranch!,
-                  ),
+                  onBook: () => widget.onBook(organization, _selectedBranch!),
                 ),
         ),
       ],
@@ -137,83 +139,6 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
     ],
   );
 
-  Future<void> _showBookingHandoff(
-    BuildContext context,
-    Organization organization,
-    Branch branch,
-  ) => showModalBottomSheet<void>(
-    context: context,
-    showDragHandle: true,
-    useSafeArea: true,
-    builder: (context) => Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary
-                      .withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(AppRadii.medium),
-                ),
-                child: Icon(
-                  Icons.calendar_month_outlined,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Захиалга эхлүүлэх',
-                      style: Theme.of(context).textTheme.titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    Text(
-                      organization.name,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          _SummaryRow(
-            icon: Icons.storefront_outlined,
-            label: 'Сонгосон салбар',
-            value: branch.name,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Дараагийн үе шатанд үйлчилгээ, өдөр болон боломжит цагаа сонгоно.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              height: 1.45,
-            ),
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: null,
-              icon: const Icon(Icons.arrow_forward_rounded),
-              label: const Text('Үйлчилгээ сонгох — дараагийн шат'),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _OrganizationHero extends StatelessWidget {
@@ -641,41 +566,6 @@ class _DetailLine extends StatelessWidget {
             color: Theme.of(context).colorScheme.onSurfaceVariant,
             height: 1.35,
           ),
-        ),
-      ),
-    ],
-  );
-}
-
-class _SummaryRow extends StatelessWidget {
-  const _SummaryRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Icon(icon, size: 20),
-      const SizedBox(width: 10),
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.w700)),
-          ],
         ),
       ),
     ],

@@ -1,11 +1,17 @@
 import 'package:carcare_customer_mobile/app/router.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/service_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:flutter/material.dart';
 
 class CarCareCustomerApp extends StatefulWidget {
-  const CarCareCustomerApp({required this.organizationRepository, super.key});
+  const CarCareCustomerApp({
+    required this.organizationRepository,
+    required this.serviceRepository,
+    super.key,
+  });
   final OrganizationRepository organizationRepository;
+  final ServiceRepository serviceRepository;
 
   @override
   State<CarCareCustomerApp> createState() => _CarCareCustomerAppState();
@@ -18,7 +24,10 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
   @override
   void initState() {
     super.initState();
-    _routerDelegate = CustomerRouterDelegate(widget.organizationRepository);
+    _routerDelegate = CustomerRouterDelegate(
+      widget.organizationRepository,
+      widget.serviceRepository,
+    );
   }
 
   @override
