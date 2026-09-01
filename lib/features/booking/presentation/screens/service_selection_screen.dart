@@ -16,8 +16,8 @@ class ServiceSelectionScreen extends StatefulWidget {
     super.key,
   });
 
-  final Organization organization;
-  final Branch branch;
+  final OrganizationDetail organization;
+  final BranchDetail branch;
   final ServiceRepository repository;
   final VoidCallback onBack;
 
@@ -184,8 +184,8 @@ class _ServiceSelectionScreenState extends State<ServiceSelectionScreen> {
 class _BookingContext extends StatelessWidget {
   const _BookingContext({required this.organization, required this.branch});
 
-  final Organization organization;
-  final Branch branch;
+  final OrganizationDetail organization;
+  final BranchDetail branch;
 
   @override
   Widget build(BuildContext context) => GlassSurface(

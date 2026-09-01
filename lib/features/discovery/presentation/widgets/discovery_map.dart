@@ -1,49 +1,294 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/map_location_limiter.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/location_permission_banner.dart';
+import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 
-class DiscoveryMap extends StatelessWidget {
+class DiscoveryMap extends StatefulWidget {
   const DiscoveryMap({
     required this.organizations,
     required this.onOrganizationSelected,
+    required this.onShowList,
+    this.locationPermissionService =
+        const PermissionHandlerLocationPermissionService(),
     super.key,
   });
 
   final List<Organization> organizations;
   final ValueChanged<String> onOrganizationSelected;
+  final VoidCallback onShowList;
+  final LocationPermissionService locationPermissionService;
+
+  @override
+  State<DiscoveryMap> createState() => _DiscoveryMapState();
+}
+
+class _DiscoveryMapState extends State<DiscoveryMap>
+    with WidgetsBindingObserver {
+  LocationAccessState? _locationAccessState;
+  ({Organization organization, Branch branch})? _selected;
+  BitmapDescriptor? _openPin;
+  BitmapDescriptor? _closedPin;
+  BitmapDescriptor? _selectedPin;
+  String? _lightMapStyle;
+  String? _darkMapStyle;
+  Timer? _initializationTimer;
+  _MapLoadState _mapLoadState = _MapLoadState.loading;
+  int _mapInstance = 0;
+  GoogleMapController? _mapController;
+  LatLngBounds? _visibleBounds;
 
   static const _ulaanbaatar = LatLng(47.918, 106.917);
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _requestLocationPermission();
+    _loadPinIcons();
+    _loadMapStyles();
+    _startInitializationTimer();
+  }
+
+  void _startInitializationTimer() {
+    _initializationTimer?.cancel();
+    _initializationTimer = Timer(const Duration(seconds: 12), () {
+      if (!mounted || _mapLoadState == _MapLoadState.ready) return;
+      setState(() => _mapLoadState = _MapLoadState.failed);
+    });
+  }
+
+  void _onMapCreated(GoogleMapController controller) {
+    _mapController = controller;
+    _initializationTimer?.cancel();
+    if (!mounted) return;
+    setState(() => _mapLoadState = _MapLoadState.ready);
+    _updateVisibleRegion();
+  }
+
+  void _retryMap() {
+    _mapController?.dispose();
+    _mapController = null;
+    setState(() {
+      _mapLoadState = _MapLoadState.loading;
+      _mapInstance++;
+      _visibleBounds = null;
+    });
+    _startInitializationTimer();
+  }
+
+  Future<void> _loadMapStyles() async {
+    final styles = await Future.wait([
+      rootBundle.loadString('assets/maps/light.json'),
+      rootBundle.loadString('assets/maps/dark.json'),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _lightMapStyle = styles[0];
+      _darkMapStyle = styles[1];
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _initializationTimer?.cancel();
+    _mapController?.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _locationAccessState != LocationAccessState.granted) {
+      _checkLocationPermission();
+    }
+  }
+
+  Future<void> _requestLocationPermission() async {
+    final status = await widget.locationPermissionService.request();
+    if (!mounted) return;
+    setState(() => _locationAccessState = status);
+  }
+
+  Future<void> _checkLocationPermission() async {
+    final status = await widget.locationPermissionService.check();
+    if (!mounted) return;
+    setState(() => _locationAccessState = status);
+  }
+
+  Future<void> _openLocationSettings() async {
+    await widget.locationPermissionService.openSettings();
+  }
+
+  Future<void> _updateVisibleRegion() async {
+    final controller = _mapController;
+    if (controller == null || _mapLoadState != _MapLoadState.ready) return;
+    try {
+      final bounds = await controller.getVisibleRegion();
+      if (!mounted) return;
+      setState(() => _visibleBounds = bounds);
+    } catch (_) {
+      // The dependable list remains available if the native view disappears.
+    }
+  }
+
+  Future<void> _loadPinIcons() async {
+    final data = await rootBundle.load('assets/brand/service-pin-logo.png');
+    final codec = await ui.instantiateImageCodec(
+      data.buffer.asUint8List(),
+      targetWidth: 256,
+    );
+    final logo = (await codec.getNextFrame()).image;
+    final icons = await Future.wait([
+      _createPinIcon(logo, AppColors.green, selected: false),
+      _createPinIcon(logo, const Color(0xFF9CA3AF), selected: false),
+      _createPinIcon(logo, AppColors.violet, selected: true),
+    ]);
+    logo.dispose();
+    codec.dispose();
+    if (!mounted) return;
+    setState(() {
+      _openPin = icons[0];
+      _closedPin = icons[1];
+      _selectedPin = icons[2];
+    });
+  }
+
+  Future<BitmapDescriptor> _createPinIcon(
+    ui.Image logo,
+    Color borderColor, {
+    required bool selected,
+  }) async {
+    const pixelRatio = 2.0;
+    final logicalWidth = selected ? 52.0 : 44.0;
+    final logicalHeight = selected ? 64.0 : 54.0;
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)..scale(pixelRatio);
+    final center = Offset(logicalWidth / 2, logicalWidth / 2);
+    final radius = selected ? 21.5 : 18.5;
+    final strokeWidth = selected ? 3.5 : 3.0;
+
+    final tail = Path()
+      ..moveTo(center.dx - 7, center.dy + radius - 3)
+      ..lineTo(center.dx + 7, center.dy + radius - 3)
+      ..lineTo(center.dx, logicalHeight - 2)
+      ..close();
+    canvas.drawShadow(tail, Colors.black, 5, true);
+    canvas.drawPath(tail, Paint()..color = borderColor);
+
+    final badge = Path()
+      ..addOval(Rect.fromCircle(center: center, radius: radius + strokeWidth));
+    canvas.drawShadow(badge, Colors.black, 5, true);
+    canvas.drawCircle(
+      center,
+      radius + strokeWidth,
+      Paint()..color = borderColor,
+    );
+    canvas.drawCircle(center, radius, Paint()..color = Colors.white);
+
+    final logoRect = Rect.fromCircle(center: center, radius: radius * 0.58);
+    canvas.drawImageRect(
+      logo,
+      Rect.fromLTWH(0, 0, logo.width.toDouble(), logo.height.toDouble()),
+      logoRect,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+
+    final image = await recorder.endRecording().toImage(
+      (logicalWidth * pixelRatio).round(),
+      (logicalHeight * pixelRatio).round(),
+    );
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    if (bytes == null) throw StateError('Could not render map pin');
+    return BitmapDescriptor.bytes(
+      bytes.buffer.asUint8List(),
+      imagePixelRatio: pixelRatio,
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final markers = <Marker>{};
+    final locations = <_BranchMapLocation>[];
     final positions = <LatLng>[];
-    for (final organization in organizations) {
+    ({Organization organization, Branch branch})? visibleSelection;
+    for (final organization in widget.organizations) {
       for (final branch in organization.branches) {
         final latitude = branch.latitude;
         final longitude = branch.longitude;
         if (latitude == null || longitude == null) continue;
         final position = LatLng(latitude, longitude);
         positions.add(position);
-        markers.add(
-          Marker(
-            markerId: MarkerId('${organization.slug}:${branch.id}'),
+        final isSelected =
+            _selected?.organization.slug == organization.slug &&
+            _selected?.branch.id == branch.id;
+        if (isSelected) {
+          visibleSelection = (organization: organization, branch: branch);
+        }
+        locations.add(
+          _BranchMapLocation(
+            organization: organization,
+            branch: branch,
             position: position,
-            infoWindow: InfoWindow(
-              title: organization.name,
-              snippet: '${branch.name} · ${branch.hours}',
-              onTap: () => onOrganizationSelected(organization.slug),
-            ),
-            onTap: () {},
+            selected: isSelected,
           ),
         );
       }
     }
 
-    if (markers.isEmpty) {
+    if (locations.isEmpty) {
       return const _NoMapLocations();
     }
+
+    final bounds = _visibleBounds;
+    final displayedLocations = bounds == null
+        ? locations.take(150).toList()
+        : limitMapLocations(
+            locations.map(
+              (location) => MapLocationCandidate(
+                value: location,
+                latitude: location.position.latitude,
+                longitude: location.position.longitude,
+                selected: location.selected,
+              ),
+            ),
+            south: bounds.southwest.latitude,
+            north: bounds.northeast.latitude,
+            west: bounds.southwest.longitude,
+            east: bounds.northeast.longitude,
+          );
+    final markers = displayedLocations
+        .map(
+          (location) => Marker(
+            markerId: MarkerId(
+              '${location.organization.slug}:${location.branch.id}',
+            ),
+            position: location.position,
+            anchor: const Offset(0.5, 1),
+            icon: location.selected
+                ? (_selectedPin ?? BitmapDescriptor.defaultMarker)
+                : (_closedPin ?? _openPin ?? BitmapDescriptor.defaultMarker),
+            zIndexInt: location.selected ? 1000 : 0,
+            infoWindow: InfoWindow.noText,
+            onTap: () => setState(
+              () => _selected = (
+                organization: location.organization,
+                branch: location.branch,
+              ),
+            ),
+          ),
+        )
+        .toSet();
 
     final initialTarget = positions.length == 1
         ? positions.first
@@ -56,24 +301,308 @@ class DiscoveryMap extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadii.large),
-        child: GoogleMap(
-          initialCameraPosition: CameraPosition(
-            target: initialTarget,
-            zoom: positions.length == 1 ? 14 : 11.5,
-          ),
-          markers: markers,
-          mapToolbarEnabled: false,
-          myLocationButtonEnabled: false,
-          compassEnabled: false,
-          zoomControlsEnabled: false,
-          buildingsEnabled: false,
-          rotateGesturesEnabled: false,
-          tiltGesturesEnabled: false,
-          minMaxZoomPreference: const MinMaxZoomPreference(5, 19),
+        child: Stack(
+          children: [
+            Semantics(
+              container: true,
+              label: 'Сервисийн байршлын интерактив газрын зураг',
+              child: GoogleMap(
+                key: ValueKey('discovery-map-$_mapInstance'),
+                onMapCreated: _onMapCreated,
+                onCameraIdle: _updateVisibleRegion,
+                style: Theme.of(context).brightness == Brightness.dark
+                    ? _darkMapStyle
+                    : _lightMapStyle,
+                initialCameraPosition: CameraPosition(
+                  target: initialTarget,
+                  zoom: positions.length == 1 ? 14 : 11.5,
+                ),
+                markers: markers,
+                padding: EdgeInsets.only(
+                  top: _locationAccessState == LocationAccessState.granted
+                      ? 0
+                      : 68,
+                ),
+                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                  Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
+                },
+                mapToolbarEnabled: false,
+                myLocationEnabled:
+                    _locationAccessState == LocationAccessState.granted,
+                myLocationButtonEnabled:
+                    _locationAccessState == LocationAccessState.granted,
+                compassEnabled: false,
+                scrollGesturesEnabled: true,
+                zoomControlsEnabled: true,
+                buildingsEnabled: false,
+                rotateGesturesEnabled: false,
+                tiltGesturesEnabled: false,
+                minMaxZoomPreference: const MinMaxZoomPreference(5, 19),
+              ),
+            ),
+            if (_mapLoadState == _MapLoadState.ready &&
+                _locationAccessState != null &&
+                _locationAccessState != LocationAccessState.granted)
+              Positioned(
+                top: 10,
+                left: 10,
+                right: 10,
+                child: LocationPermissionBanner(
+                  state: _locationAccessState!,
+                  onRequest: _requestLocationPermission,
+                  onOpenSettings: _openLocationSettings,
+                ),
+              ),
+            if (visibleSelection != null)
+              Positioned(
+                left: 10,
+                right: 10,
+                bottom: 10,
+                child: _SelectedBranchCard(
+                  organization: visibleSelection.organization,
+                  branch: visibleSelection.branch,
+                  onClose: () => setState(() => _selected = null),
+                  onDetails: () => widget.onOrganizationSelected(
+                    visibleSelection!.organization.slug,
+                  ),
+                ),
+              ),
+            if (_mapLoadState == _MapLoadState.loading)
+              const Positioned.fill(child: _MapLoadingOverlay()),
+            if (_mapLoadState == _MapLoadState.failed)
+              Positioned.fill(
+                child: _MapFailureOverlay(
+                  onRetry: _retryMap,
+                  onShowList: widget.onShowList,
+                ),
+              ),
+          ],
         ),
       ),
     );
   }
+}
+
+enum _MapLoadState { loading, ready, failed }
+
+class _BranchMapLocation {
+  const _BranchMapLocation({
+    required this.organization,
+    required this.branch,
+    required this.position,
+    required this.selected,
+  });
+
+  final Organization organization;
+  final Branch branch;
+  final LatLng position;
+  final bool selected;
+}
+
+class _MapLoadingOverlay extends StatelessWidget {
+  const _MapLoadingOverlay();
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    liveRegion: true,
+    label: 'Газрын зураг ачаалж байна',
+    child: ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: const Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 14),
+            Text('Газрын зураг ачаалж байна…'),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class _MapFailureOverlay extends StatelessWidget {
+  const _MapFailureOverlay({required this.onRetry, required this.onShowList});
+
+  final VoidCallback onRetry;
+  final VoidCallback onShowList;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    liveRegion: true,
+    label: 'Газрын зураг ачаалсангүй',
+    child: ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.map_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Газрын зураг ачаалсангүй',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Сервисүүдийг жагсаалтаар харах эсвэл дахин оролдоно уу.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                key: const ValueKey('map-show-list'),
+                onPressed: onShowList,
+                icon: const Icon(Icons.view_list_outlined),
+                label: const Text('Жагсаалтаар харах'),
+              ),
+              TextButton.icon(
+                key: const ValueKey('map-retry'),
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Дахин оролдох'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _SelectedBranchCard extends StatelessWidget {
+  const _SelectedBranchCard({
+    required this.organization,
+    required this.branch,
+    required this.onClose,
+    required this.onDetails,
+  });
+
+  final Organization organization;
+  final Branch branch;
+  final VoidCallback onClose;
+  final VoidCallback onDetails;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surface,
+      elevation: 12,
+      borderRadius: BorderRadius.circular(20),
+      clipBehavior: Clip.antiAlias,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxHeight: 360),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: CarCareTheme.of(context).glassBorder,
+                      ),
+                    ),
+                    child: Image.asset('assets/brand/service-pin-logo.png'),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          organization.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        Text(
+                          branch.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    tooltip: 'Хаах',
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              _CardDetail(
+                icon: Icons.place_outlined,
+                text: '${branch.city} · ${branch.district}',
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: onDetails,
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  label: const Text('Дэлгэрэнгүй'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CardDetail extends StatelessWidget {
+  const _CardDetail({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Icon(
+        icon,
+        size: 17,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
+      const SizedBox(width: 8),
+      Expanded(
+        child: Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
+    ],
+  );
 }
 
 class _NoMapLocations extends StatelessWidget {

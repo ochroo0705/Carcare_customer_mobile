@@ -2,4 +2,5 @@ import 'package:carcare_customer_mobile/features/discovery/domain/organization.d
 
 abstract interface class OrganizationRepository {
   Future<List<Organization>> getOrganizations();
+  Future<OrganizationDetail> getOrganization(String slug);
 }

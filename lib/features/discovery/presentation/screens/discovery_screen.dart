@@ -4,6 +4,7 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/controll
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/organization_card.dart';
+import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:flutter/material.dart';
 
 enum _DiscoveryView { list, map }
@@ -11,10 +12,12 @@ enum _DiscoveryView { list, map }
 class DiscoveryScreen extends StatefulWidget {
   const DiscoveryScreen({
     required this.controller,
+    required this.favoritesController,
     required this.onOrganizationSelected,
     super.key,
   });
   final DiscoveryController controller;
+  final FavoritesController favoritesController;
   final ValueChanged<String> onOrganizationSelected;
 
   @override
@@ -22,7 +25,7 @@ class DiscoveryScreen extends StatefulWidget {
 }
 
 class _DiscoveryScreenState extends State<DiscoveryScreen> {
-  _DiscoveryView _view = _DiscoveryView.map;
+  _DiscoveryView _view = _DiscoveryView.list;
   final _searchController = TextEditingController();
 
   @override
@@ -32,41 +35,27 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: const CarCareBrand(compact: true),
-      actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: TextButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.person_outline, size: 19),
-            label: const Text('Нэвтрэх'),
-          ),
-        ),
-      ],
-    ),
-    body: AppShellBackground(
-      child: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: widget.controller.load,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            slivers: [
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-                sliver: SliverToBoxAdapter(
-                  child: _DiscoveryHeader(
-                    controller: widget.controller,
-                    searchController: _searchController,
-                    view: _view,
-                    onViewChanged: (view) => setState(() => _view = view),
-                  ),
+  Widget build(BuildContext context) => AppShellBackground(
+    child: SafeArea(
+      child: RefreshIndicator(
+        onRefresh: widget.controller.load,
+        child: CustomScrollView(
+          key: const PageStorageKey('discovery-scroll'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+              sliver: SliverToBoxAdapter(
+                child: _DiscoveryHeader(
+                  controller: widget.controller,
+                  searchController: _searchController,
+                  view: _view,
+                  onViewChanged: (view) => setState(() => _view = view),
                 ),
               ),
-              ..._content(),
-            ],
-          ),
+            ),
+            ..._content(),
+          ],
         ),
       ),
     ),
@@ -126,6 +115,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             child: DiscoveryMap(
               organizations: organizations,
               onOrganizationSelected: widget.onOrganizationSelected,
+              onShowList: () => setState(() => _view = _DiscoveryView.list),
             ),
           ),
         ),
@@ -140,6 +130,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               final organization = organizations[index];
               return OrganizationCard(
                 organization: organization,
+                isFavorite: widget.favoritesController.contains(
+                  organization.slug,
+                ),
+                onFavoriteToggle: () =>
+                    widget.favoritesController.toggle(organization.slug),
                 onTap: () => widget.onOrganizationSelected(organization.slug),
               );
             },
@@ -171,9 +166,6 @@ class _DiscoveryHeader extends StatelessWidget {
       0,
       (total, organization) => total + organization.branches.length,
     );
-    final openCount = organizations
-        .where((organization) => organization.hasOpenBranch)
-        .length;
     final scheme = Theme.of(context).colorScheme;
 
     return Column(
@@ -326,14 +318,6 @@ class _DiscoveryHeader extends StatelessWidget {
                             value: '$branchCount',
                             label: 'салбар',
                           ),
-                          _MetricDivider(
-                            color: CarCareTheme.of(context).glassBorder,
-                          ),
-                          _DiscoveryMetric(
-                            value: '$openCount',
-                            label: 'нээлттэй',
-                            valueColor: AppColors.green,
-                          ),
                         ],
                       ),
                     ],
@@ -370,14 +354,14 @@ class _DiscoveryHeader extends StatelessWidget {
               showSelectedIcon: false,
               segments: const [
                 ButtonSegment(
-                  value: _DiscoveryView.map,
-                  icon: Icon(Icons.map_outlined),
-                  tooltip: 'Газрын зураг',
-                ),
-                ButtonSegment(
                   value: _DiscoveryView.list,
                   icon: Icon(Icons.view_list_outlined),
                   tooltip: 'Жагсаалт',
+                ),
+                ButtonSegment(
+                  value: _DiscoveryView.map,
+                  icon: Icon(Icons.map_outlined),
+                  tooltip: 'Газрын зураг',
                 ),
               ],
               selected: {view},
@@ -446,15 +430,10 @@ class _AmbientOrb extends StatelessWidget {
 }
 
 class _DiscoveryMetric extends StatelessWidget {
-  const _DiscoveryMetric({
-    required this.value,
-    required this.label,
-    this.valueColor,
-  });
+  const _DiscoveryMetric({required this.value, required this.label});
 
   final String value;
   final String label;
-  final Color? valueColor;
 
   @override
   Widget build(BuildContext context) => Expanded(
@@ -463,7 +442,7 @@ class _DiscoveryMetric extends StatelessWidget {
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(color: valueColor, fontWeight: FontWeight.w800),
+              ?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 2),
         Text(

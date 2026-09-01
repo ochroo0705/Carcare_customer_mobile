@@ -7,4 +7,12 @@ abstract final class AppEnvironment {
     'APP_ENV',
     defaultValue: 'development',
   );
+  static const useFakeApi = bool.fromEnvironment(
+    'USE_FAKE_API',
+    defaultValue: true,
+  );
+  static const bookingEnabled = bool.fromEnvironment(
+    'BOOKING_ENABLED',
+    defaultValue: true,
+  );
 }

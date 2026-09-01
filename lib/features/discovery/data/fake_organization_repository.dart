@@ -24,49 +24,50 @@ class FakeOrganizationRepository implements OrganizationRepository {
       ),
     };
   }
+
+  @override
+  Future<OrganizationDetail> getOrganization(String slug) async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (scenario == FakeOrganizationScenario.error) {
+      throw const ServerFailure('Сервисийн мэдээллийг ачаалж чадсангүй.');
+    }
+    for (final organization in _organizationDetails) {
+      if (organization.slug == slug) return organization;
+    }
+    throw const NotFoundFailure('Байгууллага олдсонгүй.');
+  }
 }
 
 const _organizations = <Organization>[
   Organization(
     slug: 'auto-doctor',
     name: 'Auto Doctor Service',
-    phone: '7700 1122',
     branches: [
       Branch(
         id: 'auto-doctor-bzd',
         name: 'Баянзүрх салбар',
-        address: '26-р хороо, Нарны зам 18',
         city: 'Улаанбаатар',
         district: 'Баянзүрх',
-        isOpen: true,
-        hours: '09:00–19:00',
         latitude: 47.9187,
         longitude: 106.9684,
       ),
       Branch(
         id: 'auto-doctor-sbd',
         name: 'Сүхбаатар салбар',
-        address: '1-р хороо, Олимпын гудамж 9',
         city: 'Улаанбаатар',
         district: 'Сүхбаатар',
-        isOpen: false,
-        hours: '09:00–18:00',
       ),
     ],
   ),
   Organization(
     slug: 'khurd-motors',
     name: 'Хурд Моторс',
-    phone: '7505 2020',
     branches: [
       Branch(
         id: 'khurd-khud',
         name: 'Яармаг салбар',
-        address: '8-р хороо, Наадамчдын зам 42',
         city: 'Улаанбаатар',
         district: 'Хан-Уул',
-        isOpen: true,
-        hours: '08:30–20:00',
         latitude: 47.8581,
         longitude: 106.7869,
       ),
@@ -75,16 +76,82 @@ const _organizations = <Organization>[
   Organization(
     slug: 'erdenet-car-care',
     name: 'Эрдэнэт Car Care',
-    phone: '7035 4455',
     branches: [
       Branch(
         id: 'erdenet-center',
         name: 'Төв салбар',
-        address: 'Баян-Өндөр сум, Уурхайчин баг',
         city: 'Орхон',
         district: 'Баян-Өндөр',
-        isOpen: true,
-        hours: '09:00–18:00',
+        latitude: 49.0278,
+        longitude: 104.0444,
+      ),
+    ],
+  ),
+];
+
+const _organizationDetails = <OrganizationDetail>[
+  OrganizationDetail(
+    slug: 'auto-doctor',
+    name: 'Auto Doctor Service',
+    phone: '7700 1122',
+    branches: [
+      BranchDetail(
+        id: 'auto-doctor-bzd',
+        name: 'Баянзүрх салбар',
+        address: 'Нарны зам 18',
+        khoroo: '26-р хороо',
+        city: 'Улаанбаатар',
+        district: 'Баянзүрх',
+        openTime: '09:00',
+        closeTime: '19:00',
+        latitude: 47.9187,
+        longitude: 106.9684,
+      ),
+      BranchDetail(
+        id: 'auto-doctor-sbd',
+        name: 'Сүхбаатар салбар',
+        address: 'Олимпын гудамж 9',
+        khoroo: '1-р хороо',
+        city: 'Улаанбаатар',
+        district: 'Сүхбаатар',
+        openTime: '09:00',
+        closeTime: '18:00',
+      ),
+    ],
+  ),
+  OrganizationDetail(
+    slug: 'khurd-motors',
+    name: 'Хурд Моторс',
+    phone: '7505 2020',
+    branches: [
+      BranchDetail(
+        id: 'khurd-khud',
+        name: 'Яармаг салбар',
+        address: 'Наадамчдын зам 42',
+        khoroo: '8-р хороо',
+        city: 'Улаанбаатар',
+        district: 'Хан-Уул',
+        openTime: '08:30',
+        closeTime: '20:00',
+        latitude: 47.8581,
+        longitude: 106.7869,
+      ),
+    ],
+  ),
+  OrganizationDetail(
+    slug: 'erdenet-car-care',
+    name: 'Эрдэнэт Car Care',
+    phone: '7035 4455',
+    branches: [
+      BranchDetail(
+        id: 'erdenet-center',
+        name: 'Төв салбар',
+        address: 'Уурхайчин баг',
+        khoroo: '',
+        city: 'Орхон',
+        district: 'Баян-Өндөр',
+        openTime: '09:00',
+        closeTime: '18:00',
         latitude: 49.0278,
         longitude: 104.0444,
       ),

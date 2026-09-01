@@ -1,23 +1,34 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/core/config/app_environment.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 class OrganizationDetailScreen extends StatelessWidget {
   const OrganizationDetailScreen({
     required this.organization,
-    required this.isLoading,
+    required this.status,
+    required this.errorMessage,
+    required this.onRetry,
     required this.onBack,
     required this.onBook,
+    required this.isFavorite,
+    required this.onFavoriteToggle,
     super.key,
   });
 
-  final Organization? organization;
-  final bool isLoading;
+  final OrganizationDetail? organization;
+  final OrganizationDetailStatus status;
+  final String? errorMessage;
+  final VoidCallback onRetry;
   final VoidCallback onBack;
-  final void Function(Organization organization, Branch branch) onBook;
+  final void Function(OrganizationDetail organization, BranchDetail branch)
+  onBook;
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -28,11 +39,23 @@ class OrganizationDetailScreen extends StatelessWidget {
     body: AppShellBackground(
       child: SafeArea(
         top: false,
-        child: isLoading
+        child:
+            status == OrganizationDetailStatus.loading ||
+                status == OrganizationDetailStatus.initial
             ? const Center(child: CircularProgressIndicator())
+            : status == OrganizationDetailStatus.error
+            ? _DetailError(
+                message: errorMessage ?? 'Мэдээлэл ачаалсангүй.',
+                onRetry: onRetry,
+              )
             : organization == null
             ? _NotFound(onBack: onBack)
-            : _OrganizationDetails(organization: organization!, onBook: onBook),
+            : _OrganizationDetails(
+                organization: organization!,
+                onBook: onBook,
+                isFavorite: isFavorite,
+                onFavoriteToggle: onFavoriteToggle,
+              ),
       ),
     ),
   );
@@ -42,10 +65,15 @@ class _OrganizationDetails extends StatefulWidget {
   const _OrganizationDetails({
     required this.organization,
     required this.onBook,
+    required this.isFavorite,
+    required this.onFavoriteToggle,
   });
 
-  final Organization organization;
-  final void Function(Organization organization, Branch branch) onBook;
+  final OrganizationDetail organization;
+  final void Function(OrganizationDetail organization, BranchDetail branch)
+  onBook;
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
 
   @override
   State<_OrganizationDetails> createState() => _OrganizationDetailsState();
@@ -54,7 +82,7 @@ class _OrganizationDetails extends StatefulWidget {
 class _OrganizationDetailsState extends State<_OrganizationDetails> {
   late String _selectedBranchId;
 
-  Organization get organization => widget.organization;
+  OrganizationDetail get organization => widget.organization;
 
   @override
   void initState() {
@@ -63,7 +91,9 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
         ? ''
         : organization.branches
               .firstWhere(
-                (branch) => branch.isOpen,
+                (branch) =>
+                    branch.openStatusAt(DateTime.now()) ==
+                    BranchOpenStatus.open,
                 orElse: () => organization.branches.first,
               )
               .id;
@@ -78,7 +108,7 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
         : organization.branches.first.id;
   }
 
-  Branch? get _selectedBranch {
+  BranchDetail? get _selectedBranch {
     for (final branch in organization.branches) {
       if (branch.id == _selectedBranchId) return branch;
     }
@@ -89,7 +119,11 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
   Widget build(BuildContext context) => ListView(
     padding: const EdgeInsets.fromLTRB(20, 14, 20, 36),
     children: [
-      _OrganizationHero(organization: organization),
+      _OrganizationHero(
+        organization: organization,
+        isFavorite: widget.isFavorite,
+        onFavoriteToggle: widget.onFavoriteToggle,
+      ),
       const SizedBox(height: 24),
       _SectionTitle(
         title: 'Салбар сонгох',
@@ -114,7 +148,7 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
                 onSelected: (_) {
                   setState(() => _selectedBranchId = branch.id);
                 },
-                avatar: _StatusDot(isOpen: branch.isOpen),
+                avatar: _StatusDot(status: branch.openStatusAt(DateTime.now())),
                 label: Text(branch.name),
               );
             },
@@ -135,21 +169,33 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
         ),
       ],
       const SizedBox(height: 24),
-      const _BookingSteps(),
+      if (AppEnvironment.bookingEnabled)
+        const _BookingSteps()
+      else
+        const _BookingPausedNotice(),
     ],
   );
 }
 
 class _OrganizationHero extends StatelessWidget {
-  const _OrganizationHero({required this.organization});
+  const _OrganizationHero({
+    required this.organization,
+    required this.isFavorite,
+    required this.onFavoriteToggle,
+  });
 
-  final Organization organization;
+  final OrganizationDetail organization;
+  final bool isFavorite;
+  final VoidCallback onFavoriteToggle;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final openBranches = organization.branches
-        .where((branch) => branch.isOpen)
+        .where(
+          (branch) =>
+              branch.openStatusAt(DateTime.now()) == BranchOpenStatus.open,
+        )
         .length;
     return GlassSurface(
       padding: EdgeInsets.zero,
@@ -222,7 +268,7 @@ class _OrganizationHero extends StatelessWidget {
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                organization.phone,
+                                organization.phone ?? 'Утас тодорхойгүй',
                                 style: TextStyle(
                                   color: scheme.onSurfaceVariant,
                                 ),
@@ -254,6 +300,30 @@ class _OrganizationHero extends StatelessWidget {
                     ),
                   ],
                 ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 180),
+                    child: isFavorite
+                        ? FilledButton.tonalIcon(
+                            key: ValueKey(
+                              'detail-favorite-${organization.slug}',
+                            ),
+                            onPressed: onFavoriteToggle,
+                            icon: const Icon(Icons.favorite_rounded),
+                            label: const Text('Хадгалсан'),
+                          )
+                        : OutlinedButton.icon(
+                            key: ValueKey(
+                              'detail-favorite-${organization.slug}',
+                            ),
+                            onPressed: onFavoriteToggle,
+                            icon: const Icon(Icons.favorite_border_rounded),
+                            label: const Text('Хадгалах'),
+                          ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -271,8 +341,8 @@ class _SelectedBranchCard extends StatelessWidget {
     super.key,
   });
 
-  final Organization organization;
-  final Branch branch;
+  final OrganizationDetail organization;
+  final BranchDetail branch;
   final VoidCallback onBook;
 
   @override
@@ -289,32 +359,36 @@ class _SelectedBranchCard extends StatelessWidget {
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
-            _OpenBadge(isOpen: branch.isOpen),
+            _OpenBadge(status: branch.openStatusAt(DateTime.now())),
           ],
         ),
         const SizedBox(height: 16),
-        _DetailLine(icon: Icons.place_outlined, text: branch.address),
+        _DetailLine(icon: Icons.place_outlined, text: branch.fullAddress),
         const SizedBox(height: 11),
         _DetailLine(
           icon: Icons.location_city_outlined,
           text: '${branch.city} · ${branch.district}',
         ),
         const SizedBox(height: 11),
-        _DetailLine(icon: Icons.schedule_rounded, text: branch.hours),
+        _DetailLine(icon: Icons.schedule_rounded, text: branch.hoursLabel),
         const SizedBox(height: 20),
         Row(
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(
-                    ClipboardData(text: organization.phone),
-                  );
-                  if (!context.mounted) return;
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Утасны дугаар хууллаа')),
-                  );
-                },
+                onPressed: organization.phone == null
+                    ? null
+                    : () async {
+                        await Clipboard.setData(
+                          ClipboardData(text: organization.phone!),
+                        );
+                        if (!context.mounted) return;
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Утасны дугаар хууллаа'),
+                          ),
+                        );
+                      },
                 icon: const Icon(Icons.phone_outlined),
                 label: const Text('Утас хуулах'),
               ),
@@ -322,9 +396,13 @@ class _SelectedBranchCard extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: FilledButton.icon(
-                onPressed: onBook,
+                onPressed: AppEnvironment.bookingEnabled ? onBook : null,
                 icon: const Icon(Icons.calendar_month_outlined),
-                label: const Text('Цаг захиалах'),
+                label: Text(
+                  AppEnvironment.bookingEnabled
+                      ? 'Цаг захиалах'
+                      : 'Захиалга түр хаалттай',
+                ),
               ),
             ),
           ],
@@ -375,6 +453,26 @@ class _BookingSteps extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ],
+    ),
+  );
+}
+
+class _BookingPausedNotice extends StatelessWidget {
+  const _BookingPausedNotice();
+
+  @override
+  Widget build(BuildContext context) => const GlassSurface(
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.construction_outlined),
+        SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            'Захиалгын систем шинэчлэгдэж байгаа тул одоогоор түр хаалттай байна.',
+          ),
         ),
       ],
     ),
@@ -470,15 +568,19 @@ class _InfoPill extends StatelessWidget {
 }
 
 class _OpenBadge extends StatelessWidget {
-  const _OpenBadge({required this.isOpen});
+  const _OpenBadge({required this.status});
 
-  final bool isOpen;
+  final BranchOpenStatus status;
 
   @override
   Widget build(BuildContext context) {
-    final color = isOpen
-        ? AppColors.green
-        : Theme.of(context).colorScheme.error;
+    final color = switch (status) {
+      BranchOpenStatus.open => AppColors.green,
+      BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
+      BranchOpenStatus.unknown => Theme.of(
+        context,
+      ).colorScheme.onSurfaceVariant,
+    };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
@@ -489,10 +591,14 @@ class _OpenBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _StatusDot(isOpen: isOpen),
+          _StatusDot(status: status),
           const SizedBox(width: 6),
           Text(
-            isOpen ? 'Нээлттэй' : 'Хаалттай',
+            switch (status) {
+              BranchOpenStatus.open => 'Нээлттэй',
+              BranchOpenStatus.closed => 'Хаалттай',
+              BranchOpenStatus.unknown => 'Төлөв тодорхойгүй',
+            },
             style: Theme.of(context).textTheme.labelSmall
                 ?.copyWith(color: color),
           ),
@@ -503,16 +609,22 @@ class _OpenBadge extends StatelessWidget {
 }
 
 class _StatusDot extends StatelessWidget {
-  const _StatusDot({required this.isOpen});
+  const _StatusDot({required this.status});
 
-  final bool isOpen;
+  final BranchOpenStatus status;
 
   @override
   Widget build(BuildContext context) => Container(
     width: 8,
     height: 8,
     decoration: BoxDecoration(
-      color: isOpen ? AppColors.green : Theme.of(context).colorScheme.error,
+      color: switch (status) {
+        BranchOpenStatus.open => AppColors.green,
+        BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
+        BranchOpenStatus.unknown => Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant,
+      },
       shape: BoxShape.circle,
     ),
   );
@@ -606,6 +718,30 @@ class _NotFound extends StatelessWidget {
             onPressed: onBack,
             child: const Text('Жагсаалт руу буцах'),
           ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _DetailError extends StatelessWidget {
+  const _DetailError({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.cloud_off_outlined, size: 48),
+          const SizedBox(height: 12),
+          Text(message, textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          FilledButton(onPressed: onRetry, child: const Text('Дахин оролдох')),
         ],
       ),
     ),

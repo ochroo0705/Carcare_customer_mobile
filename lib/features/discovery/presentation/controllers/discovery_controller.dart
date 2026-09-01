@@ -58,7 +58,6 @@ class DiscoveryController extends ChangeNotifier {
             if (normalizedQuery.isEmpty || organizationMatches) return true;
             return <String>[
               branch.name,
-              branch.address,
               branch.city,
               branch.district,
             ].any((value) => value.toLowerCase().contains(normalizedQuery));
@@ -69,7 +68,6 @@ class DiscoveryController extends ChangeNotifier {
         Organization(
           slug: organization.slug,
           name: organization.name,
-          phone: organization.phone,
           logoUrl: organization.logoUrl,
           branches: branches,
         ),

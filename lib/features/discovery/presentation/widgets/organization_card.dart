@@ -6,10 +6,14 @@ class OrganizationCard extends StatelessWidget {
   const OrganizationCard({
     required this.organization,
     required this.onTap,
+    this.isFavorite = false,
+    this.onFavoriteToggle,
     super.key,
   });
   final Organization organization;
   final VoidCallback onTap;
+  final bool isFavorite;
+  final VoidCallback? onFavoriteToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +42,7 @@ class OrganizationCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  primaryBranch.address,
+                  '${primaryBranch.city} · ${primaryBranch.district}',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,
@@ -52,19 +56,28 @@ class OrganizationCard extends StatelessWidget {
                       icon: Icons.storefront_outlined,
                       label: '${organization.branches.length} салбар',
                     ),
-                    _InfoChip(
-                      icon: Icons.schedule,
-                      label: organization.hasOpenBranch
-                          ? 'Нээлттэй'
-                          : 'Хаалттай',
-                      positive: organization.hasOpenBranch,
-                    ),
                   ],
                 ),
               ],
             ),
           ),
-          const Icon(Icons.chevron_right),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: ValueKey('favorite-${organization.slug}'),
+                onPressed: onFavoriteToggle,
+                tooltip: isFavorite ? 'Хадгалснаас хасах' : 'Хадгалах',
+                icon: Icon(
+                  isFavorite
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  color: isFavorite ? scheme.primary : null,
+                ),
+              ),
+              const Icon(Icons.chevron_right),
+            ],
+          ),
         ],
       ),
     );
@@ -72,14 +85,9 @@ class OrganizationCard extends StatelessWidget {
 }
 
 class _InfoChip extends StatelessWidget {
-  const _InfoChip({
-    required this.icon,
-    required this.label,
-    this.positive = false,
-  });
+  const _InfoChip({required this.icon, required this.label});
   final IconData icon;
   final String label;
-  final bool positive;
 
   @override
   Widget build(BuildContext context) {
@@ -87,7 +95,7 @@ class _InfoChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: positive ? scheme.tertiaryContainer : scheme.surfaceContainer,
+        color: scheme.surfaceContainer,
         borderRadius: BorderRadius.circular(99),
       ),
       child: Row(

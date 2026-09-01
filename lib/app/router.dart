@@ -1,9 +1,18 @@
+import 'package:carcare_customer_mobile/app/customer_shell.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/service_repository.dart';
-import 'package:carcare_customer_mobile/features/booking/presentation/screens/service_selection_screen.dart';
+import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/login_screen.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
+import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
+import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
+import 'package:carcare_customer_mobile/features/favorites/presentation/screens/favorites_screen.dart';
 import 'package:flutter/material.dart';
 
 sealed class CustomerRoutePath {
@@ -62,14 +71,29 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   CustomerRouterDelegate(
     OrganizationRepository repository,
     this.serviceRepository,
+    this.themeController,
+    AuthRepository authRepository,
+    this.appointmentRepository,
   ) : discoveryController = DiscoveryController(repository)..load() {
+    organizationDetailController = OrganizationDetailController(repository);
+    authController = AuthController(authRepository)..restore();
     discoveryController.addListener(notifyListeners);
+    organizationDetailController.addListener(notifyListeners);
+    authController.addListener(notifyListeners);
+    favoritesController.addListener(notifyListeners);
+    favoritesController.load();
   }
 
   final DiscoveryController discoveryController;
+  late final OrganizationDetailController organizationDetailController;
+  late final AuthController authController;
   final ServiceRepository serviceRepository;
+  final ThemeController themeController;
+  final AppointmentRepository appointmentRepository;
+  final FavoritesController favoritesController = FavoritesController();
   String? _selectedSlug;
   String? _bookingBranchId;
+  bool _showLogin = false;
 
   @override
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -85,9 +109,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   @override
   Widget build(BuildContext context) {
-    final organization = _selectedSlug == null
-        ? null
-        : discoveryController.organizationBySlug(_selectedSlug!);
+    final organization = organizationDetailController.organization;
     final bookingBranch = organization?.branches
         .where((branch) => branch.id == _bookingBranchId)
         .firstOrNull;
@@ -95,13 +117,21 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       key: navigatorKey,
       pages: [
         MaterialPage<void>(
-          key: const ValueKey('discovery'),
-          child: DiscoveryScreen(
-            controller: discoveryController,
-            onOrganizationSelected: (slug) {
-              _selectedSlug = slug;
-              notifyListeners();
-            },
+          key: const ValueKey('customer-shell'),
+          child: CustomerShell(
+            themeController: themeController,
+            destinations: [
+              DiscoveryScreen(
+                controller: discoveryController,
+                favoritesController: favoritesController,
+                onOrganizationSelected: _selectOrganization,
+              ),
+              FavoritesScreen(
+                discoveryController: discoveryController,
+                favoritesController: favoritesController,
+                onOrganizationSelected: _selectOrganization,
+              ),
+            ],
           ),
         ),
         if (_selectedSlug != null)
@@ -109,30 +139,69 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             key: ValueKey('organization-$_selectedSlug'),
             child: OrganizationDetailScreen(
               organization: organization,
-              isLoading: discoveryController.state.isLoading,
+              status: organizationDetailController.status,
+              errorMessage: organizationDetailController.message,
+              onRetry: () => organizationDetailController.load(_selectedSlug!),
               onBack: _closeDetails,
+              isFavorite:
+                  organization != null &&
+                  favoritesController.contains(organization.slug),
+              onFavoriteToggle: () {
+                if (organization != null) {
+                  favoritesController.toggle(organization.slug);
+                }
+              },
               onBook: (organization, branch) {
-                _selectedSlug = organization.slug;
-                _bookingBranchId = branch.id;
-                notifyListeners();
+                _startBooking(organization.slug, branch.id);
               },
             ),
           ),
-        if (organization != null && bookingBranch != null)
+        if (_showLogin)
           MaterialPage<void>(
-            key: ValueKey('services-${organization.slug}-${bookingBranch.id}'),
-            child: ServiceSelectionScreen(
+            key: const ValueKey('booking-login'),
+            child: LoginScreen(
+              controller: authController,
+              onBack: _cancelLogin,
+              onAuthenticated: _resumeBooking,
+            ),
+          ),
+        if (!_showLogin &&
+            authController.isAuthenticated &&
+            organization != null &&
+            bookingBranch != null)
+          MaterialPage<void>(
+            key: ValueKey('booking-${organization.slug}-${bookingBranch.id}'),
+            child: BookingRequestScreen(
               organization: organization,
               branch: bookingBranch,
-              repository: serviceRepository,
+              repository: appointmentRepository,
               onBack: _closeBooking,
+              onUnauthenticated: () async {
+                await authController.clearConfirmedUnauthorized();
+                _showLogin = true;
+                notifyListeners();
+              },
+              onCompleted: (appointment) {
+                final context = navigatorKey?.currentContext;
+                final messenger = context == null
+                    ? null
+                    : ScaffoldMessenger.maybeOf(context);
+                _closeBooking();
+                messenger?.showSnackBar(
+                  const SnackBar(
+                    content: Text('Цагийн хүсэлт амжилттай илгээгдлээ.'),
+                  ),
+                );
+              },
             ),
           ),
       ],
       onDidRemovePage: (page) {
-        if (_bookingBranchId != null) {
+        if (_showLogin) {
+          _cancelLogin();
+        } else if (_bookingBranchId != null) {
           _closeBooking();
-        } else if (page.key != const ValueKey('discovery')) {
+        } else if (page.key != const ValueKey('customer-shell')) {
           _closeDetails();
         }
       },
@@ -145,8 +214,33 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  void _selectOrganization(String slug) {
+    _selectedSlug = slug;
+    organizationDetailController.load(slug);
+    notifyListeners();
+  }
+
   void _closeBooking() {
     _bookingBranchId = null;
+    notifyListeners();
+  }
+
+  void _startBooking(String slug, String branchId) {
+    _selectedSlug = slug;
+    _bookingBranchId = branchId;
+    _showLogin = !authController.isAuthenticated;
+    notifyListeners();
+  }
+
+  void _cancelLogin() {
+    _showLogin = false;
+    _bookingBranchId = null;
+    authController.resetFlow();
+    notifyListeners();
+  }
+
+  void _resumeBooking() {
+    _showLogin = false;
     notifyListeners();
   }
 
@@ -156,9 +250,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       case ServiceSelectionRoutePath(:final slug, :final branchId):
         _selectedSlug = slug;
         _bookingBranchId = branchId;
+        await organizationDetailController.load(slug);
       case OrganizationRoutePath(:final slug):
         _selectedSlug = slug;
         _bookingBranchId = null;
+        await organizationDetailController.load(slug);
       case DiscoveryRoutePath():
         _selectedSlug = null;
         _bookingBranchId = null;
@@ -168,7 +264,13 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   @override
   void dispose() {
     discoveryController.removeListener(notifyListeners);
+    organizationDetailController.removeListener(notifyListeners);
+    authController.removeListener(notifyListeners);
+    favoritesController.removeListener(notifyListeners);
     discoveryController.dispose();
+    organizationDetailController.dispose();
+    authController.dispose();
+    favoritesController.dispose();
     super.dispose();
   }
 }

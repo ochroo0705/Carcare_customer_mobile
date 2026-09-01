@@ -3,8 +3,130 @@ import 'package:carcare_customer_mobile/features/booking/data/fake_service_repos
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('saves an organization and shows it in Favorites', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
+        organizationRepository: FakeOrganizationRepository(
+          delay: Duration.zero,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final favoriteButton = find.byKey(const ValueKey('favorite-auto-doctor'));
+    await tester.ensureVisible(favoriteButton);
+    await tester.tap(favoriteButton);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Хадгалсан'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Хадгалсан сервисүүд'), findsOneWidget);
+    expect(find.text('Auto Doctor Service'), findsOneWidget);
+  });
+
+  testWidgets('offers the list when map initialization times out', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
+        organizationRepository: FakeOrganizationRepository(
+          delay: Duration.zero,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.map_outlined));
+    await tester.pump();
+    expect(find.text('Газрын зураг ачаалж байна…'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 12));
+    await tester.pump();
+    expect(find.text('Газрын зураг ачаалсангүй'), findsOneWidget);
+
+    final showListButton = find.byKey(const ValueKey('map-show-list'));
+    await tester.ensureVisible(showListButton);
+    await tester.pumpAndSettle();
+    await tester.tap(showListButton);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('organization-auto-doctor')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('preserves map mode while switching top-level destinations', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
+        organizationRepository: FakeOrganizationRepository(
+          delay: Duration.zero,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.map_outlined));
+    await tester.pump();
+    await tester.tap(find.text('Хадгалсан'));
+    await tester.pump();
+    await tester.tap(find.text('Хайх'));
+    await tester.pump();
+
+    final switcherFinder = find.byWidgetPredicate(
+      (widget) => widget.runtimeType.toString().startsWith('SegmentedButton<'),
+    );
+    final dynamic switcher = tester.widget(switcherFinder);
+    expect(switcher.selected.single.toString(), contains('map'));
+    expect(find.byKey(const ValueKey('discovery-map-0')), findsOneWidget);
+  });
+
+  testWidgets('saves an organization from its detail page', (tester) async {
+    await tester.pumpWidget(
+      CarCareCustomerApp(
+        serviceRepository: FakeServiceRepository(delay: Duration.zero),
+        organizationRepository: FakeOrganizationRepository(
+          delay: Duration.zero,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final organizationCard = find.byKey(
+      const ValueKey('organization-auto-doctor'),
+    );
+    await tester.ensureVisible(organizationCard);
+    await tester.tapAt(
+      tester.getTopLeft(organizationCard) + const Offset(100, 24),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Хадгалах'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('detail-favorite-auto-doctor')));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
+    expect(find.text('Хадгалсан'), findsOneWidget);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Хадгалсан'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Auto Doctor Service'), findsOneWidget);
+  });
+
   testWidgets('shows organizations and opens details', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
@@ -38,22 +160,28 @@ void main() {
     expect(find.text('1-р хороо, Олимпын гудамж 9'), findsOneWidget);
     expect(find.text('09:00–18:00'), findsOneWidget);
 
-    final bookingButton = find.text('Цаг захиалах');
-    await tester.ensureVisible(bookingButton);
+    await tester.ensureVisible(find.text('Цаг захиалах'));
     await tester.pumpAndSettle();
-    await tester.tap(bookingButton);
+    await tester.tap(find.text('Цаг захиалах'));
     await tester.pumpAndSettle();
-    expect(find.text('Үйлчилгээ сонгох'), findsOneWidget);
-    expect(find.text('Компьютер оношилгоо'), findsOneWidget);
-    expect(find.text('4 дугуй солих'), findsNothing);
-
-    await tester.tap(
-      find.byKey(const ValueKey('service-computer-diagnostics')),
+    expect(find.text('Утасны дугаараа оруулна уу'), findsOneWidget);
+    expect(
+      find.text('Зөвхөн цаг захиалахад нэвтрэх шаардлагатай.'),
+      findsOneWidget,
     );
+    expect(find.text('Үйлчилгээ сонгох'), findsNothing);
+
+    await tester.enterText(
+      find.byKey(const ValueKey('login-phone')),
+      '99112233',
+    );
+    await tester.tap(find.text('Код авах'));
     await tester.pumpAndSettle();
-    expect(find.text('1 үйлчилгээ · 40 мин'), findsOneWidget);
-    expect(find.text('50 000 ₮'), findsWidgets);
-    expect(find.byKey(const ValueKey('continue-to-time')), findsOneWidget);
+    await tester.enterText(find.byKey(const ValueKey('login-otp')), '123456');
+    await tester.tap(find.text('Баталгаажуулах'));
+    await tester.pumpAndSettle();
+    expect(find.text('Цаг хүсэх'), findsOneWidget);
+    expect(find.text('Сүхбаатар салбар'), findsOneWidget);
   });
 
   testWidgets('shows an explicit empty state', (tester) async {

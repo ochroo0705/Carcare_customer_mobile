@@ -9,7 +9,7 @@ void main() {
       final organizations = await repository.getOrganizations();
       expect(organizations, hasLength(3));
       expect(organizations.first.branches, hasLength(2));
-      expect(organizations.first.hasOpenBranch, isTrue);
+      expect(organizations.first.branches, isNotEmpty);
     });
 
     test('supports an empty scenario', () async {
