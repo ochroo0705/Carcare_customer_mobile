@@ -17,7 +17,11 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "MapConfiguration")
+    guard let registrar = engineBridge.pluginRegistry.registrar(
+      forPlugin: "MapConfiguration"
+    ) else {
+      return
+    }
     let channel = FlutterMethodChannel(
       name: "mn.carcare.carcare_customer_mobile/map_configuration",
       binaryMessenger: registrar.messenger()
