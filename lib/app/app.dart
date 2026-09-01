@@ -1,28 +1,30 @@
 import 'package:carcare_customer_mobile/app/router.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
-import 'package:carcare_customer_mobile/features/booking/domain/service_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/data/fake_auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
+import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
+import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:flutter/material.dart';
 
 class CarCareCustomerApp extends StatefulWidget {
   CarCareCustomerApp({
     required this.organizationRepository,
-    required this.serviceRepository,
     AuthRepository? authRepository,
     AppointmentRepository? appointmentRepository,
+    VehicleRepository? vehicleRepository,
     super.key,
   }) : authRepository = authRepository ?? FakeAuthRepository(),
        appointmentRepository =
-           appointmentRepository ?? FakeAppointmentRepository();
+           appointmentRepository ?? FakeAppointmentRepository(),
+       vehicleRepository = vehicleRepository ?? FakeVehicleRepository();
   final OrganizationRepository organizationRepository;
-  final ServiceRepository serviceRepository;
   final AuthRepository authRepository;
   final AppointmentRepository appointmentRepository;
+  final VehicleRepository vehicleRepository;
 
   @override
   State<CarCareCustomerApp> createState() => _CarCareCustomerAppState();
@@ -40,10 +42,10 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
     _themeController.load();
     _routerDelegate = CustomerRouterDelegate(
       widget.organizationRepository,
-      widget.serviceRepository,
       _themeController,
       widget.authRepository,
       widget.appointmentRepository,
+      widget.vehicleRepository,
     );
   }
 

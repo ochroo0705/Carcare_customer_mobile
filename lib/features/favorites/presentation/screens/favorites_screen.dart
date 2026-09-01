@@ -35,26 +35,7 @@ class FavoritesScreen extends StatelessWidget {
                     SizedBox(height: index == 0 ? 18 : 12),
                 itemBuilder: (context, index) {
                   if (index == 0) {
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Хадгалсан сервисүүд',
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Энэ төхөөрөмж дээр хадгалсан ${organizations.length} сервис',
-                          style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .onSurfaceVariant,
-                              ),
-                        ),
-                      ],
-                    );
+                    return _FavoritesHeader(count: organizations.length);
                   }
                   final organization = organizations[index - 1];
                   return OrganizationCard(
@@ -69,6 +50,30 @@ class FavoritesScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FavoritesHeader extends StatelessWidget {
+  const _FavoritesHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Хадгалсан сервисүүд',
+        style: Theme.of(context).textTheme.headlineSmall
+            ?.copyWith(fontWeight: FontWeight.w900),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Энэ төхөөрөмж дээр хадгалсан $count сервис',
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+      ),
+    ],
+  );
 }
 
 class _EmptyFavorites extends StatelessWidget {

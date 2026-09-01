@@ -53,11 +53,15 @@ class AuthController extends ChangeNotifier {
     isBusy = false;
   }
 
-  Future<void> clearConfirmedUnauthorized() async {
+  Future<void> signOut() async {
     await _repository.signOut();
     account = null;
     notifyListeners();
   }
+
+  /// Signs out after a confirmed `401`. Same effect as [signOut]; kept as a
+  /// separate name so call sites document why the session was cleared.
+  Future<void> clearConfirmedUnauthorized() => signOut();
 
   Future<bool> _run(Future<void> Function() action) async {
     if (isBusy) return false;

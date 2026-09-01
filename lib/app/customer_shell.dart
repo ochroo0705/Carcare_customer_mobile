@@ -1,16 +1,23 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
+import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:flutter/material.dart';
 
 class CustomerShell extends StatefulWidget {
   const CustomerShell({
     required this.themeController,
     required this.destinations,
+    required this.account,
+    required this.onLoginRequested,
+    required this.onSignOut,
     super.key,
   });
 
   final ThemeController themeController;
   final List<Widget> destinations;
+  final Account? account;
+  final VoidCallback onLoginRequested;
+  final VoidCallback onSignOut;
 
   @override
   State<CustomerShell> createState() => _CustomerShellState();
@@ -32,14 +39,18 @@ class _CustomerShellState extends State<CustomerShell> {
           title: const CarCareBrand(compact: true),
           actions: [
             _ThemeModeMenu(controller: widget.themeController),
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.person_outline, size: 19),
-                label: const Text('Нэвтрэх'),
+            if (widget.account case final account?)
+              _AccountMenu(account: account, onSignOut: widget.onSignOut)
+            else
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: TextButton.icon(
+                  key: const ValueKey('shell-login'),
+                  onPressed: widget.onLoginRequested,
+                  icon: const Icon(Icons.person_outline, size: 19),
+                  label: const Text('Нэвтрэх'),
+                ),
               ),
-            ),
           ],
         ),
         body: useRail
@@ -59,6 +70,16 @@ class _CustomerShellState extends State<CustomerShell> {
                         icon: Icon(Icons.favorite_border_rounded),
                         selectedIcon: Icon(Icons.favorite_rounded),
                         label: Text('Хадгалсан'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.event_note_outlined),
+                        selectedIcon: Icon(Icons.event_note_rounded),
+                        label: Text('Цаг'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.directions_car_outlined),
+                        selectedIcon: Icon(Icons.directions_car_rounded),
+                        label: Text('Машин'),
                       ),
                     ],
                   ),
@@ -82,6 +103,16 @@ class _CustomerShellState extends State<CustomerShell> {
                     icon: Icon(Icons.favorite_border_rounded),
                     selectedIcon: Icon(Icons.favorite_rounded),
                     label: 'Хадгалсан',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.event_note_outlined),
+                    selectedIcon: Icon(Icons.event_note_rounded),
+                    label: 'Цаг',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.directions_car_outlined),
+                    selectedIcon: Icon(Icons.directions_car_rounded),
+                    label: 'Машин',
                   ),
                 ],
               ),
@@ -118,4 +149,70 @@ class _ThemeModeMenu extends StatelessWidget {
       ],
     );
   }
+}
+
+enum _AccountMenuAction { signOut }
+
+class _AccountMenu extends StatelessWidget {
+  const _AccountMenu({required this.account, required this.onSignOut});
+
+  final Account account;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = _displayLabel(account);
+    final scheme = Theme.of(context).colorScheme;
+    return PopupMenuButton<_AccountMenuAction>(
+      key: const ValueKey('shell-account-menu'),
+      tooltip: 'Профайл',
+      onSelected: (action) {
+        if (action == _AccountMenuAction.signOut) onSignOut();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<_AccountMenuAction>(
+          enabled: false,
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: _AccountMenuAction.signOut,
+          child: Text('Гарах'),
+        ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 14,
+              backgroundColor: scheme.primary,
+              child: Text(
+                label.substring(0, 1).toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 96),
+              child: Text(label, overflow: TextOverflow.ellipsis, maxLines: 1),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _displayLabel(Account account) {
+  final name = account.name?.trim();
+  return (name != null && name.isNotEmpty) ? name : account.phone;
 }

@@ -3,6 +3,8 @@ import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:flutter/material.dart';
 
 class BookingRequestScreen extends StatefulWidget {
@@ -10,6 +12,8 @@ class BookingRequestScreen extends StatefulWidget {
     required this.organization,
     required this.branch,
     required this.repository,
+    required this.vehiclesController,
+    required this.onAddVehicle,
     required this.onBack,
     required this.onCompleted,
     required this.onUnauthenticated,
@@ -19,6 +23,8 @@ class BookingRequestScreen extends StatefulWidget {
   final OrganizationDetail organization;
   final BranchDetail branch;
   final AppointmentRepository repository;
+  final VehiclesController vehiclesController;
+  final VoidCallback onAddVehicle;
   final VoidCallback onBack;
   final ValueChanged<CreatedAppointment> onCompleted;
   final VoidCallback onUnauthenticated;
@@ -30,8 +36,17 @@ class BookingRequestScreen extends StatefulWidget {
 class _BookingRequestScreenState extends State<BookingRequestScreen> {
   final _noteController = TextEditingController();
   DateTime? _requestedAt;
+  String? _selectedVehicleId;
   bool _submitting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.vehiclesController.state.status == VehiclesStatus.initial) {
+      widget.vehiclesController.load();
+    }
+  }
 
   @override
   void dispose() {
@@ -75,6 +90,13 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
                     ? 'Өдөр, цаг сонгох'
                     : _formatDateTime(_requestedAt!),
               ),
+            ),
+            const SizedBox(height: 12),
+            _VehiclePicker(
+              controller: widget.vehiclesController,
+              selectedVehicleId: _selectedVehicleId,
+              onChanged: (id) => setState(() => _selectedVehicleId = id),
+              onAddVehicle: widget.onAddVehicle,
             ),
             const SizedBox(height: 12),
             TextField(
@@ -151,6 +173,7 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
         branchId: widget.branch.id,
         requestedAt: requestedAt,
         note: _noteController.text,
+        accountVehicleId: _selectedVehicleId,
       );
       if (mounted) widget.onCompleted(result);
     } on UnauthenticatedFailure {
@@ -162,6 +185,81 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+}
+
+class _VehiclePicker extends StatelessWidget {
+  const _VehiclePicker({
+    required this.controller,
+    required this.selectedVehicleId,
+    required this.onChanged,
+    required this.onAddVehicle,
+  });
+
+  final VehiclesController controller;
+  final String? selectedVehicleId;
+  final ValueChanged<String?> onChanged;
+  final VoidCallback onAddVehicle;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = controller.state;
+    if (state.isLoading) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 8),
+        child: SizedBox(
+          height: 20,
+          width: 20,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    if (state.status == VehiclesStatus.error || state.vehicles.isEmpty) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          key: const ValueKey('booking-add-vehicle'),
+          onPressed: onAddVehicle,
+          icon: const Icon(Icons.add_circle_outline),
+          label: const Text('Машин нэмэх (заавал биш)'),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        DropdownButtonFormField<String?>(
+          key: const ValueKey('booking-vehicle'),
+          initialValue: selectedVehicleId,
+          decoration: const InputDecoration(
+            labelText: 'Тээврийн хэрэгсэл (заавал биш)',
+          ),
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('Сонгохгүй'),
+            ),
+            for (final vehicle in state.vehicles)
+              DropdownMenuItem<String?>(
+                value: vehicle.id,
+                child: Text(
+                  '${vehicle.plate} · ${vehicle.make} ${vehicle.model}',
+                ),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const ValueKey('booking-add-vehicle'),
+            onPressed: onAddVehicle,
+            icon: const Icon(Icons.add_circle_outline),
+            label: const Text('Шинэ машин нэмэх'),
+          ),
+        ),
+      ],
+    );
   }
 }
 

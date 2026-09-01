@@ -1,5 +1,4 @@
 import 'package:carcare_customer_mobile/app/app.dart';
-import 'package:carcare_customer_mobile/features/booking/data/fake_service_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,7 +12,6 @@ void main() {
   ) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -38,7 +36,6 @@ void main() {
   ) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -70,7 +67,6 @@ void main() {
   ) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -96,7 +92,6 @@ void main() {
   testWidgets('saves an organization from its detail page', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -130,7 +125,6 @@ void main() {
   testWidgets('shows organizations and opens details', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -164,9 +158,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Цаг захиалах'));
     await tester.pumpAndSettle();
-    expect(find.text('Утасны дугаараа оруулна уу'), findsOneWidget);
+    expect(find.text('Нэвтрэх / Бүртгүүлэх'), findsOneWidget);
     expect(
-      find.text('Зөвхөн цаг захиалахад нэвтрэх шаардлагатай.'),
+      find.text('Утасны дугаараа оруулаад, ирэх 6 оронтой кодоор нэвтэрнэ.'),
       findsOneWidget,
     );
     expect(find.text('Үйлчилгээ сонгох'), findsNothing);
@@ -175,10 +169,10 @@ void main() {
       find.byKey(const ValueKey('login-phone')),
       '99112233',
     );
-    await tester.tap(find.text('Код авах'));
+    await tester.tap(find.text('Код авах →'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byKey(const ValueKey('login-otp')), '123456');
-    await tester.tap(find.text('Баталгаажуулах'));
+    await tester.tap(find.text('Нэвтрэх →'));
     await tester.pumpAndSettle();
     expect(find.text('Цаг хүсэх'), findsOneWidget);
     expect(find.text('Сүхбаатар салбар'), findsOneWidget);
@@ -187,7 +181,6 @@ void main() {
   testWidgets('shows an explicit empty state', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           scenario: FakeOrganizationScenario.empty,
           delay: Duration.zero,
@@ -201,7 +194,6 @@ void main() {
   testWidgets('filters the organization list from search', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           delay: Duration.zero,
         ),
@@ -221,7 +213,6 @@ void main() {
   testWidgets('shows an error with retry action', (tester) async {
     await tester.pumpWidget(
       CarCareCustomerApp(
-        serviceRepository: FakeServiceRepository(delay: Duration.zero),
         organizationRepository: FakeOrganizationRepository(
           scenario: FakeOrganizationScenario.error,
           delay: Duration.zero,
@@ -232,4 +223,59 @@ void main() {
     expect(find.text('Мэдээлэл ачаалсангүй'), findsOneWidget);
     expect(find.text('Дахин оролдох'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows the last loaded list with an offline banner when a later load fails',
+    (tester) async {
+      // First launch: a normal, successful load persists the list to cache.
+      await tester.pumpWidget(
+        CarCareCustomerApp(
+          organizationRepository: FakeOrganizationRepository(
+            delay: Duration.zero,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.view_list_outlined));
+      await tester.pumpAndSettle();
+      expect(find.text('Auto Doctor Service'), findsOneWidget);
+
+      // Simulated restart with no network: unmount the whole tree first so
+      // the next pumpWidget performs a genuine fresh initState (otherwise
+      // Flutter reuses the existing State for the same widget type and never
+      // re-runs DiscoveryController.load() with the new repository).
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        CarCareCustomerApp(
+          organizationRepository: FakeOrganizationRepository(
+            scenario: FakeOrganizationScenario.error,
+            delay: Duration.zero,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.view_list_outlined));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна'),
+        findsOneWidget,
+      );
+      // The offline banner adds height above the list, so the first card
+      // needs a scroll to come into the test viewport.
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
+      await tester.pumpAndSettle();
+      expect(find.text('Auto Doctor Service'), findsOneWidget);
+
+      // Retrying while still offline keeps showing the cached list rather
+      // than dropping to a hard error, since the cache is still valid data.
+      await tester.tap(find.byKey(const ValueKey('discovery-offline-retry')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна'),
+        findsOneWidget,
+      );
+      expect(find.text('Auto Doctor Service'), findsOneWidget);
+    },
+  );
 }

@@ -1,10 +1,11 @@
 import 'package:carcare_customer_mobile/app/customer_shell.dart';
-import 'package:carcare_customer_mobile/features/booking/domain/service_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/login_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
@@ -13,6 +14,10 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/screens/
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:carcare_customer_mobile/features/favorites/presentation/screens/favorites_screen.dart';
+import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/add_vehicle_screen.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/vehicles_screen.dart';
 import 'package:flutter/material.dart';
 
 sealed class CustomerRoutePath {
@@ -28,8 +33,8 @@ class OrganizationRoutePath extends CustomerRoutePath {
   final String slug;
 }
 
-class ServiceSelectionRoutePath extends CustomerRoutePath {
-  const ServiceSelectionRoutePath(this.slug, this.branchId);
+class BookingRoutePath extends CustomerRoutePath {
+  const BookingRoutePath(this.slug, this.branchId);
   final String slug;
   final String branchId;
 }
@@ -44,7 +49,7 @@ class CustomerRouteInformationParser
     if (segments.length == 4 &&
         segments.first == 'organizations' &&
         segments[2] == 'book') {
-      return ServiceSelectionRoutePath(segments[1], segments[3]);
+      return BookingRoutePath(segments[1], segments[3]);
     }
     if (segments.length == 2 && segments.first == 'organizations') {
       return OrganizationRoutePath(segments[1]);
@@ -58,10 +63,9 @@ class CustomerRouteInformationParser
         OrganizationRoutePath(:final slug) => RouteInformation(
           uri: Uri.parse('/organizations/$slug'),
         ),
-        ServiceSelectionRoutePath(:final slug, :final branchId) =>
-          RouteInformation(
-            uri: Uri.parse('/organizations/$slug/book/$branchId'),
-          ),
+        BookingRoutePath(:final slug, :final branchId) => RouteInformation(
+          uri: Uri.parse('/organizations/$slug/book/$branchId'),
+        ),
         DiscoveryRoutePath() => RouteInformation(uri: Uri.parse('/')),
       };
 }
@@ -70,16 +74,21 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     with ChangeNotifier, PopNavigatorRouterDelegateMixin<CustomerRoutePath> {
   CustomerRouterDelegate(
     OrganizationRepository repository,
-    this.serviceRepository,
     this.themeController,
     AuthRepository authRepository,
     this.appointmentRepository,
+    this.vehicleRepository,
   ) : discoveryController = DiscoveryController(repository)..load() {
     organizationDetailController = OrganizationDetailController(repository);
     authController = AuthController(authRepository)..restore();
+    appointmentsController = AppointmentsController(appointmentRepository);
+    vehiclesController = VehiclesController(vehicleRepository);
     discoveryController.addListener(notifyListeners);
     organizationDetailController.addListener(notifyListeners);
     authController.addListener(notifyListeners);
+    authController.addListener(_onAuthChanged);
+    appointmentsController.addListener(notifyListeners);
+    vehiclesController.addListener(notifyListeners);
     favoritesController.addListener(notifyListeners);
     favoritesController.load();
   }
@@ -87,13 +96,17 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   final DiscoveryController discoveryController;
   late final OrganizationDetailController organizationDetailController;
   late final AuthController authController;
-  final ServiceRepository serviceRepository;
+  late final AppointmentsController appointmentsController;
+  late final VehiclesController vehiclesController;
   final ThemeController themeController;
   final AppointmentRepository appointmentRepository;
+  final VehicleRepository vehicleRepository;
   final FavoritesController favoritesController = FavoritesController();
   String? _selectedSlug;
   String? _bookingBranchId;
   bool _showLogin = false;
+  bool _showAddVehicle = false;
+  bool _wasAuthenticated = false;
 
   @override
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -102,7 +115,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   CustomerRoutePath get currentConfiguration {
     if (_selectedSlug == null) return const DiscoveryRoutePath();
     if (_bookingBranchId != null) {
-      return ServiceSelectionRoutePath(_selectedSlug!, _bookingBranchId!);
+      return BookingRoutePath(_selectedSlug!, _bookingBranchId!);
     }
     return OrganizationRoutePath(_selectedSlug!);
   }
@@ -120,6 +133,9 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           key: const ValueKey('customer-shell'),
           child: CustomerShell(
             themeController: themeController,
+            account: authController.account,
+            onLoginRequested: _requestLogin,
+            onSignOut: () => authController.signOut(),
             destinations: [
               DiscoveryScreen(
                 controller: discoveryController,
@@ -130,6 +146,17 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 discoveryController: discoveryController,
                 favoritesController: favoritesController,
                 onOrganizationSelected: _selectOrganization,
+              ),
+              AppointmentsScreen(
+                controller: appointmentsController,
+                isAuthenticated: authController.isAuthenticated,
+                onLoginRequested: _requestLogin,
+              ),
+              VehiclesScreen(
+                controller: vehiclesController,
+                isAuthenticated: authController.isAuthenticated,
+                onLoginRequested: _requestLogin,
+                onAddVehicle: _openAddVehicle,
               ),
             ],
           ),
@@ -175,6 +202,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               organization: organization,
               branch: bookingBranch,
               repository: appointmentRepository,
+              vehiclesController: vehiclesController,
+              onAddVehicle: _openAddVehicle,
               onBack: _closeBooking,
               onUnauthenticated: () async {
                 await authController.clearConfirmedUnauthorized();
@@ -195,9 +224,30 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               },
             ),
           ),
+        if (_showAddVehicle)
+          MaterialPage<void>(
+            key: const ValueKey('add-vehicle'),
+            child: AddVehicleScreen(
+              repository: vehicleRepository,
+              onBack: _closeAddVehicle,
+              onAdded: (vehicle) {
+                final context = navigatorKey?.currentContext;
+                final messenger = context == null
+                    ? null
+                    : ScaffoldMessenger.maybeOf(context);
+                _closeAddVehicle();
+                vehiclesController.load();
+                messenger?.showSnackBar(
+                  const SnackBar(content: Text('Машин нэмэгдлээ.')),
+                );
+              },
+            ),
+          ),
       ],
       onDidRemovePage: (page) {
-        if (_showLogin) {
+        if (_showAddVehicle) {
+          _closeAddVehicle();
+        } else if (_showLogin) {
           _cancelLogin();
         } else if (_bookingBranchId != null) {
           _closeBooking();
@@ -244,10 +294,37 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  void _requestLogin() {
+    _showLogin = true;
+    notifyListeners();
+  }
+
+  void _openAddVehicle() {
+    _showAddVehicle = true;
+    notifyListeners();
+  }
+
+  void _closeAddVehicle() {
+    _showAddVehicle = false;
+    notifyListeners();
+  }
+
+  void _onAuthChanged() {
+    final isAuthenticated = authController.isAuthenticated;
+    if (isAuthenticated && !_wasAuthenticated) {
+      appointmentsController.load();
+      vehiclesController.load();
+    } else if (!isAuthenticated && _wasAuthenticated) {
+      appointmentsController.reset();
+      vehiclesController.reset();
+    }
+    _wasAuthenticated = isAuthenticated;
+  }
+
   @override
   Future<void> setNewRoutePath(CustomerRoutePath configuration) async {
     switch (configuration) {
-      case ServiceSelectionRoutePath(:final slug, :final branchId):
+      case BookingRoutePath(:final slug, :final branchId):
         _selectedSlug = slug;
         _bookingBranchId = branchId;
         await organizationDetailController.load(slug);
@@ -266,10 +343,15 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     discoveryController.removeListener(notifyListeners);
     organizationDetailController.removeListener(notifyListeners);
     authController.removeListener(notifyListeners);
+    authController.removeListener(_onAuthChanged);
+    appointmentsController.removeListener(notifyListeners);
+    vehiclesController.removeListener(notifyListeners);
     favoritesController.removeListener(notifyListeners);
     discoveryController.dispose();
     organizationDetailController.dispose();
     authController.dispose();
+    appointmentsController.dispose();
+    vehiclesController.dispose();
     favoritesController.dispose();
     super.dispose();
   }

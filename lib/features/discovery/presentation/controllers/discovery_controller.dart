@@ -1,11 +1,18 @@
+import 'dart:convert';
+
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class DiscoveryController extends ChangeNotifier {
   DiscoveryController(this._repository);
+
+  static const _cacheKey = 'discovery_organizations_cache_v1';
+
   final OrganizationRepository _repository;
   DiscoveryState _state = const DiscoveryState();
   String _query = '';
@@ -120,16 +127,11 @@ class DiscoveryController extends ChangeNotifier {
             : DiscoveryStatus.data,
         organizations: organizations,
       );
+      await _saveCache(organizations);
     } on AppFailure catch (failure) {
-      _state = DiscoveryState(
-        status: DiscoveryStatus.error,
-        message: failure.message,
-      );
+      _state = await _fallbackToCache(failure.message);
     } catch (_) {
-      _state = const DiscoveryState(
-        status: DiscoveryStatus.error,
-        message: 'Тодорхойгүй алдаа гарлаа.',
-      );
+      _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
     }
     notifyListeners();
   }
@@ -140,4 +142,107 @@ class DiscoveryController extends ChangeNotifier {
     }
     return null;
   }
+
+  Future<DiscoveryState> _fallbackToCache(String failureMessage) async {
+    final cached = await _readCache();
+    if (cached == null || cached.isEmpty) {
+      return DiscoveryState(
+        status: DiscoveryStatus.error,
+        message: failureMessage,
+      );
+    }
+    return DiscoveryState(
+      status: DiscoveryStatus.data,
+      organizations: cached,
+      isFromCache: true,
+      message: failureMessage,
+    );
+  }
+
+  Future<void> _saveCache(List<Organization> organizations) async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final json = jsonEncode(organizations.map(_organizationToJson).toList());
+      await preferences.setString(_cacheKey, json);
+    } catch (_) {
+      // Persisting the cache is a best-effort convenience; a write failure
+      // here must never surface as a load failure.
+    }
+  }
+
+  Future<List<Organization>?> _readCache() async {
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      final raw = preferences.getString(_cacheKey);
+      if (raw == null) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! List) return null;
+      final organizations = decoded
+          .map(_organizationFromJson)
+          .whereType<Organization>()
+          .toList();
+      return organizations.isEmpty ? null : organizations;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+Map<String, dynamic> _organizationToJson(Organization organization) => {
+  'slug': organization.slug,
+  'name': organization.name,
+  'logoUrl': organization.logoUrl,
+  'branches': organization.branches.map(_branchToJson).toList(),
+};
+
+Map<String, dynamic> _branchToJson(Branch branch) => {
+  'id': branch.id,
+  'name': branch.name,
+  'city': branch.city,
+  'district': branch.district,
+  'latitude': branch.latitude,
+  'longitude': branch.longitude,
+};
+
+Organization? _organizationFromJson(Object? value) {
+  if (value is! Map) return null;
+  final slug = value['slug'];
+  final name = value['name'];
+  final branchesRaw = value['branches'];
+  if (slug is! String || name is! String || branchesRaw is! List) return null;
+  return Organization(
+    slug: slug,
+    name: name,
+    logoUrl: value['logoUrl'] is String ? value['logoUrl'] as String : null,
+    branches: branchesRaw
+        .map(_branchFromJson)
+        .whereType<Branch>()
+        .toList(growable: false),
+  );
+}
+
+Branch? _branchFromJson(Object? value) {
+  if (value is! Map) return null;
+  final id = value['id'];
+  final name = value['name'];
+  final city = value['city'];
+  final district = value['district'];
+  if (id is! String ||
+      name is! String ||
+      city is! String ||
+      district is! String) {
+    return null;
+  }
+  return Branch(
+    id: id,
+    name: name,
+    city: city,
+    district: district,
+    latitude: value['latitude'] is num
+        ? (value['latitude'] as num).toDouble()
+        : null,
+    longitude: value['longitude'] is num
+        ? (value['longitude'] as num).toDouble()
+        : null,
+  );
 }

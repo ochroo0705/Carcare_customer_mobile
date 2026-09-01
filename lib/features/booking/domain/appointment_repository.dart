@@ -1,3 +1,5 @@
+import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
+
 class CreatedAppointment {
   const CreatedAppointment({
     required this.id,
@@ -15,5 +17,10 @@ abstract interface class AppointmentRepository {
     required String branchId,
     required DateTime requestedAt,
     String? note,
+    String? accountVehicleId,
   });
+
+  Future<List<Appointment>> getAppointments();
+
+  Future<void> cancelAppointment(String id);
 }

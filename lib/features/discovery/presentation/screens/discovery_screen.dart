@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
@@ -64,6 +65,23 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   List<Widget> _content() {
     final state = widget.controller.state;
     final organizations = widget.controller.visibleOrganizations;
+    final banner = state.isFromCache
+        ? [
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+              sliver: SliverToBoxAdapter(
+                child: _OfflineBanner(onRetry: widget.controller.load),
+              ),
+            ),
+          ]
+        : const <Widget>[];
+    return [...banner, ..._statusContent(state, organizations)];
+  }
+
+  List<Widget> _statusContent(
+    DiscoveryState state,
+    List<Organization> organizations,
+  ) {
     return switch (state.status) {
       DiscoveryStatus.initial || DiscoveryStatus.loading => const [
         SliverFillRemaining(
@@ -372,6 +390,69 @@ class _DiscoveryHeader extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _OfflineBanner extends StatelessWidget {
+  const _OfflineBanner({required this.onRetry});
+
+  final Future<void> Function() onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final largeText = MediaQuery.textScalerOf(context).scale(1) >= 1.4;
+    final message = Text(
+      'Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна',
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(fontWeight: FontWeight.w600),
+    );
+    final action = TextButton(
+      key: const ValueKey('discovery-offline-retry'),
+      onPressed: onRetry,
+      child: const Text('Дахин оролдох'),
+    );
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      label: 'Сүлжээгүй байна. Сүүлд ачаалсан авто сервисийн жагсаалтыг харуулж байна.',
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        elevation: 5,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          child: largeText
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.cloud_off_outlined,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        const SizedBox(width: 9),
+                        Expanded(child: message),
+                      ],
+                    ),
+                    Align(alignment: Alignment.centerRight, child: action),
+                  ],
+                )
+              : Row(
+                  children: [
+                    Icon(
+                      Icons.cloud_off_outlined,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 9),
+                    Expanded(child: message),
+                    action,
+                  ],
+                ),
+        ),
+      ),
     );
   }
 }

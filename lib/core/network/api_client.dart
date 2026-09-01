@@ -53,6 +53,21 @@ class ApiClient {
     }
   }
 
+  Future<Map<String, dynamic>> deleteJson(String path) async {
+    try {
+      final response = await _dio.delete<Object?>(
+        path,
+        options: await _options(),
+      );
+      final data = response.data;
+      if (data is! Map) throw const UnexpectedFailure();
+      return Map<String, dynamic>.from(data);
+    } on DioException catch (error) {
+      await _handleUnauthorized(error);
+      throw _mapDioFailure(error);
+    }
+  }
+
   Future<Options?> _options() async {
     final token = await accessTokenProvider?.call();
     if (token == null || token.isEmpty) return null;
