@@ -18,6 +18,11 @@ flutter pub get
 flutter run
 ```
 
+When the key is absent, the app deliberately keeps discovery usable by showing
+the list fallback instead of constructing a native map view. Release builds
+must still provide a real key; this fallback is for safe local diagnosis, not a
+replacement for Maps configuration.
+
 ## Google Cloud requirements
 
 Enable billing and the platform APIs used by the build:
@@ -42,6 +47,10 @@ Use an application-restricted API key before release. Google recommends separate
 - Flutter map widget: `lib/features/discovery/presentation/widgets/discovery_map.dart`
 
 Organizations without branch coordinates remain available in list view. If no visible organization has coordinates, the map view shows an explicit empty-location state.
+
+On iOS, `NSLocationWhenInUseUsageDescription` is required for the map's
+nearby-location capability. It is declared in `Runner/Info.plist`; changing it
+requires a full reinstall or rebuild before it appears in iOS Settings.
 
 ## Blank map troubleshooting
 

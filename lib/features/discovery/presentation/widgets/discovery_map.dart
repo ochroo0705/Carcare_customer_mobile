@@ -7,6 +7,7 @@ import 'package:carcare_customer_mobile/features/discovery/domain/organization.d
 import 'package:carcare_customer_mobile/features/discovery/presentation/map_location_limiter.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/location_permission_banner.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
+import 'package:carcare_customer_mobile/features/discovery/services/map_configuration_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -20,6 +21,7 @@ class DiscoveryMap extends StatefulWidget {
     required this.onShowList,
     this.locationPermissionService =
         const PermissionHandlerLocationPermissionService(),
+    this.mapConfigurationService = const NativeMapConfigurationService(),
     super.key,
   });
 
@@ -27,6 +29,7 @@ class DiscoveryMap extends StatefulWidget {
   final ValueChanged<String> onOrganizationSelected;
   final VoidCallback onShowList;
   final LocationPermissionService locationPermissionService;
+  final MapConfigurationService mapConfigurationService;
 
   @override
   State<DiscoveryMap> createState() => _DiscoveryMapState();
@@ -53,6 +56,16 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _initializeMap();
+  }
+
+  Future<void> _initializeMap() async {
+    final configured = await widget.mapConfigurationService.isConfigured();
+    if (!mounted) return;
+    if (!configured) {
+      setState(() => _mapLoadState = _MapLoadState.unavailable);
+      return;
+    }
     _requestLocationPermission();
     _loadPinIcons();
     _loadMapStyles();
@@ -76,6 +89,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   }
 
   void _retryMap() {
+    if (_mapLoadState == _MapLoadState.unavailable) return;
     _mapController?.dispose();
     _mapController = null;
     setState(() {
@@ -293,6 +307,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
     final initialTarget = positions.length == 1
         ? positions.first
         : _ulaanbaatar;
+    final mapUnavailable = _mapLoadState == _MapLoadState.unavailable;
     return Container(
       height: 430,
       decoration: BoxDecoration(
@@ -303,7 +318,8 @@ class _DiscoveryMapState extends State<DiscoveryMap>
         borderRadius: BorderRadius.circular(AppRadii.large),
         child: Stack(
           children: [
-            Semantics(
+            if (!mapUnavailable)
+              Semantics(
               container: true,
               label: 'Сервисийн байршлын интерактив газрын зураг',
               child: GoogleMap(
@@ -376,6 +392,10 @@ class _DiscoveryMapState extends State<DiscoveryMap>
                   onShowList: widget.onShowList,
                 ),
               ),
+            if (mapUnavailable)
+              Positioned.fill(
+                child: _MapUnavailableOverlay(onShowList: widget.onShowList),
+              ),
           ],
         ),
       ),
@@ -383,7 +403,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   }
 }
 
-enum _MapLoadState { loading, ready, failed }
+enum _MapLoadState { loading, ready, failed, unavailable }
 
 class _BranchMapLocation {
   const _BranchMapLocation({
@@ -474,6 +494,60 @@ class _MapFailureOverlay extends StatelessWidget {
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Дахин оролдох'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+class _MapUnavailableOverlay extends StatelessWidget {
+  const _MapUnavailableOverlay({required this.onShowList});
+
+  final VoidCallback onShowList;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    container: true,
+    liveRegion: true,
+    label: 'Газрын зураг энэ хувилбарт тохируулагдаагүй байна',
+    child: ColoredBox(
+      color: Theme.of(context).colorScheme.surface,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.map_outlined,
+                size: 48,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Газрын зураг ашиглах боломжгүй байна',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 7),
+              Text(
+                'Энэ хувилбарт газрын зургийн тохиргоо дутуу байна. Сервисүүдийг жагсаалтаар харна уу.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 18),
+              FilledButton.icon(
+                key: const ValueKey('map-unavailable-show-list'),
+                onPressed: onShowList,
+                icon: const Icon(Icons.view_list_outlined),
+                label: const Text('Жагсаалтаар харах'),
               ),
             ],
           ),
