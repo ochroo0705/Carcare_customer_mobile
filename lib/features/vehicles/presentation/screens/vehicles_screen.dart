@@ -197,11 +197,7 @@ class _VehiclesList extends StatelessWidget {
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
           if (index == 0) {
-            return Text(
-              'Миний машинууд',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w900),
-            );
+            return const _VehiclesHeader();
           }
           final vehicle = vehicles[index - 1];
           return _VehicleCard(
@@ -239,6 +235,17 @@ class _VehiclesList extends StatelessWidget {
           .showSnackBar(SnackBar(content: Text(error)));
     }
   }
+}
+
+class _VehiclesHeader extends StatelessWidget {
+  const _VehiclesHeader();
+
+  @override
+  Widget build(BuildContext context) => Text(
+    'Миний машинууд',
+    style: Theme.of(context).textTheme.headlineSmall
+        ?.copyWith(fontWeight: FontWeight.w900),
+  );
 }
 
 class _VehicleCard extends StatelessWidget {

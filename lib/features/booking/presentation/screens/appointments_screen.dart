@@ -187,11 +187,7 @@ class _AppointmentsList extends StatelessWidget {
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
           if (index == 0) {
-            return Text(
-              'Миний захиалгууд',
-              style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w900),
-            );
+            return const _AppointmentsHeader();
           }
           final appointment = appointments[index - 1];
           return _AppointmentCard(
@@ -234,6 +230,17 @@ class _AppointmentsList extends StatelessWidget {
           .showSnackBar(SnackBar(content: Text(error)));
     }
   }
+}
+
+class _AppointmentsHeader extends StatelessWidget {
+  const _AppointmentsHeader();
+
+  @override
+  Widget build(BuildContext context) => Text(
+    'Миний захиалгууд',
+    style: Theme.of(context).textTheme.headlineSmall
+        ?.copyWith(fontWeight: FontWeight.w900),
+  );
 }
 
 class _AppointmentCard extends StatelessWidget {
