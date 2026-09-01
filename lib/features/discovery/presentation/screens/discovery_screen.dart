@@ -132,6 +132,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           sliver: SliverToBoxAdapter(
             child: DiscoveryMap(
               organizations: organizations,
+              hasActiveFilters: widget.controller.hasActiveFilters,
               onOrganizationSelected: widget.onOrganizationSelected,
               onShowList: () => setState(() => _view = _DiscoveryView.list),
             ),

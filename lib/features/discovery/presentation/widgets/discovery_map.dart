@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
@@ -17,6 +18,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 class DiscoveryMap extends StatefulWidget {
   const DiscoveryMap({
     required this.organizations,
+    this.hasActiveFilters = false,
     required this.onOrganizationSelected,
     required this.onShowList,
     this.locationPermissionService =
@@ -26,6 +28,7 @@ class DiscoveryMap extends StatefulWidget {
   });
 
   final List<Organization> organizations;
+  final bool hasActiveFilters;
   final ValueChanged<String> onOrganizationSelected;
   final VoidCallback onShowList;
   final LocationPermissionService locationPermissionService;
@@ -52,11 +55,41 @@ class _DiscoveryMapState extends State<DiscoveryMap>
 
   static const _ulaanbaatar = LatLng(47.918, 106.917);
 
+  static List<LatLng> _mapPositions(List<Organization> organizations) => [
+    for (final organization in organizations)
+      for (final branch in organization.branches)
+        if (branch.latitude != null && branch.longitude != null)
+          LatLng(branch.latitude!, branch.longitude!),
+  ];
+
+  static String _locationSignature(List<Organization> organizations) {
+    final entries = [
+      for (final organization in organizations)
+        for (final branch in organization.branches)
+          if (branch.latitude != null && branch.longitude != null)
+            '${organization.slug}:${branch.id}:${branch.latitude}:${branch.longitude}',
+    ];
+    entries.sort();
+    return entries.join('|');
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initializeMap();
+  }
+
+  @override
+  void didUpdateWidget(covariant DiscoveryMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.hasActiveFilters == widget.hasActiveFilters &&
+        _locationSignature(oldWidget.organizations) ==
+            _locationSignature(widget.organizations)) {
+      return;
+    }
+    _visibleBounds = null;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fitCameraToLocations());
   }
 
   Future<void> _initializeMap() async {
@@ -85,7 +118,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
     _initializationTimer?.cancel();
     if (!mounted) return;
     setState(() => _mapLoadState = _MapLoadState.ready);
-    _updateVisibleRegion();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fitCameraToLocations());
   }
 
   void _retryMap() {
@@ -153,6 +186,62 @@ class _DiscoveryMapState extends State<DiscoveryMap>
       setState(() => _visibleBounds = bounds);
     } catch (_) {
       // The dependable list remains available if the native view disappears.
+    }
+  }
+
+  Future<void> _fitCameraToLocations() async {
+    final controller = _mapController;
+    if (controller == null || _mapLoadState != _MapLoadState.ready) return;
+    if (!widget.hasActiveFilters) {
+      try {
+        await controller.animateCamera(
+          CameraUpdate.newLatLngZoom(_ulaanbaatar, 11.5),
+        );
+        await _updateVisibleRegion();
+      } catch (_) {
+        // The map remains usable at its existing viewport if fitting fails.
+      }
+      return;
+    }
+    final positions = _mapPositions(widget.organizations);
+    if (positions.isEmpty) return;
+    try {
+      if (positions.length == 1) {
+        await controller.animateCamera(
+          CameraUpdate.newLatLngZoom(positions.single, 14),
+        );
+      } else {
+        var south = positions.first.latitude;
+        var north = south;
+        var west = positions.first.longitude;
+        var east = west;
+        for (final position in positions.skip(1)) {
+          south = math.min(south, position.latitude);
+          north = math.max(north, position.latitude);
+          west = math.min(west, position.longitude);
+          east = math.max(east, position.longitude);
+        }
+        if (north - south < 0.01) {
+          south -= 0.01;
+          north += 0.01;
+        }
+        if (east - west < 0.01) {
+          west -= 0.01;
+          east += 0.01;
+        }
+        await controller.animateCamera(
+          CameraUpdate.newLatLngBounds(
+            LatLngBounds(
+              southwest: LatLng(south, west),
+              northeast: LatLng(north, east),
+            ),
+            52,
+          ),
+        );
+      }
+      await _updateVisibleRegion();
+    } catch (_) {
+      // The map remains usable at its existing viewport if fitting fails.
     }
   }
 
