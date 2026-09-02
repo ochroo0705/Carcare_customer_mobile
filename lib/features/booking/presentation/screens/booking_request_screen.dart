@@ -1,6 +1,8 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/widgets/booking_calendar.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/widgets/time_slot_grid.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
@@ -35,15 +37,28 @@ class BookingRequestScreen extends StatefulWidget {
 class _BookingRequestScreenState extends State<BookingRequestScreen> {
   final _noteController = TextEditingController();
   late final VehiclesController _vehiclesController;
-  DateTime? _requestedAt;
+  late DateTime _displayedMonth;
+  DateTime? _selectedDate;
+  ({int hour, int minute})? _selectedSlot;
   String? _selectedVehicleId;
   bool _userTouchedVehicle = false;
   bool _submitting = false;
   String? _error;
 
+  List<({int hour, int minute})> get _slots => widget.branch.slotsForDay();
+
+  DateTime? get _requestedAt {
+    final date = _selectedDate;
+    final slot = _selectedSlot;
+    if (date == null || slot == null) return null;
+    return DateTime(date.year, date.month, date.day, slot.hour, slot.minute);
+  }
+
   @override
   void initState() {
     super.initState();
+    final now = DateTime.now();
+    _displayedMonth = DateTime(now.year, now.month);
     _vehiclesController = context.read<VehiclesController>();
     _vehiclesController.addListener(_maybeAutoSelectSingleVehicle);
     final state = _vehiclesController.state;
@@ -107,16 +122,50 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
               ),
             ),
             const SizedBox(height: 16),
-            OutlinedButton.icon(
-              key: const ValueKey('booking-date-time'),
-              onPressed: _pickDateTime,
-              icon: const Icon(Icons.event_outlined),
-              label: Text(
-                _requestedAt == null
-                    ? 'Өдөр, цаг сонгох'
-                    : _formatDateTime(_requestedAt!),
+            GlassSurface(
+              child: BookingCalendar(
+                month: _displayedMonth,
+                selectedDate: _selectedDate,
+                onMonthChanged: (month) =>
+                    setState(() => _displayedMonth = month),
+                onDateSelected: (date) => setState(() {
+                  _selectedDate = date;
+                  _selectedSlot = null;
+                  _error = null;
+                }),
               ),
             ),
+            if (_selectedDate != null) ...[
+              const SizedBox(height: 12),
+              GlassSurface(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Цаг сонгох',
+                      style: Theme.of(context).textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.branch.hoursLabel,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TimeSlotGrid(
+                      slots: _slots,
+                      selected: _selectedSlot,
+                      onSelected: (slot) => setState(() {
+                        _selectedSlot = slot;
+                        _error = null;
+                      }),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             _VehiclePicker(
               controller: _vehiclesController,
@@ -160,32 +209,6 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
       ),
     ),
   );
-
-  Future<void> _pickDateTime() async {
-    final now = DateTime.now();
-    final date = await showDatePicker(
-      context: context,
-      initialDate: now.add(const Duration(days: 1)),
-      firstDate: DateTime(now.year, now.month, now.day),
-      lastDate: now.add(const Duration(days: 180)),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: const TimeOfDay(hour: 9, minute: 0),
-    );
-    if (time == null) return;
-    setState(() {
-      _requestedAt = DateTime(
-        date.year,
-        date.month,
-        date.day,
-        time.hour,
-        time.minute,
-      );
-      _error = null;
-    });
-  }
 
   Future<void> _submit() async {
     final requestedAt = _requestedAt;
@@ -291,7 +314,3 @@ class _VehiclePicker extends StatelessWidget {
     );
   }
 }
-
-String _formatDateTime(DateTime value) =>
-    '${value.year}.${value.month.toString().padLeft(2, '0')}.${value.day.toString().padLeft(2, '0')} '
-    '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';

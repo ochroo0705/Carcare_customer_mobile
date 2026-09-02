@@ -51,14 +51,23 @@ const _branch = BranchDetail(
   district: 'Баянзүрх',
   khoroo: '1-р хороо',
   address: 'Энхтайваны өргөн чөлөө',
+  openTime: '09:00',
+  closeTime: '18:00',
 );
 
+/// Navigates the calendar to next month and picks its first day — always in
+/// the future regardless of today's date, avoiding month-boundary flakiness
+/// from just picking "tomorrow" — then the branch's first working-hours slot.
 Future<void> _acceptDefaultDateTime(WidgetTester tester) async {
-  await tester.tap(find.byKey(const ValueKey('booking-date-time')));
+  await tester.tap(find.byKey(const ValueKey('booking-calendar-next')));
   await tester.pumpAndSettle();
-  await tester.tap(find.text('OK'));
+  final now = DateTime.now();
+  final nextMonth = DateTime(now.year, now.month + 1);
+  await tester.tap(
+    find.byKey(ValueKey('booking-date-${nextMonth.year}-${nextMonth.month}-1')),
+  );
   await tester.pumpAndSettle();
-  await tester.tap(find.text('OK'));
+  await tester.tap(find.byKey(const ValueKey('booking-slot-9-0')));
   await tester.pumpAndSettle();
 }
 

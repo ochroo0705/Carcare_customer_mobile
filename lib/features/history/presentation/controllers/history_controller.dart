@@ -82,7 +82,10 @@ class HistoryController extends ChangeNotifier {
       if (raw == null) return null;
       final decoded = jsonDecode(raw);
       if (decoded is! List) return null;
-      final orders = decoded.map(_orderFromJson).whereType<ServiceOrder>().toList();
+      final orders = decoded
+          .map(_orderFromJson)
+          .whereType<ServiceOrder>()
+          .toList();
       return orders.isEmpty ? null : orders;
     } catch (_) {
       return null;

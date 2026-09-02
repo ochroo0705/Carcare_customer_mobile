@@ -208,8 +208,7 @@ class _HistoryList extends StatelessWidget {
           if (isFromCache && index == 1) {
             return OfflineBanner(
               message: 'Сүлжээгүй байна — сүүлд ачаалсан түүхийг харуулж байна',
-              semanticsLabel:
-                  'Сүлжээгүй байна. Сүүлд ачаалсан засварын түүхийг харуулж байна.',
+              semanticsLabel: 'Сүлжээгүй байна. Сүүлд ачаалсан засварын түүхийг харуулж байна.',
               retryKey: const ValueKey('history-offline-retry'),
               onRetry: controller.load,
             );

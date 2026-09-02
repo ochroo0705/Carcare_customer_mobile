@@ -134,8 +134,7 @@ class _ProfileBody extends StatelessWidget {
             OfflineBanner(
               message:
                   'Сүлжээгүй байна — сүүлд ачаалсан машинуудыг харуулж байна',
-              semanticsLabel:
-                  'Сүлжээгүй байна. Сүүлд ачаалсан машинуудын жагсаалтыг харуулж байна.',
+              semanticsLabel: 'Сүлжээгүй байна. Сүүлд ачаалсан машинуудын жагсаалтыг харуулж байна.',
               retryKey: const ValueKey('profile-offline-retry'),
               onRetry: controller.load,
             ),

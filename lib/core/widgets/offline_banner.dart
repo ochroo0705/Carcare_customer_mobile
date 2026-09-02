@@ -23,9 +23,8 @@ class OfflineBanner extends StatelessWidget {
     final largeText = MediaQuery.textScalerOf(context).scale(1) >= 1.4;
     final messageText = Text(
       message,
-      style: Theme.of(
-        context,
-      ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w600),
+      style: Theme.of(context).textTheme.bodySmall
+          ?.copyWith(fontWeight: FontWeight.w600),
     );
     final action = TextButton(
       key: retryKey,

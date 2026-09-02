@@ -162,6 +162,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   @override
   final navigatorKey = GlobalKey<NavigatorState>();
+  final _shellKey = GlobalKey<CustomerShellState>();
+
+  /// Matches `CustomerShell`'s `destinations` order (Хайх · Цаг · Түүх ·
+  /// Профайл).
+  static const _appointmentsTabIndex = 1;
 
   @override
   CustomerRoutePath get currentConfiguration {
@@ -184,6 +189,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
         MaterialPage<void>(
           key: const ValueKey('customer-shell'),
           child: CustomerShell(
+            key: _shellKey,
             onLoginRequested: _requestLogin,
             onNotificationsRequested: _openNotifications,
             destinations: [
@@ -252,7 +258,17 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 final messenger = context == null
                     ? null
                     : ScaffoldMessenger.maybeOf(context);
-                _closeBooking();
+                appointmentsController.load();
+                // Not just _closeBooking(): that only pops the booking page,
+                // leaving the organization detail page underneath still on
+                // the stack, so the customer would land back on it (and
+                // need an extra manual back-tap to reach the shell/tabs).
+                // _closeDetails() clears both, returning straight to the
+                // shell root where the tab switch below is actually visible.
+                _closeDetails();
+                _shellKey.currentState?.selectDestination(
+                  _appointmentsTabIndex,
+                );
                 messenger?.showSnackBar(
                   const SnackBar(
                     content: Text('Цагийн хүсэлт амжилттай илгээгдлээ.'),

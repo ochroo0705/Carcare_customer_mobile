@@ -136,7 +136,10 @@ Vehicle? _vehicleFromJson(Object? value) {
   final plate = value['plate'];
   final make = value['make'];
   final model = value['model'];
-  if (id is! String || plate is! String || make is! String || model is! String) {
+  if (id is! String ||
+      plate is! String ||
+      make is! String ||
+      model is! String) {
     return null;
   }
   return Vehicle(

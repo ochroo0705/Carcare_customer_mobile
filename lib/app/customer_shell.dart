@@ -19,10 +19,10 @@ class CustomerShell extends StatefulWidget {
   final VoidCallback onNotificationsRequested;
 
   @override
-  State<CustomerShell> createState() => _CustomerShellState();
+  State<CustomerShell> createState() => CustomerShellState();
 }
 
-class _CustomerShellState extends State<CustomerShell> {
+class CustomerShellState extends State<CustomerShell> {
   static const _profileIndex = 3;
 
   int _selectedIndex = 0;
@@ -140,6 +140,11 @@ class _CustomerShellState extends State<CustomerShell> {
     if (_selectedIndex == index) return;
     setState(() => _selectedIndex = index);
   }
+
+  /// Lets the router imperatively switch tabs, e.g. jumping to Appointments
+  /// right after a booking succeeds — tab selection is otherwise this
+  /// widget's own private state, unreachable from outside.
+  void selectDestination(int index) => _selectDestination(index);
 }
 
 class _ThemeModeMenu extends StatelessWidget {

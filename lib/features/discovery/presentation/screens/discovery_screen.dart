@@ -86,10 +86,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
               sliver: SliverToBoxAdapter(
                 child: OfflineBanner(
-                  message:
-                      'Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна',
-                  semanticsLabel:
-                      'Сүлжээгүй байна. Сүүлд ачаалсан авто сервисийн жагсаалтыг харуулж байна.',
+                  message: 'Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна',
+                  semanticsLabel: 'Сүлжээгүй байна. Сүүлд ачаалсан авто сервисийн жагсаалтыг харуулж байна.',
                   retryKey: const ValueKey('discovery-offline-retry'),
                   onRetry: controller.load,
                 ),

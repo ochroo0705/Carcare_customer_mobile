@@ -195,8 +195,7 @@ class _AppointmentsList extends StatelessWidget {
             return OfflineBanner(
               message:
                   'Сүлжээгүй байна — сүүлд ачаалсан захиалгуудыг харуулж байна',
-              semanticsLabel:
-                  'Сүлжээгүй байна. Сүүлд ачаалсан захиалгуудын жагсаалтыг харуулж байна.',
+              semanticsLabel: 'Сүлжээгүй байна. Сүүлд ачаалсан захиалгуудын жагсаалтыг харуулж байна.',
               retryKey: const ValueKey('appointments-offline-retry'),
               onRetry: controller.load,
             );

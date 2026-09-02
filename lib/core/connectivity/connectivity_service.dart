@@ -15,9 +15,10 @@ class PlatformConnectivityService implements ConnectivityService {
   const PlatformConnectivityService();
 
   @override
-  Stream<bool> get onConnectivityChanged => Connectivity()
-      .onConnectivityChanged
-      .map((results) => results.any((result) => result != ConnectivityResult.none));
+  Stream<bool> get onConnectivityChanged =>
+      Connectivity().onConnectivityChanged.map(
+        (results) => results.any((result) => result != ConnectivityResult.none),
+      );
 }
 
 /// Default for anywhere that doesn't explicitly wire the real platform
