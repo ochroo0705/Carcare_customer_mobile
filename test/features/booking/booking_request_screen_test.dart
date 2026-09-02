@@ -62,74 +62,81 @@ Future<void> _acceptDefaultDateTime(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('submits with the selected vehicle as accountVehicleId', (
-    tester,
-  ) async {
-    final repository = _CapturingAppointmentRepository();
-    final vehiclesController = VehiclesController(FakeVehicleRepository());
-    await vehiclesController.load();
+  testWidgets(
+    'auto-selects and submits the only vehicle without touching the picker',
+    (tester) async {
+      final repository = _CapturingAppointmentRepository();
+      final vehiclesController = VehiclesController(FakeVehicleRepository());
+      await vehiclesController.load();
 
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: BookingRequestScreen(
-          organization: _organization,
-          branch: _branch,
-          repository: repository,
-          vehiclesController: vehiclesController,
-          onAddVehicle: () {},
-          onBack: () {},
-          onCompleted: (_) {},
-          onUnauthenticated: () {},
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: BookingRequestScreen(
+            organization: _organization,
+            branch: _branch,
+            repository: repository,
+            vehiclesController: vehiclesController,
+            onAddVehicle: () {},
+            onBack: () {},
+            onCompleted: (_) {},
+            onUnauthenticated: () {},
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Сонгохгүй'), findsOneWidget);
+      // A one-vehicle customer gets it pre-selected (mirrors web 27a9875),
+      // so the closed picker shows the vehicle rather than "Сонгохгүй".
+      expect(find.text('9911УБЕ · Hyundai Sonata'), findsOneWidget);
 
-    await tester.tap(find.byKey(const ValueKey('booking-vehicle')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('9911УБЕ · Hyundai Sonata'));
-    await tester.pumpAndSettle();
+      await _acceptDefaultDateTime(tester);
+      await tester.tap(find.byKey(const ValueKey('submit-booking')));
+      await tester.pumpAndSettle();
 
-    await _acceptDefaultDateTime(tester);
-    await tester.tap(find.byKey(const ValueKey('submit-booking')));
-    await tester.pumpAndSettle();
+      expect(repository.called, isTrue);
+      expect(repository.capturedVehicleId, 'seed-vehicle-1');
+    },
+  );
 
-    expect(repository.called, isTrue);
-    expect(repository.capturedVehicleId, 'seed-vehicle-1');
-  });
+  testWidgets(
+    'submits with no vehicle after the customer clears the selection',
+    (tester) async {
+      final repository = _CapturingAppointmentRepository();
+      final vehiclesController = VehiclesController(FakeVehicleRepository());
+      await vehiclesController.load();
 
-  testWidgets('submits with no vehicle when none is selected', (tester) async {
-    final repository = _CapturingAppointmentRepository();
-    final vehiclesController = VehiclesController(FakeVehicleRepository());
-    await vehiclesController.load();
-
-    await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: BookingRequestScreen(
-          organization: _organization,
-          branch: _branch,
-          repository: repository,
-          vehiclesController: vehiclesController,
-          onAddVehicle: () {},
-          onBack: () {},
-          onCompleted: (_) {},
-          onUnauthenticated: () {},
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.light,
+          home: BookingRequestScreen(
+            organization: _organization,
+            branch: _branch,
+            repository: repository,
+            vehiclesController: vehiclesController,
+            onAddVehicle: () {},
+            onBack: () {},
+            onCompleted: (_) {},
+            onUnauthenticated: () {},
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    await _acceptDefaultDateTime(tester);
-    await tester.tap(find.byKey(const ValueKey('submit-booking')));
-    await tester.pumpAndSettle();
+      // The only vehicle starts auto-selected; explicitly clear it to "Сонгохгүй".
+      await tester.tap(find.byKey(const ValueKey('booking-vehicle')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Сонгохгүй').last);
+      await tester.pumpAndSettle();
 
-    expect(repository.called, isTrue);
-    expect(repository.capturedVehicleId, isNull);
-  });
+      await _acceptDefaultDateTime(tester);
+      await tester.tap(find.byKey(const ValueKey('submit-booking')));
+      await tester.pumpAndSettle();
+
+      expect(repository.called, isTrue);
+      expect(repository.capturedVehicleId, isNull);
+    },
+  );
 
   testWidgets('offers an add-vehicle link when the customer has none yet', (
     tester,

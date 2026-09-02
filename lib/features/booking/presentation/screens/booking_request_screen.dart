@@ -37,21 +37,46 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
   final _noteController = TextEditingController();
   DateTime? _requestedAt;
   String? _selectedVehicleId;
+  bool _userTouchedVehicle = false;
   bool _submitting = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
-    if (widget.vehiclesController.state.status == VehiclesStatus.initial) {
+    widget.vehiclesController.addListener(_maybeAutoSelectSingleVehicle);
+    final state = widget.vehiclesController.state;
+    if (state.status == VehiclesStatus.initial) {
       widget.vehiclesController.load();
+    } else if (_shouldAutoSelectVehicle(state)) {
+      // Vehicles were already loaded before this screen opened; set directly
+      // (setState is illegal before the first build).
+      _selectedVehicleId = state.vehicles.single.id;
     }
   }
 
   @override
   void dispose() {
+    widget.vehiclesController.removeListener(_maybeAutoSelectSingleVehicle);
     _noteController.dispose();
     super.dispose();
+  }
+
+  /// Pre-selects the customer's vehicle when they own exactly one, so a
+  /// single-car customer doesn't have to open the picker. Mirrors the web
+  /// order form's single-vehicle auto-select (carservice.mn `27a9875`). Any
+  /// manual change — including choosing "Сонгохгүй" — disables it, so it never
+  /// fights the customer.
+  bool _shouldAutoSelectVehicle(VehiclesState state) =>
+      !_userTouchedVehicle &&
+      _selectedVehicleId == null &&
+      state.status == VehiclesStatus.data &&
+      state.vehicles.length == 1;
+
+  void _maybeAutoSelectSingleVehicle() {
+    final state = widget.vehiclesController.state;
+    if (!mounted || !_shouldAutoSelectVehicle(state)) return;
+    setState(() => _selectedVehicleId = state.vehicles.single.id);
   }
 
   @override
@@ -95,7 +120,10 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
             _VehiclePicker(
               controller: widget.vehiclesController,
               selectedVehicleId: _selectedVehicleId,
-              onChanged: (id) => setState(() => _selectedVehicleId = id),
+              onChanged: (id) => setState(() {
+                _userTouchedVehicle = true;
+                _selectedVehicleId = id;
+              }),
               onAddVehicle: widget.onAddVehicle,
             ),
             const SizedBox(height: 12),
