@@ -1,11 +1,15 @@
 import 'package:carcare_customer_mobile/app/app.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/features/auth/data/fake_auth_repository.dart';
+import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -92,18 +96,20 @@ void main() {
   ) async {
     final controller = AppointmentsController(FakeAppointmentRepository());
     await controller.load();
+    final authController = AuthController(FakeAuthRepository())
+      ..account = const Account(id: '1', phone: '99112233');
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: MediaQuery(
-          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-          child: Scaffold(
-            body: AppointmentsScreen(
-              controller: controller,
-              isAuthenticated: true,
-              onLoginRequested: () {},
-            ),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: controller),
+          ChangeNotifierProvider.value(value: authController),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: Scaffold(body: AppointmentsScreen(onLoginRequested: () {})),
           ),
         ),
       ),

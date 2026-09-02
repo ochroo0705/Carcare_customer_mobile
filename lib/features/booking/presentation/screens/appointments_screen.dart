@@ -2,30 +2,29 @@ import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class AppointmentsScreen extends StatelessWidget {
-  const AppointmentsScreen({
-    required this.controller,
-    required this.isAuthenticated,
-    required this.onLoginRequested,
-    super.key,
-  });
+  const AppointmentsScreen({required this.onLoginRequested, super.key});
 
-  final AppointmentsController controller;
-  final bool isAuthenticated;
   final VoidCallback onLoginRequested;
 
   @override
-  Widget build(BuildContext context) => AppShellBackground(
-    child: SafeArea(
-      child: isAuthenticated
-          ? _AppointmentsBody(controller: controller)
-          : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final isAuthenticated = context.watch<AuthController>().isAuthenticated;
+    final controller = context.watch<AppointmentsController>();
+    return AppShellBackground(
+      child: SafeArea(
+        child: isAuthenticated
+            ? _AppointmentsBody(controller: controller)
+            : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
+      ),
+    );
+  }
 }
 
 class _UnauthenticatedPrompt extends StatelessWidget {

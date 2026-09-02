@@ -30,7 +30,7 @@ class FakeNotificationsRepository implements NotificationsRepository {
       id: 'seed-notification-3',
       type: NotificationType.broadcast,
       title: 'Мэдэгдэл',
-      message: 'CarCare апп шинэчлэгдлээ — шинэ боломжуудыг үзээрэй.',
+      message: 'Carservice апп шинэчлэгдлээ — шинэ боломжуудыг үзээрэй.',
       createdAt: _now.subtract(const Duration(days: 6)),
       isRead: true,
     ),

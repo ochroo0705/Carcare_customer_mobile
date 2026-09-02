@@ -1,24 +1,21 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
+import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class CustomerShell extends StatefulWidget {
   const CustomerShell({
-    required this.themeController,
     required this.destinations,
-    required this.account,
     required this.onLoginRequested,
-    required this.unreadNotificationCount,
     required this.onNotificationsRequested,
     super.key,
   });
 
-  final ThemeController themeController;
   final List<Widget> destinations;
-  final Account? account;
   final VoidCallback onLoginRequested;
-  final int unreadNotificationCount;
   final VoidCallback onNotificationsRequested;
 
   @override
@@ -31,106 +28,113 @@ class _CustomerShellState extends State<CustomerShell> {
   int _selectedIndex = 0;
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final useRail = constraints.maxWidth >= 720;
-      final content = IndexedStack(
-        index: _selectedIndex,
-        children: widget.destinations,
-      );
-      return Scaffold(
-        appBar: AppBar(
-          title: const CarCareBrand(compact: true),
-          actions: [
-            _ThemeModeMenu(controller: widget.themeController),
-            if (widget.account != null)
-              _NotificationBell(
-                unreadCount: widget.unreadNotificationCount,
-                onTap: widget.onNotificationsRequested,
-              ),
-            if (widget.account case final account?)
-              _AvatarButton(
-                account: account,
-                onTap: () => _selectDestination(_profileIndex),
-              )
-            else
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: TextButton.icon(
-                  key: const ValueKey('shell-login'),
-                  onPressed: widget.onLoginRequested,
-                  icon: const Icon(Icons.person_outline, size: 19),
-                  label: const Text('Нэвтрэх'),
+  Widget build(BuildContext context) {
+    final themeController = context.watch<ThemeController>();
+    final account = context.watch<AuthController>().account;
+    final unreadNotificationCount = context
+        .watch<NotificationsController>()
+        .unreadCount;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final useRail = constraints.maxWidth >= 720;
+        final content = IndexedStack(
+          index: _selectedIndex,
+          children: widget.destinations,
+        );
+        return Scaffold(
+          appBar: AppBar(
+            title: const CarCareBrand(compact: true),
+            actions: [
+              _ThemeModeMenu(controller: themeController),
+              if (account != null)
+                _NotificationBell(
+                  unreadCount: unreadNotificationCount,
+                  onTap: widget.onNotificationsRequested,
                 ),
-              ),
-          ],
-        ),
-        body: useRail
-            ? Row(
-                children: [
-                  NavigationRail(
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: _selectDestination,
-                    labelType: NavigationRailLabelType.all,
-                    destinations: const [
-                      NavigationRailDestination(
-                        icon: Icon(Icons.explore_outlined),
-                        selectedIcon: Icon(Icons.explore_rounded),
-                        label: Text('Хайх'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.event_note_outlined),
-                        selectedIcon: Icon(Icons.event_note_rounded),
-                        label: Text('Цаг'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.receipt_long_outlined),
-                        selectedIcon: Icon(Icons.receipt_long_rounded),
-                        label: Text('Түүх'),
-                      ),
-                      NavigationRailDestination(
-                        icon: Icon(Icons.person_outline_rounded),
-                        selectedIcon: Icon(Icons.person_rounded),
-                        label: Text('Профайл'),
-                      ),
-                    ],
+              if (account case final account?)
+                _AvatarButton(
+                  account: account,
+                  onTap: () => _selectDestination(_profileIndex),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextButton.icon(
+                    key: const ValueKey('shell-login'),
+                    onPressed: widget.onLoginRequested,
+                    icon: const Icon(Icons.person_outline, size: 19),
+                    label: const Text('Нэвтрэх'),
                   ),
-                  const VerticalDivider(width: 1),
-                  Expanded(child: content),
-                ],
-              )
-            : content,
-        bottomNavigationBar: useRail
-            ? null
-            : NavigationBar(
-                selectedIndex: _selectedIndex,
-                onDestinationSelected: _selectDestination,
-                destinations: const [
-                  NavigationDestination(
-                    icon: Icon(Icons.explore_outlined),
-                    selectedIcon: Icon(Icons.explore_rounded),
-                    label: 'Хайх',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.event_note_outlined),
-                    selectedIcon: Icon(Icons.event_note_rounded),
-                    label: 'Цаг',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.receipt_long_outlined),
-                    selectedIcon: Icon(Icons.receipt_long_rounded),
-                    label: 'Түүх',
-                  ),
-                  NavigationDestination(
-                    icon: Icon(Icons.person_outline_rounded),
-                    selectedIcon: Icon(Icons.person_rounded),
-                    label: 'Профайл',
-                  ),
-                ],
-              ),
-      );
-    },
-  );
+                ),
+            ],
+          ),
+          body: useRail
+              ? Row(
+                  children: [
+                    NavigationRail(
+                      selectedIndex: _selectedIndex,
+                      onDestinationSelected: _selectDestination,
+                      labelType: NavigationRailLabelType.all,
+                      destinations: const [
+                        NavigationRailDestination(
+                          icon: Icon(Icons.explore_outlined),
+                          selectedIcon: Icon(Icons.explore_rounded),
+                          label: Text('Хайх'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.event_note_outlined),
+                          selectedIcon: Icon(Icons.event_note_rounded),
+                          label: Text('Цаг'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.receipt_long_outlined),
+                          selectedIcon: Icon(Icons.receipt_long_rounded),
+                          label: Text('Түүх'),
+                        ),
+                        NavigationRailDestination(
+                          icon: Icon(Icons.person_outline_rounded),
+                          selectedIcon: Icon(Icons.person_rounded),
+                          label: Text('Профайл'),
+                        ),
+                      ],
+                    ),
+                    const VerticalDivider(width: 1),
+                    Expanded(child: content),
+                  ],
+                )
+              : content,
+          bottomNavigationBar: useRail
+              ? null
+              : NavigationBar(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: _selectDestination,
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.explore_outlined),
+                      selectedIcon: Icon(Icons.explore_rounded),
+                      label: 'Хайх',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.event_note_outlined),
+                      selectedIcon: Icon(Icons.event_note_rounded),
+                      label: 'Цаг',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.receipt_long_outlined),
+                      selectedIcon: Icon(Icons.receipt_long_rounded),
+                      label: 'Түүх',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.person_outline_rounded),
+                      selectedIcon: Icon(Icons.person_rounded),
+                      label: 'Профайл',
+                    ),
+                  ],
+                ),
+        );
+      },
+    );
+  }
 
   void _selectDestination(int index) {
     if (_selectedIndex == index) return;

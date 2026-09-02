@@ -18,8 +18,8 @@ class AppShellBackground extends StatelessWidget {
           center: const Alignment(-0.75, -1),
           radius: 1.35,
           colors: dark
-              ? const [Color(0x334F46E5), Color(0x0012142B)]
-              : const [Color(0x167C3AED), Color(0x00F4F5FA)],
+              ? const [Color(0x33F5A524), Color(0x000B0D10)]
+              : const [Color(0x16F5A524), Color(0x00F6F5F2)],
           stops: const [0, 0.72],
         ),
       ),
@@ -77,7 +77,7 @@ class CarCareBrand extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          dark ? 'assets/brand/mark-dark.png' : 'assets/brand/mark-light.png',
+          'assets/brand/mark.png',
           width: compact ? 28 : 32,
           height: compact ? 28 : 32,
         ),
@@ -87,11 +87,9 @@ class CarCareBrand extends StatelessWidget {
             children: [
               const TextSpan(text: 'car'),
               TextSpan(
-                text: 'care',
+                text: 'service',
                 style: TextStyle(
-                  color: dark
-                      ? const Color(0xFFA78BFA)
-                      : AppColors.violetLightText,
+                  color: dark ? AppColors.amberHover : AppColors.amberLightText,
                 ),
               ),
             ],

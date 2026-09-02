@@ -1,9 +1,13 @@
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/features/auth/data/fake_auth_repository.dart';
+import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   testWidgets('keeps the header text readable across a live theme switch', (
@@ -11,17 +15,18 @@ void main() {
   ) async {
     final controller = VehiclesController(FakeVehicleRepository());
     await controller.load();
+    final authController = AuthController(FakeAuthRepository())
+      ..account = const Account(id: '1', phone: '99112233');
 
-    Widget buildApp(ThemeData theme) => MaterialApp(
-      theme: theme,
-      home: Scaffold(
-        body: ProfileScreen(
-          controller: controller,
-          isAuthenticated: true,
-          onLoginRequested: () {},
-          onAddVehicle: () {},
-          account: null,
-          onSignOut: () {},
+    Widget buildApp(ThemeData theme) => MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: controller),
+        ChangeNotifierProvider.value(value: authController),
+      ],
+      child: MaterialApp(
+        theme: theme,
+        home: Scaffold(
+          body: ProfileScreen(onLoginRequested: () {}, onAddVehicle: () {}),
         ),
       ),
     );

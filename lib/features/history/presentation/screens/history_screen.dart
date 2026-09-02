@@ -2,36 +2,38 @@ import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_status.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({
-    required this.controller,
-    required this.isAuthenticated,
     required this.onLoginRequested,
     required this.onOrderSelected,
     super.key,
   });
 
-  final HistoryController controller;
-  final bool isAuthenticated;
   final VoidCallback onLoginRequested;
   final ValueChanged<String> onOrderSelected;
 
   @override
-  Widget build(BuildContext context) => AppShellBackground(
-    child: SafeArea(
-      child: isAuthenticated
-          ? _HistoryBody(
-              controller: controller,
-              onOrderSelected: onOrderSelected,
-            )
-          : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final isAuthenticated = context.watch<AuthController>().isAuthenticated;
+    final controller = context.watch<HistoryController>();
+    return AppShellBackground(
+      child: SafeArea(
+        child: isAuthenticated
+            ? _HistoryBody(
+                controller: controller,
+                onOrderSelected: onOrderSelected,
+              )
+            : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
+      ),
+    );
+  }
 }
 
 class _UnauthenticatedPrompt extends StatelessWidget {

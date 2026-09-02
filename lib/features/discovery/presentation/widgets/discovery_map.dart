@@ -250,7 +250,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   }
 
   Future<void> _loadPinIcons() async {
-    final data = await rootBundle.load('assets/brand/service-pin-logo.png');
+    final data = await rootBundle.load('assets/brand/mark.png');
     final codec = await ui.instantiateImageCodec(
       data.buffer.asUint8List(),
       targetWidth: 256,
@@ -259,7 +259,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
     final icons = await Future.wait([
       _createPinIcon(logo, AppColors.green, selected: false),
       _createPinIcon(logo, const Color(0xFF9CA3AF), selected: false),
-      _createPinIcon(logo, AppColors.violet, selected: true),
+      _createPinIcon(logo, AppColors.amber, selected: true),
     ]);
     logo.dispose();
     codec.dispose();
@@ -691,7 +691,7 @@ class _SelectedBranchCard extends StatelessWidget {
                         color: CarCareTheme.of(context).glassBorder,
                       ),
                     ),
-                    child: Image.asset('assets/brand/service-pin-logo.png'),
+                    child: Image.asset('assets/brand/mark.png'),
                   ),
                   const SizedBox(width: 12),
                   Expanded(

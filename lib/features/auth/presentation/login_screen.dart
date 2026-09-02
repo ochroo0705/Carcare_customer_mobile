@@ -4,19 +4,18 @@ import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 /// Phone + OTP login, mirroring the web customer login page's copy and
 /// step structure (static title/subtitle over a card whose form content
 /// swaps between the phone step and the code step).
 class LoginScreen extends StatefulWidget {
   const LoginScreen({
-    required this.controller,
     required this.onAuthenticated,
     required this.onBack,
     super.key,
   });
 
-  final AuthController controller;
   final VoidCallback onAuthenticated;
   final VoidCallback onBack;
 
@@ -41,23 +40,23 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: BackButton(onPressed: widget.onBack),
-      title: const CarCareBrand(compact: true),
-      centerTitle: false,
-    ),
-    body: AppShellBackground(
-      child: SafeArea(
-        top: false,
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: AnimatedBuilder(
-                animation: widget.controller,
-                builder: (context, _) => GlassSurface(
+  Widget build(BuildContext context) {
+    final controller = context.watch<AuthController>();
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(onPressed: widget.onBack),
+        title: const CarCareBrand(compact: true),
+        centerTitle: false,
+      ),
+      body: AppShellBackground(
+        child: SafeArea(
+          top: false,
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: GlassSurface(
                   padding: const EdgeInsets.all(24),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -70,15 +69,15 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        widget.controller.step == AuthStep.phone
+                        controller.step == AuthStep.phone
                             ? 'Утасны дугаараа оруулаад, ирэх 6 оронтой кодоор нэвтэрнэ.'
-                            : '${widget.controller.phone} дугаарт ирсэн 6 оронтой кодоо оруулна уу.',
+                            : '${controller.phone} дугаарт ирсэн 6 оронтой кодоо оруулна уу.',
                         style: TextStyle(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 24),
-                      if (widget.controller.step == AuthStep.phone)
+                      if (controller.step == AuthStep.phone)
                         TextField(
                           key: const ValueKey('login-phone'),
                           controller: _phoneController,
@@ -115,10 +114,10 @@ class _LoginScreenState extends State<LoginScreen> {
                             hintText: '000000',
                           ),
                         ),
-                      if (widget.controller.errorMessage != null) ...[
+                      if (controller.errorMessage != null) ...[
                         const SizedBox(height: 12),
                         Text(
-                          widget.controller.errorMessage!,
+                          controller.errorMessage!,
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.error,
                           ),
@@ -128,8 +127,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: widget.controller.isBusy ? null : _submit,
-                          child: widget.controller.isBusy
+                          onPressed: controller.isBusy ? null : _submit,
+                          child: controller.isBusy
                               ? const SizedBox.square(
                                   dimension: 20,
                                   child: CircularProgressIndicator(
@@ -137,18 +136,17 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 )
                               : Text(
-                                  widget.controller.step == AuthStep.phone
+                                  controller.step == AuthStep.phone
                                       ? 'Код авах →'
                                       : 'Нэвтрэх →',
                                 ),
                         ),
                       ),
-                      if (widget.controller.step == AuthStep.otp) ...[
+                      if (controller.step == AuthStep.otp) ...[
                         Center(
                           child: TextButton(
                             onPressed:
-                                widget.controller.isBusy ||
-                                    _resendSecondsRemaining > 0
+                                controller.isBusy || _resendSecondsRemaining > 0
                                 ? null
                                 : _resendOtp,
                             child: Text(_resendButtonLabel),
@@ -156,9 +154,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         Center(
                           child: TextButton(
-                            onPressed: widget.controller.isBusy
-                                ? null
-                                : _editPhone,
+                            onPressed: controller.isBusy ? null : _editPhone,
                             child: const Text('← Өөр дугаар оруулах'),
                           ),
                         ),
@@ -171,27 +167,29 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Future<void> _submit() async {
-    final success = widget.controller.step == AuthStep.phone
-        ? await widget.controller.requestOtp(_phoneController.text)
-        : await widget.controller.verifyOtp(_codeController.text);
+    final controller = context.read<AuthController>();
+    final success = controller.step == AuthStep.phone
+        ? await controller.requestOtp(_phoneController.text)
+        : await controller.verifyOtp(_codeController.text);
     if (success &&
-        widget.controller.step == AuthStep.otp &&
-        !widget.controller.isAuthenticated &&
+        controller.step == AuthStep.otp &&
+        !controller.isAuthenticated &&
         mounted) {
       _startResendCooldown();
     }
-    if (success && widget.controller.isAuthenticated && mounted) {
+    if (success && controller.isAuthenticated && mounted) {
       widget.onAuthenticated();
     }
   }
 
   Future<void> _resendOtp() async {
-    if (_resendSecondsRemaining > 0 || widget.controller.isBusy) return;
-    final success = await widget.controller.requestOtp(widget.controller.phone);
+    final controller = context.read<AuthController>();
+    if (_resendSecondsRemaining > 0 || controller.isBusy) return;
+    final success = await controller.requestOtp(controller.phone);
     if (success && mounted) _startResendCooldown();
   }
 
@@ -216,7 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _editPhone() {
     _resendTimer?.cancel();
     setState(() => _resendSecondsRemaining = 0);
-    widget.controller.editPhone();
+    context.read<AuthController>().editPhone();
   }
 
   String get _resendButtonLabel {

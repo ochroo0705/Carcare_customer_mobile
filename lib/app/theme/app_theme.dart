@@ -1,29 +1,33 @@
 import 'package:flutter/material.dart';
 
+/// Mirrors the web app's `.landing-ops` amber token system
+/// (`carcare.mn/app/globals.css`), which is what the live customer portal
+/// (sidebar + page content alike) actually renders — see COWORK.md D-021.
 abstract final class AppColors {
-  static const darkBackground = Color(0xFF12142B);
-  static const darkSurface = Color(0xFF0E1024);
+  static const darkBackground = Color(0xFF0B0D10); // --oc-carbon
+  static const darkSurface = Color(0xFF0E1116); // --oc-panel
   static const darkGlass = Color(0x0AFFFFFF);
   static const darkGlassStrong = Color(0x12FFFFFF);
-  static const darkBorder = Color(0x14FFFFFF);
+  static const darkBorder = Color(0xFF23272E); // --oc-line
   static const darkInput = Color(0x0AFFFFFF);
-  static const darkInputBorder = Color(0x1AFFFFFF);
-  static const darkText = Color(0xFFFFFFFF);
-  static const darkTextMuted = Color(0x8AFFFFFF);
-  static const lightBackground = Color(0xFFF4F5FA);
-  static const lightSurface = Color(0xFFFFFFFF);
+  static const darkInputBorder = Color(0xFF23272E); // --oc-line
+  static const darkText = Color(0xFFF4F5F7); // --oc-ink
+  static const darkTextMuted = Color(0xFFA7ADB6); // --oc-muted
+  static const lightBackground = Color(0xFFF6F5F2); // --oc-carbon (light)
+  static const lightSurface = Color(0xFFFFFFFF); // --oc-panel (light)
   static const lightGlass = Color(0xBFFFFFFF);
   static const lightGlassStrong = Color(0xE6FFFFFF);
-  static const lightBorder = Color(0x1A11142D);
+  static const lightBorder = Color(0xFFE3E0DA); // --oc-line (light)
   static const lightInput = Color(0xFFFFFFFF);
-  static const lightInputBorder = Color(0x2911142D);
-  static const lightText = Color(0xFF14151C);
-  static const lightTextMuted = Color(0x9911152D);
-  static const violet = Color(0xFF7C3AED);
-  static const violetHover = Color(0xFF8B5CF6);
-  static const violetLightText = Color(0xFF6D28D9);
+  static const lightInputBorder = Color(0xFFE3E0DA); // --oc-line (light)
+  static const lightText = Color(0xFF16171B); // --oc-ink (light)
+  static const lightTextMuted = Color(0xFF5C6067); // --oc-muted (light)
+  static const amber = Color(0xFFF5A524); // --oc-accent
+  static const amberHover = Color(0xFFFFC65C); // --oc-accent-hi
+  static const amberLightText = Color(0xFFC9820A); // --oc-accent (light)
+  static const onAmber = Color(0xFF14120C); // --oc-on-accent
   static const blue = Color(0xFF3B82F6);
-  static const green = Color(0xFF22C55E);
+  static const green = Color(0xFF3DDC97); // --oc-ok
   static const red = Color(0xFFEF4444);
 }
 
@@ -117,19 +121,19 @@ abstract final class AppTheme {
       inputBackground: dark ? AppColors.darkInput : AppColors.lightInput,
     );
     final base = ColorScheme.fromSeed(
-      seedColor: AppColors.violet,
+      seedColor: AppColors.amber,
       brightness: brightness,
       surface: background,
     );
     final scheme = base.copyWith(
-      primary: AppColors.violet,
-      onPrimary: Colors.white,
+      primary: AppColors.amber,
+      onPrimary: AppColors.onAmber,
       primaryContainer: dark
-          ? const Color(0x337C3AED)
-          : const Color(0xFFEDE9FE),
+          ? const Color(0x33F5A524)
+          : const Color(0xFFFBE4B8),
       onPrimaryContainer: dark
-          ? const Color(0xFFEDE9FE)
-          : AppColors.violetLightText,
+          ? const Color(0xFFFFC65C)
+          : AppColors.amberLightText,
       secondary: AppColors.blue,
       onSecondary: Colors.white,
       tertiary: AppColors.green,
@@ -189,7 +193,7 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.medium),
-          borderSide: const BorderSide(color: AppColors.violetHover),
+          borderSide: const BorderSide(color: AppColors.amberHover),
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.medium),
@@ -198,8 +202,8 @@ abstract final class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 48),
-          backgroundColor: AppColors.violet,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.amber,
+          foregroundColor: AppColors.onAmber,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.medium),
           ),
@@ -211,7 +215,7 @@ abstract final class AppTheme {
       ),
       dividerColor: border,
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.violetHover,
+        color: AppColors.amberHover,
       ),
     );
   }

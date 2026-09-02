@@ -6,13 +6,13 @@ import 'package:carcare_customer_mobile/features/discovery/domain/organization.d
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class BookingRequestScreen extends StatefulWidget {
   const BookingRequestScreen({
     required this.organization,
     required this.branch,
     required this.repository,
-    required this.vehiclesController,
     required this.onAddVehicle,
     required this.onBack,
     required this.onCompleted,
@@ -23,7 +23,6 @@ class BookingRequestScreen extends StatefulWidget {
   final OrganizationDetail organization;
   final BranchDetail branch;
   final AppointmentRepository repository;
-  final VehiclesController vehiclesController;
   final VoidCallback onAddVehicle;
   final VoidCallback onBack;
   final ValueChanged<CreatedAppointment> onCompleted;
@@ -35,6 +34,7 @@ class BookingRequestScreen extends StatefulWidget {
 
 class _BookingRequestScreenState extends State<BookingRequestScreen> {
   final _noteController = TextEditingController();
+  late final VehiclesController _vehiclesController;
   DateTime? _requestedAt;
   String? _selectedVehicleId;
   bool _userTouchedVehicle = false;
@@ -44,10 +44,11 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
   @override
   void initState() {
     super.initState();
-    widget.vehiclesController.addListener(_maybeAutoSelectSingleVehicle);
-    final state = widget.vehiclesController.state;
+    _vehiclesController = context.read<VehiclesController>();
+    _vehiclesController.addListener(_maybeAutoSelectSingleVehicle);
+    final state = _vehiclesController.state;
     if (state.status == VehiclesStatus.initial) {
-      widget.vehiclesController.load();
+      _vehiclesController.load();
     } else if (_shouldAutoSelectVehicle(state)) {
       // Vehicles were already loaded before this screen opened; set directly
       // (setState is illegal before the first build).
@@ -57,7 +58,7 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
 
   @override
   void dispose() {
-    widget.vehiclesController.removeListener(_maybeAutoSelectSingleVehicle);
+    _vehiclesController.removeListener(_maybeAutoSelectSingleVehicle);
     _noteController.dispose();
     super.dispose();
   }
@@ -74,7 +75,7 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
       state.vehicles.length == 1;
 
   void _maybeAutoSelectSingleVehicle() {
-    final state = widget.vehiclesController.state;
+    final state = _vehiclesController.state;
     if (!mounted || !_shouldAutoSelectVehicle(state)) return;
     setState(() => _selectedVehicleId = state.vehicles.single.id);
   }
@@ -118,7 +119,7 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
             ),
             const SizedBox(height: 12),
             _VehiclePicker(
-              controller: widget.vehiclesController,
+              controller: _vehiclesController,
               selectedVehicleId: _selectedVehicleId,
               onChanged: (id) => setState(() {
                 _userTouchedVehicle = true;

@@ -17,6 +17,7 @@ import 'package:carcare_customer_mobile/features/notifications/domain/notificati
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class CarCareCustomerApp extends StatefulWidget {
   CarCareCustomerApp({
@@ -90,13 +91,32 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-    title: 'CarCare',
-    debugShowCheckedModeBanner: false,
-    theme: AppTheme.light,
-    darkTheme: AppTheme.dark,
-    themeMode: _themeController.mode,
-    routerDelegate: _routerDelegate,
-    routeInformationParser: _parser,
+  Widget build(BuildContext context) => MultiProvider(
+    providers: [
+      ChangeNotifierProvider.value(value: _themeController),
+      ChangeNotifierProvider.value(value: _routerDelegate.discoveryController),
+      ChangeNotifierProvider.value(
+        value: _routerDelegate.organizationDetailController,
+      ),
+      ChangeNotifierProvider.value(value: _routerDelegate.authController),
+      ChangeNotifierProvider.value(
+        value: _routerDelegate.appointmentsController,
+      ),
+      ChangeNotifierProvider.value(value: _routerDelegate.vehiclesController),
+      ChangeNotifierProvider.value(value: _routerDelegate.historyController),
+      ChangeNotifierProvider.value(
+        value: _routerDelegate.notificationsController,
+      ),
+      ChangeNotifierProvider.value(value: _routerDelegate.favoritesController),
+    ],
+    child: MaterialApp.router(
+      title: 'Carservice',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: _themeController.mode,
+      routerDelegate: _routerDelegate,
+      routeInformationParser: _parser,
+    ),
   );
 }

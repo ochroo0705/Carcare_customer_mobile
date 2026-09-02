@@ -1,50 +1,49 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
+import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({
-    required this.controller,
-    required this.isAuthenticated,
     required this.onLoginRequested,
     required this.onAddVehicle,
-    required this.account,
-    required this.onSignOut,
     super.key,
   });
 
-  final VehiclesController controller;
-  final bool isAuthenticated;
   final VoidCallback onLoginRequested;
   final VoidCallback onAddVehicle;
-  final Account? account;
-  final VoidCallback onSignOut;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    floatingActionButton: !isAuthenticated
-        ? null
-        : FloatingActionButton.extended(
-            key: const ValueKey('profile-add-vehicle-fab'),
-            onPressed: onAddVehicle,
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Машин нэмэх'),
-          ),
-    body: AppShellBackground(
-      child: SafeArea(
-        child: isAuthenticated
-            ? _ProfileBody(
-                controller: controller,
-                account: account,
-                onSignOut: onSignOut,
-              )
-            : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
+  Widget build(BuildContext context) {
+    final authController = context.watch<AuthController>();
+    final isAuthenticated = authController.isAuthenticated;
+    final controller = context.watch<VehiclesController>();
+    return Scaffold(
+      floatingActionButton: !isAuthenticated
+          ? null
+          : FloatingActionButton.extended(
+              key: const ValueKey('profile-add-vehicle-fab'),
+              onPressed: onAddVehicle,
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Машин нэмэх'),
+            ),
+      body: AppShellBackground(
+        child: SafeArea(
+          child: isAuthenticated
+              ? _ProfileBody(
+                  controller: controller,
+                  account: authController.account,
+                  onSignOut: authController.signOut,
+                )
+              : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class _UnauthenticatedPrompt extends StatelessWidget {

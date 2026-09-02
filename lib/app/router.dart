@@ -174,35 +174,18 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
         MaterialPage<void>(
           key: const ValueKey('customer-shell'),
           child: CustomerShell(
-            themeController: themeController,
-            account: authController.account,
             onLoginRequested: _requestLogin,
-            unreadNotificationCount: notificationsController.unreadCount,
             onNotificationsRequested: _openNotifications,
             destinations: [
-              DiscoveryScreen(
-                controller: discoveryController,
-                favoritesController: favoritesController,
-                onOrganizationSelected: _selectOrganization,
-              ),
-              AppointmentsScreen(
-                controller: appointmentsController,
-                isAuthenticated: authController.isAuthenticated,
-                onLoginRequested: _requestLogin,
-              ),
+              DiscoveryScreen(onOrganizationSelected: _selectOrganization),
+              AppointmentsScreen(onLoginRequested: _requestLogin),
               HistoryScreen(
-                controller: historyController,
-                isAuthenticated: authController.isAuthenticated,
                 onLoginRequested: _requestLogin,
                 onOrderSelected: _openOrderDetail,
               ),
               ProfileScreen(
-                controller: vehiclesController,
-                isAuthenticated: authController.isAuthenticated,
                 onLoginRequested: _requestLogin,
                 onAddVehicle: _openAddVehicle,
-                account: authController.account,
-                onSignOut: () => authController.signOut(),
               ),
             ],
           ),
@@ -233,7 +216,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           MaterialPage<void>(
             key: const ValueKey('booking-login'),
             child: LoginScreen(
-              controller: authController,
               onBack: _cancelLogin,
               onAuthenticated: _resumeBooking,
             ),
@@ -248,7 +230,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               organization: organization,
               branch: bookingBranch,
               repository: appointmentRepository,
-              vehiclesController: vehiclesController,
               onAddVehicle: _openAddVehicle,
               onBack: _closeBooking,
               onUnauthenticated: () async {
@@ -301,10 +282,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
         if (_showNotifications)
           MaterialPage<void>(
             key: const ValueKey('notifications'),
-            child: NotificationsScreen(
-              controller: notificationsController,
-              onBack: _closeNotifications,
-            ),
+            child: NotificationsScreen(onBack: _closeNotifications),
           ),
       ],
       onDidRemovePage: (page) {

@@ -9,6 +9,7 @@ import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repo
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 class _CapturingAppointmentRepository implements AppointmentRepository {
   bool called = false;
@@ -70,17 +71,19 @@ void main() {
       await vehiclesController.load();
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          home: BookingRequestScreen(
-            organization: _organization,
-            branch: _branch,
-            repository: repository,
-            vehiclesController: vehiclesController,
-            onAddVehicle: () {},
-            onBack: () {},
-            onCompleted: (_) {},
-            onUnauthenticated: () {},
+        ChangeNotifierProvider.value(
+          value: vehiclesController,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: BookingRequestScreen(
+              organization: _organization,
+              branch: _branch,
+              repository: repository,
+              onAddVehicle: () {},
+              onBack: () {},
+              onCompleted: (_) {},
+              onUnauthenticated: () {},
+            ),
           ),
         ),
       );
@@ -107,17 +110,19 @@ void main() {
       await vehiclesController.load();
 
       await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.light,
-          home: BookingRequestScreen(
-            organization: _organization,
-            branch: _branch,
-            repository: repository,
-            vehiclesController: vehiclesController,
-            onAddVehicle: () {},
-            onBack: () {},
-            onCompleted: (_) {},
-            onUnauthenticated: () {},
+        ChangeNotifierProvider.value(
+          value: vehiclesController,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: BookingRequestScreen(
+              organization: _organization,
+              branch: _branch,
+              repository: repository,
+              onAddVehicle: () {},
+              onBack: () {},
+              onCompleted: (_) {},
+              onUnauthenticated: () {},
+            ),
           ),
         ),
       );
@@ -150,17 +155,19 @@ void main() {
     var addVehicleTapped = false;
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.light,
-        home: BookingRequestScreen(
-          organization: _organization,
-          branch: _branch,
-          repository: FakeAppointmentRepository(),
-          vehiclesController: vehiclesController,
-          onAddVehicle: () => addVehicleTapped = true,
-          onBack: () {},
-          onCompleted: (_) {},
-          onUnauthenticated: () {},
+      ChangeNotifierProvider.value(
+        value: vehiclesController,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: BookingRequestScreen(
+            organization: _organization,
+            branch: _branch,
+            repository: FakeAppointmentRepository(),
+            onAddVehicle: () => addVehicleTapped = true,
+            onBack: () {},
+            onCompleted: (_) {},
+            onUnauthenticated: () {},
+          ),
         ),
       ),
     );

@@ -3,47 +3,46 @@ import 'package:carcare_customer_mobile/features/notifications/domain/app_notifi
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_state.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({
-    required this.controller,
-    required this.onBack,
-    super.key,
-  });
+  const NotificationsScreen({required this.onBack, super.key});
 
-  final NotificationsController controller;
   final VoidCallback onBack;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: BackButton(onPressed: onBack),
-      title: const Text('Мэдэгдэл'),
-      actions: [
-        if (controller.state.notifications.any((n) => !n.isRead))
-          TextButton(
-            onPressed: controller.markAllRead,
-            child: const Text('Бүгдийг уншсан'),
-          ),
-      ],
-    ),
-    body: AppShellBackground(
-      child: SafeArea(top: false, child: _Body(controller: controller)),
-    ),
-    floatingActionButton: FloatingActionButton.extended(
-      key: const ValueKey('notifications-send-test'),
-      onPressed: controller.isSendingTest
-          ? null
-          : controller.sendTestNotification,
-      icon: controller.isSendingTest
-          ? const SizedBox.square(
-              dimension: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : const Icon(Icons.notifications_active_outlined),
-      label: const Text('Тест мэдэгдэл илгээх'),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final controller = context.watch<NotificationsController>();
+    return Scaffold(
+      appBar: AppBar(
+        leading: BackButton(onPressed: onBack),
+        title: const Text('Мэдэгдэл'),
+        actions: [
+          if (controller.state.notifications.any((n) => !n.isRead))
+            TextButton(
+              onPressed: controller.markAllRead,
+              child: const Text('Бүгдийг уншсан'),
+            ),
+        ],
+      ),
+      body: AppShellBackground(
+        child: SafeArea(top: false, child: _Body(controller: controller)),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        key: const ValueKey('notifications-send-test'),
+        onPressed: controller.isSendingTest
+            ? null
+            : controller.sendTestNotification,
+        icon: controller.isSendingTest
+            ? const SizedBox.square(
+                dimension: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.notifications_active_outlined),
+        label: const Text('Тест мэдэгдэл илгээх'),
+      ),
+    );
+  }
 }
 
 class _Body extends StatelessWidget {

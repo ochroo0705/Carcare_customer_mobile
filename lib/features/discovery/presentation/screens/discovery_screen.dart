@@ -7,20 +7,14 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/organization_card.dart';
 import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 enum _DiscoveryView { list, map }
 
 enum _FavoritesFilter { all, saved }
 
 class DiscoveryScreen extends StatefulWidget {
-  const DiscoveryScreen({
-    required this.controller,
-    required this.favoritesController,
-    required this.onOrganizationSelected,
-    super.key,
-  });
-  final DiscoveryController controller;
-  final FavoritesController favoritesController;
+  const DiscoveryScreen({required this.onOrganizationSelected, super.key});
   final ValueChanged<String> onOrganizationSelected;
 
   @override
@@ -39,61 +33,73 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => AppShellBackground(
-    child: SafeArea(
-      child: RefreshIndicator(
-        onRefresh: widget.controller.load,
-        child: CustomScrollView(
-          key: const PageStorageKey('discovery-scroll'),
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
-              sliver: SliverToBoxAdapter(
-                child: _DiscoveryHeader(
-                  controller: widget.controller,
-                  searchController: _searchController,
-                  view: _view,
-                  onViewChanged: (view) => setState(() => _view = view),
-                  favoritesFilter: _favoritesFilter,
-                  onFavoritesFilterChanged: (filter) =>
-                      setState(() => _favoritesFilter = filter),
+  Widget build(BuildContext context) {
+    final controller = context.watch<DiscoveryController>();
+    final favoritesController = context.watch<FavoritesController>();
+    return AppShellBackground(
+      child: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: controller.load,
+          child: CustomScrollView(
+            key: const PageStorageKey('discovery-scroll'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
+                sliver: SliverToBoxAdapter(
+                  child: _DiscoveryHeader(
+                    controller: controller,
+                    searchController: _searchController,
+                    view: _view,
+                    onViewChanged: (view) => setState(() => _view = view),
+                    favoritesFilter: _favoritesFilter,
+                    onFavoritesFilterChanged: (filter) =>
+                        setState(() => _favoritesFilter = filter),
+                  ),
                 ),
               ),
-            ),
-            ..._content(),
-          ],
+              ..._content(controller, favoritesController),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
-  List<Widget> _content() {
-    final state = widget.controller.state;
+  List<Widget> _content(
+    DiscoveryController controller,
+    FavoritesController favoritesController,
+  ) {
+    final state = controller.state;
     final organizations = _favoritesFilter == _FavoritesFilter.saved
-        ? widget.controller.visibleOrganizations
+        ? controller.visibleOrganizations
               .where(
                 (organization) =>
-                    widget.favoritesController.contains(organization.slug),
+                    favoritesController.contains(organization.slug),
               )
               .toList(growable: false)
-        : widget.controller.visibleOrganizations;
+        : controller.visibleOrganizations;
     final banner = state.isFromCache
         ? [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
               sliver: SliverToBoxAdapter(
-                child: _OfflineBanner(onRetry: widget.controller.load),
+                child: _OfflineBanner(onRetry: controller.load),
               ),
             ),
           ]
         : const <Widget>[];
-    return [...banner, ..._statusContent(state, organizations)];
+    return [
+      ...banner,
+      ..._statusContent(state, organizations, controller, favoritesController),
+    ];
   }
 
   List<Widget> _statusContent(
     DiscoveryState state,
     List<Organization> organizations,
+    DiscoveryController controller,
+    FavoritesController favoritesController,
   ) {
     return switch (state.status) {
       DiscoveryStatus.initial || DiscoveryStatus.loading => const [
@@ -120,7 +126,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             title: 'Мэдээлэл ачаалсангүй',
             message: state.message ?? 'Дахин оролдоно уу.',
             actionLabel: 'Дахин оролдох',
-            onAction: widget.controller.load,
+            onAction: controller.load,
           ),
         ),
       ],
@@ -150,7 +156,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             actionLabel: 'Шүүлтүүр цэвэрлэх',
             onAction: () {
               _searchController.clear();
-              widget.controller.clearFilters();
+              controller.clearFilters();
             },
           ),
         ),
@@ -161,7 +167,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           sliver: SliverToBoxAdapter(
             child: DiscoveryMap(
               organizations: organizations,
-              hasActiveFilters: widget.controller.hasActiveFilters,
+              hasActiveFilters: controller.hasActiveFilters,
               onOrganizationSelected: widget.onOrganizationSelected,
               onShowList: () => setState(() => _view = _DiscoveryView.list),
             ),
@@ -178,11 +184,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               final organization = organizations[index];
               return OrganizationCard(
                 organization: organization,
-                isFavorite: widget.favoritesController.contains(
-                  organization.slug,
-                ),
+                isFavorite: favoritesController.contains(organization.slug),
                 onFavoriteToggle: () =>
-                    widget.favoritesController.toggle(organization.slug),
+                    favoritesController.toggle(organization.slug),
                 onTap: () => widget.onOrganizationSelected(organization.slug),
               );
             },

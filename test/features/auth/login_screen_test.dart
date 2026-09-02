@@ -4,6 +4,7 @@ import 'package:carcare_customer_mobile/features/auth/presentation/auth_controll
 import 'package:carcare_customer_mobile/features/auth/presentation/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 
 void main() {
   testWidgets('enables OTP resend after a 60 second cooldown', (tester) async {
@@ -11,12 +12,11 @@ void main() {
     final controller = AuthController(repository);
 
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.dark,
-        home: LoginScreen(
-          controller: controller,
-          onAuthenticated: () {},
-          onBack: () {},
+      ChangeNotifierProvider.value(
+        value: controller,
+        child: MaterialApp(
+          theme: AppTheme.dark,
+          home: LoginScreen(onAuthenticated: () {}, onBack: () {}),
         ),
       ),
     );

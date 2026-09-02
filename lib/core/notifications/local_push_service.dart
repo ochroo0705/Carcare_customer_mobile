@@ -42,7 +42,7 @@ class LocalPushService {
     const details = NotificationDetails(
       android: AndroidNotificationDetails(
         'carcare_customer_default',
-        'CarCare мэдэгдэл',
+        'Carservice мэдэгдэл',
         importance: Importance.high,
         priority: Priority.high,
       ),
