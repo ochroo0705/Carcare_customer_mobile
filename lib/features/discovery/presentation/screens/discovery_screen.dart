@@ -10,6 +10,8 @@ import 'package:flutter/material.dart';
 
 enum _DiscoveryView { list, map }
 
+enum _FavoritesFilter { all, saved }
+
 class DiscoveryScreen extends StatefulWidget {
   const DiscoveryScreen({
     required this.controller,
@@ -27,6 +29,7 @@ class DiscoveryScreen extends StatefulWidget {
 
 class _DiscoveryScreenState extends State<DiscoveryScreen> {
   _DiscoveryView _view = _DiscoveryView.list;
+  _FavoritesFilter _favoritesFilter = _FavoritesFilter.all;
   final _searchController = TextEditingController();
 
   @override
@@ -52,6 +55,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   searchController: _searchController,
                   view: _view,
                   onViewChanged: (view) => setState(() => _view = view),
+                  favoritesFilter: _favoritesFilter,
+                  onFavoritesFilterChanged: (filter) =>
+                      setState(() => _favoritesFilter = filter),
                 ),
               ),
             ),
@@ -64,7 +70,14 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
   List<Widget> _content() {
     final state = widget.controller.state;
-    final organizations = widget.controller.visibleOrganizations;
+    final organizations = _favoritesFilter == _FavoritesFilter.saved
+        ? widget.controller.visibleOrganizations
+              .where(
+                (organization) =>
+                    widget.favoritesController.contains(organization.slug),
+              )
+              .toList(growable: false)
+        : widget.controller.visibleOrganizations;
     final banner = state.isFromCache
         ? [
             SliverPadding(
@@ -111,6 +124,22 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           ),
         ),
       ],
+      DiscoveryStatus.data
+          when organizations.isEmpty &&
+              _favoritesFilter == _FavoritesFilter.saved =>
+        [
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: _MessageState(
+              icon: Icons.favorite_border_rounded,
+              title: 'Хадгалсан сервис алга',
+              message: 'Сервисийн зүрхэн тэмдгийг дарж энд хадгалаарай.',
+              actionLabel: 'Бүгдийг харах',
+              onAction: () =>
+                  setState(() => _favoritesFilter = _FavoritesFilter.all),
+            ),
+          ),
+        ],
       DiscoveryStatus.data when organizations.isEmpty => [
         SliverFillRemaining(
           hasScrollBody: false,
@@ -170,12 +199,16 @@ class _DiscoveryHeader extends StatelessWidget {
     required this.searchController,
     required this.view,
     required this.onViewChanged,
+    required this.favoritesFilter,
+    required this.onFavoritesFilterChanged,
   });
 
   final DiscoveryController controller;
   final TextEditingController searchController;
   final _DiscoveryView view;
   final ValueChanged<_DiscoveryView> onViewChanged;
+  final _FavoritesFilter favoritesFilter;
+  final ValueChanged<_FavoritesFilter> onFavoritesFilterChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -370,6 +403,7 @@ class _DiscoveryHeader extends StatelessWidget {
               ),
             ),
             SegmentedButton<_DiscoveryView>(
+              key: const ValueKey('discovery-view-toggle'),
               showSelectedIcon: false,
               segments: const [
                 ButtonSegment(
@@ -389,6 +423,28 @@ class _DiscoveryHeader extends StatelessWidget {
               },
             ),
           ],
+        ),
+        const SizedBox(height: 12),
+        SegmentedButton<_FavoritesFilter>(
+          key: const ValueKey('discovery-favorites-filter'),
+          showSelectedIcon: false,
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+          segments: const [
+            ButtonSegment(
+              value: _FavoritesFilter.all,
+              label: Text('Бүгд'),
+              icon: Icon(Icons.explore_outlined),
+            ),
+            ButtonSegment(
+              value: _FavoritesFilter.saved,
+              label: Text('Хадгалсан'),
+              icon: Icon(Icons.favorite_border_rounded),
+            ),
+          ],
+          selected: {favoritesFilter},
+          onSelectionChanged: (selection) {
+            onFavoritesFilterChanged(selection.first);
+          },
         ),
       ],
     );

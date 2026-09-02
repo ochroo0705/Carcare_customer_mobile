@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:flutter/material.dart';
@@ -23,11 +25,16 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  static const _resendCooldownSeconds = 60;
+
   final _phoneController = TextEditingController();
   final _codeController = TextEditingController();
+  Timer? _resendTimer;
+  int _resendSecondsRemaining = 0;
 
   @override
   void dispose() {
+    _resendTimer?.cancel();
     _phoneController.dispose();
     _codeController.dispose();
     super.dispose();
@@ -136,13 +143,26 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                         ),
                       ),
-                      if (widget.controller.step == AuthStep.otp)
+                      if (widget.controller.step == AuthStep.otp) ...[
                         Center(
                           child: TextButton(
-                            onPressed: widget.controller.editPhone,
+                            onPressed:
+                                widget.controller.isBusy ||
+                                    _resendSecondsRemaining > 0
+                                ? null
+                                : _resendOtp,
+                            child: Text(_resendButtonLabel),
+                          ),
+                        ),
+                        Center(
+                          child: TextButton(
+                            onPressed: widget.controller.isBusy
+                                ? null
+                                : _editPhone,
                             child: const Text('← Өөр дугаар оруулах'),
                           ),
                         ),
+                      ],
                     ],
                   ),
                 ),
@@ -158,8 +178,51 @@ class _LoginScreenState extends State<LoginScreen> {
     final success = widget.controller.step == AuthStep.phone
         ? await widget.controller.requestOtp(_phoneController.text)
         : await widget.controller.verifyOtp(_codeController.text);
+    if (success &&
+        widget.controller.step == AuthStep.otp &&
+        !widget.controller.isAuthenticated &&
+        mounted) {
+      _startResendCooldown();
+    }
     if (success && widget.controller.isAuthenticated && mounted) {
       widget.onAuthenticated();
     }
+  }
+
+  Future<void> _resendOtp() async {
+    if (_resendSecondsRemaining > 0 || widget.controller.isBusy) return;
+    final success = await widget.controller.requestOtp(widget.controller.phone);
+    if (success && mounted) _startResendCooldown();
+  }
+
+  void _startResendCooldown() {
+    _resendTimer?.cancel();
+    setState(() => _resendSecondsRemaining = _resendCooldownSeconds);
+    _resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _resendSecondsRemaining--;
+        if (_resendSecondsRemaining <= 0) {
+          _resendSecondsRemaining = 0;
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  void _editPhone() {
+    _resendTimer?.cancel();
+    setState(() => _resendSecondsRemaining = 0);
+    widget.controller.editPhone();
+  }
+
+  String get _resendButtonLabel {
+    if (_resendSecondsRemaining <= 0) return 'Код дахин авах';
+    final minutes = _resendSecondsRemaining ~/ 60;
+    final seconds = (_resendSecondsRemaining % 60).toString().padLeft(2, '0');
+    return 'Код дахин авах ($minutes:$seconds)';
   }
 }

@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/customer_shell.dart';
+import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/login_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
+import 'package:carcare_customer_mobile/features/devices/data/device_id_store.dart';
+import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
@@ -13,11 +18,18 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/controll
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
-import 'package:carcare_customer_mobile/features/favorites/presentation/screens/favorites_screen.dart';
+import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/screens/history_screen.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/screens/service_order_detail_screen.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
+import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
+import 'package:carcare_customer_mobile/features/notifications/presentation/screens/notifications_screen.dart';
+import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/add_vehicle_screen.dart';
-import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/vehicles_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 sealed class CustomerRoutePath {
@@ -78,19 +90,38 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     AuthRepository authRepository,
     this.appointmentRepository,
     this.vehicleRepository,
+    this.historyRepository,
+    this.notificationsRepository,
+    this.deviceRepository,
+    this.remotePushService,
+    this.deviceIdStore,
   ) : discoveryController = DiscoveryController(repository)..load() {
     organizationDetailController = OrganizationDetailController(repository);
     authController = AuthController(authRepository)..restore();
     appointmentsController = AppointmentsController(appointmentRepository);
     vehiclesController = VehiclesController(vehicleRepository);
+    historyController = HistoryController(historyRepository);
+    notificationsController = NotificationsController(notificationsRepository);
     discoveryController.addListener(notifyListeners);
     organizationDetailController.addListener(notifyListeners);
     authController.addListener(notifyListeners);
     authController.addListener(_onAuthChanged);
     appointmentsController.addListener(notifyListeners);
     vehiclesController.addListener(notifyListeners);
+    historyController.addListener(notifyListeners);
+    notificationsController.addListener(notifyListeners);
     favoritesController.addListener(notifyListeners);
     favoritesController.load();
+    _tokenRefreshSubscription = remotePushService.onTokenRefresh.listen(
+      _onTokenRefreshed,
+    );
+    _foregroundMessageSubscription = remotePushService.onMessage.listen(
+      (message) => notificationsController.handleIncomingPush(
+        title: message.notification?.title,
+        body: message.notification?.body,
+        data: message.data,
+      ),
+    );
   }
 
   final DiscoveryController discoveryController;
@@ -98,14 +129,25 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   late final AuthController authController;
   late final AppointmentsController appointmentsController;
   late final VehiclesController vehiclesController;
+  late final HistoryController historyController;
+  late final NotificationsController notificationsController;
   final ThemeController themeController;
   final AppointmentRepository appointmentRepository;
   final VehicleRepository vehicleRepository;
+  final ServiceHistoryRepository historyRepository;
+  final NotificationsRepository notificationsRepository;
+  final DeviceRepository deviceRepository;
+  final RemotePushService remotePushService;
+  final DeviceIdStore deviceIdStore;
   final FavoritesController favoritesController = FavoritesController();
+  late final StreamSubscription<String> _tokenRefreshSubscription;
+  late final StreamSubscription<dynamic> _foregroundMessageSubscription;
   String? _selectedSlug;
   String? _bookingBranchId;
+  String? _selectedOrderId;
   bool _showLogin = false;
   bool _showAddVehicle = false;
+  bool _showNotifications = false;
   bool _wasAuthenticated = false;
 
   @override
@@ -135,15 +177,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             themeController: themeController,
             account: authController.account,
             onLoginRequested: _requestLogin,
-            onSignOut: () => authController.signOut(),
+            unreadNotificationCount: notificationsController.unreadCount,
+            onNotificationsRequested: _openNotifications,
             destinations: [
               DiscoveryScreen(
                 controller: discoveryController,
-                favoritesController: favoritesController,
-                onOrganizationSelected: _selectOrganization,
-              ),
-              FavoritesScreen(
-                discoveryController: discoveryController,
                 favoritesController: favoritesController,
                 onOrganizationSelected: _selectOrganization,
               ),
@@ -152,11 +190,19 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 isAuthenticated: authController.isAuthenticated,
                 onLoginRequested: _requestLogin,
               ),
-              VehiclesScreen(
+              HistoryScreen(
+                controller: historyController,
+                isAuthenticated: authController.isAuthenticated,
+                onLoginRequested: _requestLogin,
+                onOrderSelected: _openOrderDetail,
+              ),
+              ProfileScreen(
                 controller: vehiclesController,
                 isAuthenticated: authController.isAuthenticated,
                 onLoginRequested: _requestLogin,
                 onAddVehicle: _openAddVehicle,
+                account: authController.account,
+                onSignOut: () => authController.signOut(),
               ),
             ],
           ),
@@ -243,9 +289,30 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               },
             ),
           ),
+        if (_selectedOrderId != null)
+          MaterialPage<void>(
+            key: ValueKey('order-detail-$_selectedOrderId'),
+            child: ServiceOrderDetailScreen(
+              repository: historyRepository,
+              orderId: _selectedOrderId!,
+              onBack: _closeOrderDetail,
+            ),
+          ),
+        if (_showNotifications)
+          MaterialPage<void>(
+            key: const ValueKey('notifications'),
+            child: NotificationsScreen(
+              controller: notificationsController,
+              onBack: _closeNotifications,
+            ),
+          ),
       ],
       onDidRemovePage: (page) {
-        if (_showAddVehicle) {
+        if (_showNotifications) {
+          _closeNotifications();
+        } else if (_selectedOrderId != null) {
+          _closeOrderDetail();
+        } else if (_showAddVehicle) {
           _closeAddVehicle();
         } else if (_showLogin) {
           _cancelLogin();
@@ -309,17 +376,92 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  void _openOrderDetail(String id) {
+    _selectedOrderId = id;
+    notifyListeners();
+  }
+
+  void _closeOrderDetail() {
+    _selectedOrderId = null;
+    notifyListeners();
+  }
+
+  void _openNotifications() {
+    _showNotifications = true;
+    notifyListeners();
+  }
+
+  void _closeNotifications() {
+    _showNotifications = false;
+    notifyListeners();
+  }
+
   void _onAuthChanged() {
     final isAuthenticated = authController.isAuthenticated;
     if (isAuthenticated && !_wasAuthenticated) {
       appointmentsController.load();
       vehiclesController.load();
+      historyController.load();
+      notificationsController.load();
+      _registerDeviceForPush();
     } else if (!isAuthenticated && _wasAuthenticated) {
       appointmentsController.reset();
       vehiclesController.reset();
+      historyController.reset();
+      notificationsController.reset();
+      _removeDeviceForPush();
     }
     _wasAuthenticated = isAuthenticated;
   }
+
+  /// Registers the current FCM token against `POST /api/v1/app/devices` (see
+  /// `CUSTOMER_API_CONTRACT.md` "Push device registration"). Best-effort: a
+  /// missing token (no Firebase configured, permission denied, or a platform
+  /// this app doesn't ship push on) or a failed request must never block
+  /// login.
+  Future<void> _registerDeviceForPush() async {
+    try {
+      final token = await remotePushService.getToken();
+      if (token == null) return;
+      final deviceId = await deviceIdStore.getOrCreate();
+      await deviceRepository.registerDevice(
+        deviceId: deviceId,
+        platform: _platformName,
+        firebaseToken: token,
+      );
+    } catch (_) {
+      // Best-effort — push registration failing must never block sign-in.
+    }
+  }
+
+  Future<void> _removeDeviceForPush() async {
+    try {
+      final deviceId = await deviceIdStore.getOrCreate();
+      await deviceRepository.removeDevice(deviceId);
+    } catch (_) {
+      // Best-effort — matches the API doc's "call during logout when possible".
+    }
+  }
+
+  /// The API contract requires re-registering whenever the FCM token
+  /// refreshes, but only while signed in — there's no account to attach an
+  /// unauthenticated refresh to.
+  Future<void> _onTokenRefreshed(String token) async {
+    if (!authController.isAuthenticated) return;
+    try {
+      final deviceId = await deviceIdStore.getOrCreate();
+      await deviceRepository.registerDevice(
+        deviceId: deviceId,
+        platform: _platformName,
+        firebaseToken: token,
+      );
+    } catch (_) {
+      // Best-effort, same as _registerDeviceForPush.
+    }
+  }
+
+  String get _platformName =>
+      defaultTargetPlatform == TargetPlatform.iOS ? 'IOS' : 'ANDROID';
 
   @override
   Future<void> setNewRoutePath(CustomerRoutePath configuration) async {
@@ -340,18 +482,24 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   @override
   void dispose() {
+    _tokenRefreshSubscription.cancel();
+    _foregroundMessageSubscription.cancel();
     discoveryController.removeListener(notifyListeners);
     organizationDetailController.removeListener(notifyListeners);
     authController.removeListener(notifyListeners);
     authController.removeListener(_onAuthChanged);
     appointmentsController.removeListener(notifyListeners);
     vehiclesController.removeListener(notifyListeners);
+    historyController.removeListener(notifyListeners);
+    notificationsController.removeListener(notifyListeners);
     favoritesController.removeListener(notifyListeners);
     discoveryController.dispose();
     organizationDetailController.dispose();
     authController.dispose();
     appointmentsController.dispose();
     vehiclesController.dispose();
+    historyController.dispose();
+    notificationsController.dispose();
     favoritesController.dispose();
     super.dispose();
   }

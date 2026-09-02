@@ -1,9 +1,14 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_lookup_result.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+final _platePattern = RegExp(r'^\d{4}[А-ЯЁӨҮ]{3}$');
 
 class AddVehicleScreen extends StatefulWidget {
   const AddVehicleScreen({
@@ -27,14 +32,18 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
   final _modelController = TextEditingController();
   final _yearController = TextEditingController();
   final _vinController = TextEditingController();
+  Timer? _lookupTimer;
+  String? _lastLookedUpPlate;
 
   bool _lookingUp = false;
+  bool _isPlateValid = false;
   bool _submitting = false;
   String? _lookupMessage;
   String? _error;
 
   @override
   void dispose() {
+    _lookupTimer?.cancel();
     _plateController.dispose();
     _makeController.dispose();
     _modelController.dispose();
@@ -63,9 +72,16 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
                     key: const ValueKey('vehicle-plate'),
                     controller: _plateController,
                     textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
+                    maxLength: 7,
+                    inputFormatters: const [_MongolianPlateInputFormatter()],
+                    onChanged: _scheduleLookup,
+                    decoration: InputDecoration(
                       labelText: 'Улсын дугаар',
                       hintText: '1234УБА',
+                      counterText: '',
+                      helperText: _lookingUp
+                          ? 'ХУР-аас хайж байна…'
+                          : '4 цифр + 3 кирилл үсэг',
                     ),
                   ),
                 ),
@@ -74,7 +90,7 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
                   padding: const EdgeInsets.only(top: 4),
                   child: OutlinedButton(
                     key: const ValueKey('vehicle-lookup'),
-                    onPressed: _lookingUp ? null : _lookup,
+                    onPressed: _lookingUp || !_isPlateValid ? null : _lookup,
                     child: _lookingUp
                         ? const SizedBox.square(
                             dimension: 16,
@@ -139,12 +155,28 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
     ),
   );
 
+  void _scheduleLookup(String value) {
+    setState(() => _isPlateValid = _isValidPlate(value));
+    _lookupTimer?.cancel();
+    final plate = value.trim();
+    if (!_isValidPlate(plate) || plate == _lastLookedUpPlate) return;
+    _lookupTimer = Timer(const Duration(milliseconds: 400), () {
+      if (mounted &&
+          !_lookingUp &&
+          plate == _plateController.text.trim() &&
+          plate != _lastLookedUpPlate) {
+        _lookup();
+      }
+    });
+  }
+
   Future<void> _lookup() async {
     final plate = _plateController.text.trim();
-    if (plate.isEmpty) {
-      setState(() => _error = 'Улсын дугаараа оруулна уу.');
+    if (!_isValidPlate(plate)) {
+      setState(() => _error = 'Дугаараа 4 цифр, 3 кирилл үсгээр оруулна уу.');
       return;
     }
+    _lastLookedUpPlate = plate;
     setState(() {
       _lookingUp = true;
       _lookupMessage = null;
@@ -175,8 +207,8 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
     final plate = _plateController.text.trim();
     final make = _makeController.text.trim();
     final model = _modelController.text.trim();
-    if (plate.isEmpty || make.isEmpty || model.isEmpty) {
-      setState(() => _error = 'Улсын дугаар, марк, загварыг оруулна уу.');
+    if (!_isValidPlate(plate) || make.isEmpty || model.isEmpty) {
+      setState(() => _error = 'Дугаар, марк, загвараа зөв оруулна уу.');
       return;
     }
     setState(() {
@@ -201,5 +233,45 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+}
+
+bool _isValidPlate(String value) => _platePattern.hasMatch(value.trim());
+
+class _MongolianPlateInputFormatter extends TextInputFormatter {
+  const _MongolianPlateInputFormatter();
+
+  static const _latinToCyrillic = {
+    'A': 'А',
+    'B': 'В',
+    'C': 'С',
+    'E': 'Е',
+    'H': 'Н',
+    'K': 'К',
+    'M': 'М',
+    'O': 'О',
+    'P': 'Р',
+    'T': 'Т',
+    'X': 'Х',
+    'Y': 'У',
+  };
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final normalized = StringBuffer();
+    for (final rune in newValue.text.toUpperCase().runes) {
+      final character = String.fromCharCode(rune);
+      if (!RegExp(r'[0-9A-ZА-ЯЁӨҮ]').hasMatch(character)) continue;
+      normalized.write(_latinToCyrillic[character] ?? character);
+      if (normalized.length == 7) break;
+    }
+    final value = normalized.toString();
+    return TextEditingValue(
+      text: value,
+      selection: TextSelection.collapsed(offset: value.length),
+    );
   }
 }

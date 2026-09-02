@@ -1,15 +1,18 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:flutter/material.dart';
 
-class VehiclesScreen extends StatelessWidget {
-  const VehiclesScreen({
+class ProfileScreen extends StatelessWidget {
+  const ProfileScreen({
     required this.controller,
     required this.isAuthenticated,
     required this.onLoginRequested,
     required this.onAddVehicle,
+    required this.account,
+    required this.onSignOut,
     super.key,
   });
 
@@ -17,13 +20,15 @@ class VehiclesScreen extends StatelessWidget {
   final bool isAuthenticated;
   final VoidCallback onLoginRequested;
   final VoidCallback onAddVehicle;
+  final Account? account;
+  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) => Scaffold(
     floatingActionButton: !isAuthenticated
         ? null
         : FloatingActionButton.extended(
-            key: const ValueKey('vehicles-add-fab'),
+            key: const ValueKey('profile-add-vehicle-fab'),
             onPressed: onAddVehicle,
             icon: const Icon(Icons.add_rounded),
             label: const Text('Машин нэмэх'),
@@ -31,7 +36,11 @@ class VehiclesScreen extends StatelessWidget {
     body: AppShellBackground(
       child: SafeArea(
         child: isAuthenticated
-            ? _VehiclesBody(controller: controller)
+            ? _ProfileBody(
+                controller: controller,
+                account: account,
+                onSignOut: onSignOut,
+              )
             : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
       ),
     ),
@@ -51,20 +60,20 @@ class _UnauthenticatedPrompt extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.directions_car_outlined,
+            Icons.person_outline_rounded,
             size: 58,
             color: Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(height: 18),
           Text(
-            'Машинаа харахын тулд нэвтэрнэ үү',
+            'Профайлаа харахын тулд нэвтэрнэ үү',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleLarge
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
           Text(
-            'Таны бүртгэсэн машинууд энд харагдана.',
+            'Таны мэдээлэл болон бүртгэсэн машинууд энд харагдана.',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -72,7 +81,7 @@ class _UnauthenticatedPrompt extends StatelessWidget {
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
-            key: const ValueKey('vehicles-login'),
+            key: const ValueKey('profile-login'),
             onPressed: onLoginRequested,
             icon: const Icon(Icons.login_rounded),
             label: const Text('Нэвтрэх'),
@@ -83,33 +92,98 @@ class _UnauthenticatedPrompt extends StatelessWidget {
   );
 }
 
-class _VehiclesBody extends StatelessWidget {
-  const _VehiclesBody({required this.controller});
+class _ProfileBody extends StatelessWidget {
+  const _ProfileBody({
+    required this.controller,
+    required this.account,
+    required this.onSignOut,
+  });
 
   final VehiclesController controller;
+  final Account? account;
+  final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) {
     final state = controller.state;
-    return switch (state.status) {
-      VehiclesStatus.initial || VehiclesStatus.loading => Semantics(
-        container: true,
-        liveRegion: true,
-        label: 'Машинуудыг ачаалж байна',
-        child: Center(child: CircularProgressIndicator()),
+    final items = <Widget>[
+      if (account != null)
+        _ProfileHeader(account: account!, onSignOut: onSignOut),
+      const _VehiclesHeader(),
+      ...switch (state.status) {
+        VehiclesStatus.initial || VehiclesStatus.loading => [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 40),
+            child: Semantics(
+              container: true,
+              liveRegion: true,
+              label: 'Профайлыг ачаалж байна',
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ),
+        ],
+        VehiclesStatus.error => [
+          _ErrorContent(
+            message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
+            onRetry: controller.load,
+          ),
+        ],
+        VehiclesStatus.empty => const [_EmptyVehicles()],
+        VehiclesStatus.data => [
+          for (final vehicle in state.vehicles)
+            _VehicleCard(
+              vehicle: vehicle,
+              isDeleting: controller.isDeleting(vehicle.id),
+              onDelete: () => _confirmDelete(context, controller, vehicle),
+            ),
+        ],
+      },
+    ];
+    return RefreshIndicator(
+      onRefresh: controller.load,
+      child: ListView.separated(
+        key: const PageStorageKey('profile-list'),
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
+        itemCount: items.length,
+        separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
+        itemBuilder: (context, index) => items[index],
       ),
-      VehiclesStatus.error => _ErrorView(
-        message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
-        onRetry: controller.load,
+    );
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    VehiclesController controller,
+    Vehicle vehicle,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Машин устгах уу?'),
+        content: Text('${vehicle.make} ${vehicle.model} — ${vehicle.plate}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Үгүй'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Тийм, устгах'),
+          ),
+        ],
       ),
-      VehiclesStatus.empty => const _EmptyVehicles(),
-      VehiclesStatus.data => _VehiclesList(controller: controller),
-    };
+    );
+    if (confirmed != true) return;
+    final error = await controller.delete(vehicle.id);
+    if (error != null && context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
+    }
   }
 }
 
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
+class _ErrorContent extends StatelessWidget {
+  const _ErrorContent({required this.message, required this.onRetry});
 
   final String message;
   final Future<void> Function() onRetry;
@@ -134,7 +208,7 @@ class _ErrorView extends StatelessWidget {
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 16),
             OutlinedButton(
-              key: const ValueKey('vehicles-retry'),
+              key: const ValueKey('profile-retry'),
               onPressed: onRetry,
               child: const Text('Дахин оролдох'),
             ),
@@ -143,6 +217,70 @@ class _ErrorView extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _ProfileHeader extends StatelessWidget {
+  const _ProfileHeader({required this.account, required this.onSignOut});
+
+  final Account account;
+  final VoidCallback onSignOut;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final label = _displayLabel(account);
+    final showPhoneSubtitle = label != account.phone;
+    return GlassSurface(
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: scheme.primary,
+            child: Text(
+              label.substring(0, 1).toUpperCase(),
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 20,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                if (showPhoneSubtitle) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    account.phone,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton.icon(
+            key: const ValueKey('profile-sign-out'),
+            onPressed: onSignOut,
+            icon: const Icon(Icons.logout_rounded, size: 18),
+            label: const Text('Гарах'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _displayLabel(Account account) {
+  final name = account.name?.trim();
+  return (name != null && name.isNotEmpty) ? name : account.phone;
 }
 
 class _EmptyVehicles extends StatelessWidget {
@@ -178,63 +316,6 @@ class _EmptyVehicles extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _VehiclesList extends StatelessWidget {
-  const _VehiclesList({required this.controller});
-
-  final VehiclesController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final vehicles = controller.state.vehicles;
-    return RefreshIndicator(
-      onRefresh: controller.load,
-      child: ListView.separated(
-        key: const PageStorageKey('vehicles-list'),
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 96),
-        itemCount: vehicles.length + 1,
-        separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return const _VehiclesHeader();
-          }
-          final vehicle = vehicles[index - 1];
-          return _VehicleCard(
-            vehicle: vehicle,
-            isDeleting: controller.isDeleting(vehicle.id),
-            onDelete: () => _confirmDelete(context, vehicle),
-          );
-        },
-      ),
-    );
-  }
-
-  Future<void> _confirmDelete(BuildContext context, Vehicle vehicle) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Машин устгах уу?'),
-        content: Text('${vehicle.make} ${vehicle.model} — ${vehicle.plate}'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Үгүй'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Тийм, устгах'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    final error = await controller.delete(vehicle.id);
-    if (error != null && context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error)));
-    }
-  }
 }
 
 class _VehiclesHeader extends StatelessWidget {

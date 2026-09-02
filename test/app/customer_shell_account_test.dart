@@ -8,7 +8,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets(
-    'top bar swaps the sign-in button for the account menu after login, and back after sign-out',
+    'top bar swaps the sign-in button for the avatar after login, and back after sign-out',
     (tester) async {
       await tester.pumpWidget(
         CarCareCustomerApp(
@@ -20,7 +20,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('shell-login')), findsOneWidget);
-      expect(find.byKey(const ValueKey('shell-account-menu')), findsNothing);
+      expect(find.byKey(const ValueKey('shell-avatar')), findsNothing);
 
       await tester.tap(find.byKey(const ValueKey('shell-login')));
       await tester.pumpAndSettle();
@@ -35,16 +35,19 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('shell-login')), findsNothing);
-      expect(find.byKey(const ValueKey('shell-account-menu')), findsOneWidget);
+      expect(find.byKey(const ValueKey('shell-avatar')), findsOneWidget);
+
+      // Sign-out now lives on the Профайл screen, reached by tapping the
+      // avatar rather than a dropdown menu.
+      await tester.tap(find.byKey(const ValueKey('shell-avatar')));
+      await tester.pumpAndSettle();
       expect(find.text('99112233'), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('shell-account-menu')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Гарах'));
+      await tester.tap(find.byKey(const ValueKey('profile-sign-out')));
       await tester.pumpAndSettle();
 
       expect(find.byKey(const ValueKey('shell-login')), findsOneWidget);
-      expect(find.byKey(const ValueKey('shell-account-menu')), findsNothing);
+      expect(find.byKey(const ValueKey('shell-avatar')), findsNothing);
     },
   );
 }

@@ -4,32 +4,52 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// The Discovery header's search field has its own internal `Scrollable`
+/// (an `EditableText` implementation detail, scrolling horizontally), so the
+/// default `find.byType(Scrollable)` target is ambiguous — pin to the
+/// vertical one, which is the page's own `CustomScrollView`.
+Future<void> _scrollUntilVisible(
+  WidgetTester tester,
+  Finder finder,
+  double delta,
+) => tester.scrollUntilVisible(
+  finder,
+  delta,
+  scrollable: find.byWidgetPredicate(
+    (widget) =>
+        widget is Scrollable && widget.axisDirection == AxisDirection.down,
+  ),
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('saves an organization and shows it in Favorites', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      CarCareCustomerApp(
-        organizationRepository: FakeOrganizationRepository(
-          delay: Duration.zero,
+  testWidgets(
+    'saves an organization and filters to it via the Хадгалсан toggle',
+    (tester) async {
+      await tester.pumpWidget(
+        CarCareCustomerApp(
+          organizationRepository: FakeOrganizationRepository(
+            delay: Duration.zero,
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final favoriteButton = find.byKey(const ValueKey('favorite-auto-doctor'));
-    await tester.ensureVisible(favoriteButton);
-    await tester.tap(favoriteButton);
-    await tester.pumpAndSettle();
+      final favoriteButton = find.byKey(const ValueKey('favorite-auto-doctor'));
+      await _scrollUntilVisible(tester, favoriteButton, 200);
+      await tester.tap(favoriteButton);
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Хадгалсан'));
-    await tester.pumpAndSettle();
+      final savedToggle = find.text('Хадгалсан');
+      await _scrollUntilVisible(tester, savedToggle, -200);
+      await tester.tap(savedToggle);
+      await tester.pumpAndSettle();
 
-    expect(find.text('Хадгалсан сервисүүд'), findsOneWidget);
-    expect(find.text('Auto Doctor Service'), findsOneWidget);
-  });
+      expect(find.text('Auto Doctor Service'), findsOneWidget);
+      expect(find.text('Эрдэнэт Car Care'), findsNothing);
+    },
+  );
 
   testWidgets('offers the list when map initialization times out', (
     tester,
@@ -76,14 +96,12 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.map_outlined));
     await tester.pump();
-    await tester.tap(find.text('Хадгалсан'));
+    await tester.tap(find.text('Цаг'));
     await tester.pump();
     await tester.tap(find.text('Хайх'));
     await tester.pump();
 
-    final switcherFinder = find.byWidgetPredicate(
-      (widget) => widget.runtimeType.toString().startsWith('SegmentedButton<'),
-    );
+    final switcherFinder = find.byKey(const ValueKey('discovery-view-toggle'));
     final dynamic switcher = tester.widget(switcherFinder);
     expect(switcher.selected.single.toString(), contains('map'));
     expect(find.byKey(const ValueKey('discovery-map-0')), findsOneWidget);
@@ -102,7 +120,7 @@ void main() {
     final organizationCard = find.byKey(
       const ValueKey('organization-auto-doctor'),
     );
-    await tester.ensureVisible(organizationCard);
+    await _scrollUntilVisible(tester, organizationCard, 200);
     await tester.tapAt(
       tester.getTopLeft(organizationCard) + const Offset(100, 24),
     );
@@ -116,7 +134,9 @@ void main() {
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Хадгалсан'));
+    final savedToggle = find.text('Хадгалсан');
+    await _scrollUntilVisible(tester, savedToggle, -200);
+    await tester.tap(savedToggle);
     await tester.pumpAndSettle();
 
     expect(find.text('Auto Doctor Service'), findsOneWidget);
@@ -135,12 +155,12 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.view_list_outlined));
     await tester.pumpAndSettle();
-    expect(find.text('Auto Doctor Service'), findsOneWidget);
-
     final organizationCard = find.byKey(
       const ValueKey('organization-auto-doctor'),
     );
-    await tester.ensureVisible(organizationCard);
+    await _scrollUntilVisible(tester, organizationCard, 200);
+    expect(find.text('Auto Doctor Service'), findsOneWidget);
+
     await tester.pumpAndSettle();
     await tester.tap(organizationCard);
     await tester.pumpAndSettle();
@@ -206,7 +226,9 @@ void main() {
     await tester.enterText(find.byType(TextField), 'Эрдэнэт');
     await tester.pumpAndSettle();
 
-    expect(find.text('Эрдэнэт Car Care'), findsOneWidget);
+    final erdenetCard = find.text('Эрдэнэт Car Care');
+    await _scrollUntilVisible(tester, erdenetCard, 200);
+    expect(erdenetCard, findsOneWidget);
     expect(find.text('Auto Doctor Service'), findsNothing);
   });
 
@@ -238,7 +260,9 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(Icons.view_list_outlined));
       await tester.pumpAndSettle();
-      expect(find.text('Auto Doctor Service'), findsOneWidget);
+      final firstLoadCard = find.text('Auto Doctor Service');
+      await _scrollUntilVisible(tester, firstLoadCard, 200);
+      expect(firstLoadCard, findsOneWidget);
 
       // Simulated restart with no network: unmount the whole tree first so
       // the next pumpWidget performs a genuine fresh initState (otherwise
@@ -263,19 +287,23 @@ void main() {
       );
       // The offline banner adds height above the list, so the first card
       // needs a scroll to come into the test viewport.
-      await tester.drag(find.byType(CustomScrollView), const Offset(0, -400));
-      await tester.pumpAndSettle();
-      expect(find.text('Auto Doctor Service'), findsOneWidget);
+      final offlineCard = find.text('Auto Doctor Service');
+      await _scrollUntilVisible(tester, offlineCard, 200);
+      expect(offlineCard, findsOneWidget);
 
       // Retrying while still offline keeps showing the cached list rather
       // than dropping to a hard error, since the cache is still valid data.
-      await tester.tap(find.byKey(const ValueKey('discovery-offline-retry')));
+      final retryButton = find.byKey(const ValueKey('discovery-offline-retry'));
+      await _scrollUntilVisible(tester, retryButton, -200);
+      await tester.tap(retryButton);
       await tester.pumpAndSettle();
       expect(
         find.text('Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна'),
         findsOneWidget,
       );
-      expect(find.text('Auto Doctor Service'), findsOneWidget);
+      final afterRetryCard = find.text('Auto Doctor Service');
+      await _scrollUntilVisible(tester, afterRetryCard, 200);
+      expect(afterRetryCard, findsOneWidget);
     },
   );
 }

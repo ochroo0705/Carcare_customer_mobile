@@ -89,7 +89,9 @@ class _DiscoveryMapState extends State<DiscoveryMap>
       return;
     }
     _visibleBounds = null;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fitCameraToLocations());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _fitCameraToLocations(),
+    );
   }
 
   Future<void> _initializeMap() async {
@@ -118,7 +120,9 @@ class _DiscoveryMapState extends State<DiscoveryMap>
     _initializationTimer?.cancel();
     if (!mounted) return;
     setState(() => _mapLoadState = _MapLoadState.ready);
-    WidgetsBinding.instance.addPostFrameCallback((_) => _fitCameraToLocations());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _fitCameraToLocations(),
+    );
   }
 
   void _retryMap() {
@@ -409,42 +413,42 @@ class _DiscoveryMapState extends State<DiscoveryMap>
           children: [
             if (!mapUnavailable)
               Semantics(
-              container: true,
-              label: 'Сервисийн байршлын интерактив газрын зураг',
-              child: GoogleMap(
-                key: ValueKey('discovery-map-$_mapInstance'),
-                onMapCreated: _onMapCreated,
-                onCameraIdle: _updateVisibleRegion,
-                style: Theme.of(context).brightness == Brightness.dark
-                    ? _darkMapStyle
-                    : _lightMapStyle,
-                initialCameraPosition: CameraPosition(
-                  target: initialTarget,
-                  zoom: positions.length == 1 ? 14 : 11.5,
+                container: true,
+                label: 'Сервисийн байршлын интерактив газрын зураг',
+                child: GoogleMap(
+                  key: ValueKey('discovery-map-$_mapInstance'),
+                  onMapCreated: _onMapCreated,
+                  onCameraIdle: _updateVisibleRegion,
+                  style: Theme.of(context).brightness == Brightness.dark
+                      ? _darkMapStyle
+                      : _lightMapStyle,
+                  initialCameraPosition: CameraPosition(
+                    target: initialTarget,
+                    zoom: positions.length == 1 ? 14 : 11.5,
+                  ),
+                  markers: markers,
+                  padding: EdgeInsets.only(
+                    top: _locationAccessState == LocationAccessState.granted
+                        ? 0
+                        : 68,
+                  ),
+                  gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+                    Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
+                  },
+                  mapToolbarEnabled: false,
+                  myLocationEnabled:
+                      _locationAccessState == LocationAccessState.granted,
+                  myLocationButtonEnabled:
+                      _locationAccessState == LocationAccessState.granted,
+                  compassEnabled: false,
+                  scrollGesturesEnabled: true,
+                  zoomControlsEnabled: true,
+                  buildingsEnabled: false,
+                  rotateGesturesEnabled: false,
+                  tiltGesturesEnabled: false,
+                  minMaxZoomPreference: const MinMaxZoomPreference(5, 19),
                 ),
-                markers: markers,
-                padding: EdgeInsets.only(
-                  top: _locationAccessState == LocationAccessState.granted
-                      ? 0
-                      : 68,
-                ),
-                gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
-                  Factory<EagerGestureRecognizer>(EagerGestureRecognizer.new),
-                },
-                mapToolbarEnabled: false,
-                myLocationEnabled:
-                    _locationAccessState == LocationAccessState.granted,
-                myLocationButtonEnabled:
-                    _locationAccessState == LocationAccessState.granted,
-                compassEnabled: false,
-                scrollGesturesEnabled: true,
-                zoomControlsEnabled: true,
-                buildingsEnabled: false,
-                rotateGesturesEnabled: false,
-                tiltGesturesEnabled: false,
-                minMaxZoomPreference: const MinMaxZoomPreference(5, 19),
               ),
-            ),
             if (_mapLoadState == _MapLoadState.ready &&
                 _locationAccessState != null &&
                 _locationAccessState != LocationAccessState.granted)
@@ -619,9 +623,8 @@ class _MapUnavailableOverlay extends StatelessWidget {
               Text(
                 'Газрын зураг ашиглах боломжгүй байна',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                ),
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 7),
               Text(

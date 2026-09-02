@@ -1,7 +1,7 @@
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
-import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/vehicles_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -15,11 +15,13 @@ void main() {
     Widget buildApp(ThemeData theme) => MaterialApp(
       theme: theme,
       home: Scaffold(
-        body: VehiclesScreen(
+        body: ProfileScreen(
           controller: controller,
           isAuthenticated: true,
           onLoginRequested: () {},
           onAddVehicle: () {},
+          account: null,
+          onSignOut: () {},
         ),
       ),
     );

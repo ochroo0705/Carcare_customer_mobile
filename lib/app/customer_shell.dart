@@ -9,7 +9,8 @@ class CustomerShell extends StatefulWidget {
     required this.destinations,
     required this.account,
     required this.onLoginRequested,
-    required this.onSignOut,
+    required this.unreadNotificationCount,
+    required this.onNotificationsRequested,
     super.key,
   });
 
@@ -17,13 +18,16 @@ class CustomerShell extends StatefulWidget {
   final List<Widget> destinations;
   final Account? account;
   final VoidCallback onLoginRequested;
-  final VoidCallback onSignOut;
+  final int unreadNotificationCount;
+  final VoidCallback onNotificationsRequested;
 
   @override
   State<CustomerShell> createState() => _CustomerShellState();
 }
 
 class _CustomerShellState extends State<CustomerShell> {
+  static const _profileIndex = 3;
+
   int _selectedIndex = 0;
 
   @override
@@ -39,8 +43,16 @@ class _CustomerShellState extends State<CustomerShell> {
           title: const CarCareBrand(compact: true),
           actions: [
             _ThemeModeMenu(controller: widget.themeController),
+            if (widget.account != null)
+              _NotificationBell(
+                unreadCount: widget.unreadNotificationCount,
+                onTap: widget.onNotificationsRequested,
+              ),
             if (widget.account case final account?)
-              _AccountMenu(account: account, onSignOut: widget.onSignOut)
+              _AvatarButton(
+                account: account,
+                onTap: () => _selectDestination(_profileIndex),
+              )
             else
               Padding(
                 padding: const EdgeInsets.only(right: 8),
@@ -67,19 +79,19 @@ class _CustomerShellState extends State<CustomerShell> {
                         label: Text('Хайх'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.favorite_border_rounded),
-                        selectedIcon: Icon(Icons.favorite_rounded),
-                        label: Text('Хадгалсан'),
-                      ),
-                      NavigationRailDestination(
                         icon: Icon(Icons.event_note_outlined),
                         selectedIcon: Icon(Icons.event_note_rounded),
                         label: Text('Цаг'),
                       ),
                       NavigationRailDestination(
-                        icon: Icon(Icons.directions_car_outlined),
-                        selectedIcon: Icon(Icons.directions_car_rounded),
-                        label: Text('Машин'),
+                        icon: Icon(Icons.receipt_long_outlined),
+                        selectedIcon: Icon(Icons.receipt_long_rounded),
+                        label: Text('Түүх'),
+                      ),
+                      NavigationRailDestination(
+                        icon: Icon(Icons.person_outline_rounded),
+                        selectedIcon: Icon(Icons.person_rounded),
+                        label: Text('Профайл'),
                       ),
                     ],
                   ),
@@ -100,19 +112,19 @@ class _CustomerShellState extends State<CustomerShell> {
                     label: 'Хайх',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.favorite_border_rounded),
-                    selectedIcon: Icon(Icons.favorite_rounded),
-                    label: 'Хадгалсан',
-                  ),
-                  NavigationDestination(
                     icon: Icon(Icons.event_note_outlined),
                     selectedIcon: Icon(Icons.event_note_rounded),
                     label: 'Цаг',
                   ),
                   NavigationDestination(
-                    icon: Icon(Icons.directions_car_outlined),
-                    selectedIcon: Icon(Icons.directions_car_rounded),
-                    label: 'Машин',
+                    icon: Icon(Icons.receipt_long_outlined),
+                    selectedIcon: Icon(Icons.receipt_long_rounded),
+                    label: 'Түүх',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.person_outline_rounded),
+                    selectedIcon: Icon(Icons.person_rounded),
+                    label: 'Профайл',
                   ),
                 ],
               ),
@@ -151,61 +163,55 @@ class _ThemeModeMenu extends StatelessWidget {
   }
 }
 
-enum _AccountMenuAction { signOut }
+class _NotificationBell extends StatelessWidget {
+  const _NotificationBell({required this.unreadCount, required this.onTap});
 
-class _AccountMenu extends StatelessWidget {
-  const _AccountMenu({required this.account, required this.onSignOut});
+  final int unreadCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = IconButton(
+      key: const ValueKey('shell-notifications'),
+      tooltip: 'Мэдэгдэл',
+      onPressed: onTap,
+      icon: const Icon(Icons.notifications_outlined),
+    );
+    if (unreadCount <= 0) return icon;
+    return Badge(
+      label: Text(unreadCount > 9 ? '9+' : '$unreadCount'),
+      child: icon,
+    );
+  }
+}
+
+class _AvatarButton extends StatelessWidget {
+  const _AvatarButton({required this.account, required this.onTap});
 
   final Account account;
-  final VoidCallback onSignOut;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final label = _displayLabel(account);
     final scheme = Theme.of(context).colorScheme;
-    return PopupMenuButton<_AccountMenuAction>(
-      key: const ValueKey('shell-account-menu'),
-      tooltip: 'Профайл',
-      onSelected: (action) {
-        if (action == _AccountMenuAction.signOut) onSignOut();
-      },
-      itemBuilder: (context) => [
-        PopupMenuItem<_AccountMenuAction>(
-          enabled: false,
-          child: Text(
-            label,
-            style: const TextStyle(fontWeight: FontWeight.w700),
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: _AccountMenuAction.signOut,
-          child: Text('Гарах'),
-        ),
-      ],
+    return InkWell(
+      key: const ValueKey('shell-avatar'),
+      onTap: onTap,
+      customBorder: const CircleBorder(),
       child: Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CircleAvatar(
-              radius: 14,
-              backgroundColor: scheme.primary,
-              child: Text(
-                label.substring(0, 1).toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
+        padding: const EdgeInsets.only(right: 8, left: 4),
+        child: CircleAvatar(
+          radius: 14,
+          backgroundColor: scheme.primary,
+          child: Text(
+            label.substring(0, 1).toUpperCase(),
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
             ),
-            const SizedBox(width: 8),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 96),
-              child: Text(label, overflow: TextOverflow.ellipsis, maxLines: 1),
-            ),
-          ],
+          ),
         ),
       ),
     );

@@ -1,15 +1,15 @@
 import 'package:carcare_customer_mobile/app/app.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
+import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
-import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/vehicles_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 Future<void> _login(WidgetTester tester) async {
-  await tester.tap(find.byKey(const ValueKey('vehicles-login')));
+  await tester.tap(find.byKey(const ValueKey('profile-login')));
   await tester.pumpAndSettle();
   await tester.enterText(find.byKey(const ValueKey('login-phone')), '99112233');
   await tester.tap(find.text('Код авах →'));
@@ -22,7 +22,31 @@ Future<void> _login(WidgetTester tester) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('requires login before showing vehicles, then lists them', (
+  testWidgets(
+    'requires login before showing the profile, then lists vehicles',
+    (tester) async {
+      await tester.pumpWidget(
+        CarCareCustomerApp(
+          organizationRepository: FakeOrganizationRepository(
+            delay: Duration.zero,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Профайл'));
+      await tester.pumpAndSettle();
+      expect(find.text('Профайлаа харахын тулд нэвтэрнэ үү'), findsOneWidget);
+
+      await _login(tester);
+
+      expect(find.text('Миний машинууд'), findsOneWidget);
+      expect(find.text('Hyundai Sonata'), findsOneWidget);
+      expect(find.text('9911УБЕ · 2019'), findsOneWidget);
+    },
+  );
+
+  testWidgets('shows the account header with a working sign-out button', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -34,15 +58,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Машин'));
+    await tester.tap(find.text('Профайл'));
     await tester.pumpAndSettle();
-    expect(find.text('Машинаа харахын тулд нэвтэрнэ үү'), findsOneWidget);
-
     await _login(tester);
 
-    expect(find.text('Миний машинууд'), findsOneWidget);
-    expect(find.text('Hyundai Sonata'), findsOneWidget);
-    expect(find.text('9911УБЕ · 2019'), findsOneWidget);
+    expect(find.byKey(const ValueKey('profile-sign-out')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('profile-sign-out')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Профайлаа харахын тулд нэвтэрнэ үү'), findsOneWidget);
   });
 
   testWidgets('adds a vehicle using HUR lookup autofill', (tester) async {
@@ -55,11 +80,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Машин'));
+    await tester.tap(find.text('Профайл'));
     await tester.pumpAndSettle();
     await _login(tester);
 
-    await tester.tap(find.byKey(const ValueKey('vehicles-add-fab')));
+    await tester.tap(find.byKey(const ValueKey('profile-add-vehicle-fab')));
     await tester.pumpAndSettle();
 
     await tester.enterText(
@@ -90,7 +115,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Машин'));
+    await tester.tap(find.text('Профайл'));
     await tester.pumpAndSettle();
     await _login(tester);
 
@@ -121,11 +146,13 @@ void main() {
         home: MediaQuery(
           data: const MediaQueryData(textScaler: TextScaler.linear(2)),
           child: Scaffold(
-            body: VehiclesScreen(
+            body: ProfileScreen(
               controller: controller,
               isAuthenticated: true,
               onLoginRequested: () {},
               onAddVehicle: () {},
+              account: null,
+              onSignOut: () {},
             ),
           ),
         ),
