@@ -34,12 +34,21 @@ The backend customer contract and complete booking flow are still under developm
    copy .env.example .env
    ```
 
-4. Add a platform-restricted Google Maps key to `.env` when available. See [`docs/GOOGLE_MAPS_SETUP.md`](docs/GOOGLE_MAPS_SETUP.md).
-5. Run the app:
+4. Fill in `.env`: a platform-restricted Google Maps key when available (see
+   [`docs/GOOGLE_MAPS_SETUP.md`](docs/GOOGLE_MAPS_SETUP.md)), plus
+   `API_BASE_URL`/`USE_FAKE_API` for the customer API you want to run
+   against — see the comments in `.env.example`.
+5. Run the app so it actually picks up `.env`:
 
    ```bash
-   flutter run
+   flutter run --dart-define-from-file=.env
    ```
+
+   VS Code's Run panel already has a "carcare_customer_mobile (.env)"
+   launch configuration (`.vscode/launch.json`) that does this
+   automatically — plain `flutter run`/the bare "Run" button falls back to
+   the compile-time defaults in `lib/core/config/app_environment.dart`
+   instead of `.env`.
 
 ## Validation
 

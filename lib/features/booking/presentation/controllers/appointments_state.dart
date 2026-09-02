@@ -7,11 +7,17 @@ class AppointmentsState {
     this.status = AppointmentsStatus.initial,
     this.appointments = const [],
     this.message,
+    this.isFromCache = false,
   });
 
   final AppointmentsStatus status;
   final List<Appointment> appointments;
   final String? message;
+
+  /// True when [appointments] is the last successfully loaded list, shown
+  /// because a fresh load just failed (e.g. no network) rather than because
+  /// it is currently up to date.
+  final bool isFromCache;
 
   bool get isLoading =>
       status == AppointmentsStatus.initial ||

@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/app.dart';
 import 'package:carcare_customer_mobile/core/config/app_environment.dart';
+import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
 import 'package:carcare_customer_mobile/core/network/api_client.dart';
 import 'package:carcare_customer_mobile/core/notifications/local_push_service.dart';
 import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
@@ -83,6 +84,7 @@ void main() async {
       vehicleRepository: vehicleRepository,
       deviceRepository: deviceRepository,
       remotePushService: remotePushService,
+      connectivityService: const PlatformConnectivityService(),
     ),
   );
 }

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:carcare_customer_mobile/app/customer_shell.dart';
+import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
 import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
@@ -10,16 +11,19 @@ import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
 import 'package:carcare_customer_mobile/features/devices/data/device_id_store.dart';
 import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/screens/history_screen.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/screens/service_order_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
@@ -28,6 +32,7 @@ import 'package:carcare_customer_mobile/features/notifications/presentation/scre
 import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/add_vehicle_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -95,6 +100,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     this.deviceRepository,
     this.remotePushService,
     this.deviceIdStore,
+    this.connectivityService,
   ) : discoveryController = DiscoveryController(repository)..load() {
     organizationDetailController = OrganizationDetailController(repository);
     authController = AuthController(authRepository)..restore();
@@ -122,6 +128,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
         data: message.data,
       ),
     );
+    _connectivitySubscription = connectivityService.onConnectivityChanged
+        .listen(_onConnectivityChanged);
   }
 
   final DiscoveryController discoveryController;
@@ -139,9 +147,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   final DeviceRepository deviceRepository;
   final RemotePushService remotePushService;
   final DeviceIdStore deviceIdStore;
+  final ConnectivityService connectivityService;
   final FavoritesController favoritesController = FavoritesController();
   late final StreamSubscription<String> _tokenRefreshSubscription;
   late final StreamSubscription<dynamic> _foregroundMessageSubscription;
+  late final StreamSubscription<bool> _connectivitySubscription;
   String? _selectedSlug;
   String? _bookingBranchId;
   String? _selectedOrderId;
@@ -392,6 +402,32 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _wasAuthenticated = isAuthenticated;
   }
 
+  /// Reloads any screen currently showing stale (cached or errored) data the
+  /// moment the device regains network connectivity — without this, a
+  /// customer who reconnects has to know to manually tap retry on every tab
+  /// individually, and tabs they haven't visited yet stay stuck showing the
+  /// last failure even after the network is back.
+  void _onConnectivityChanged(bool online) {
+    if (!online) return;
+    if (discoveryController.state.isFromCache ||
+        discoveryController.state.status == DiscoveryStatus.error) {
+      discoveryController.load();
+    }
+    if (!authController.isAuthenticated) return;
+    if (appointmentsController.state.isFromCache ||
+        appointmentsController.state.status == AppointmentsStatus.error) {
+      appointmentsController.load();
+    }
+    if (vehiclesController.state.isFromCache ||
+        vehiclesController.state.status == VehiclesStatus.error) {
+      vehiclesController.load();
+    }
+    if (historyController.state.isFromCache ||
+        historyController.state.status == HistoryStatus.error) {
+      historyController.load();
+    }
+  }
+
   /// Registers the current FCM token against `POST /api/v1/app/devices` (see
   /// `CUSTOMER_API_CONTRACT.md` "Push device registration"). Best-effort: a
   /// missing token (no Firebase configured, permission denied, or a platform
@@ -462,6 +498,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   void dispose() {
     _tokenRefreshSubscription.cancel();
     _foregroundMessageSubscription.cancel();
+    _connectivitySubscription.cancel();
     discoveryController.removeListener(notifyListeners);
     organizationDetailController.removeListener(notifyListeners);
     authController.removeListener(notifyListeners);

@@ -2,8 +2,11 @@ import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repo
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test('loads the seeded vehicle', () async {
     final controller = VehiclesController(FakeVehicleRepository());
 

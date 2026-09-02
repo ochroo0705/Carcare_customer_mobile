@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
@@ -129,6 +130,15 @@ class _ProfileBody extends StatelessWidget {
         ],
         VehiclesStatus.empty => const [_EmptyVehicles()],
         VehiclesStatus.data => [
+          if (state.isFromCache)
+            OfflineBanner(
+              message:
+                  'Сүлжээгүй байна — сүүлд ачаалсан машинуудыг харуулж байна',
+              semanticsLabel:
+                  'Сүлжээгүй байна. Сүүлд ачаалсан машинуудын жагсаалтыг харуулж байна.',
+              retryKey: const ValueKey('profile-offline-retry'),
+              onRetry: controller.load,
+            ),
           for (final vehicle in state.vehicles)
             _VehicleCard(
               vehicle: vehicle,

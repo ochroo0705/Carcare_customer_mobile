@@ -2,8 +2,11 @@ import 'package:carcare_customer_mobile/features/history/data/fake_service_histo
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test('loads the seeded orders sorted most-recent-first', () async {
     final controller = HistoryController(FakeServiceHistoryRepository());
 

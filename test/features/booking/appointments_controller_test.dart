@@ -3,8 +3,11 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_stat
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   test(
     'loads the seeded appointments sorted active-first, then most recent',
     () async {

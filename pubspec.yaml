@@ -44,6 +44,7 @@ dependencies:
   firebase_messaging: ^16.6.0
   uuid: ^4.6.0
   provider: ^6.1.5
+  connectivity_plus: ^7.3.1
 
 dev_dependencies:
   flutter_test:
@@ -73,6 +74,14 @@ flutter_launcher_icons:
 # background it fails contrast badly (~2.8:1, well under WCAG's 4.5:1), so
 # the splash background is pinned to the light token in both modes rather
 # than following the system theme like the rest of the app.
+#
+# Android 12+'s SplashScreen API forces its animated-icon slot into a small,
+# roughly-square mask (~240dp, safe content within the inner ~66%) — a tall
+# icon+wordmark lockup like logo-wordmark.png (1020x1140) gets clipped by
+# that mask at runtime even though the source PNG itself looks fine. Use the
+# square, safe-zone-padded icon-only mark there instead; the full wordmark
+# is only safe on the legacy (<API 31) splash path and iOS, neither of which
+# apply a shape mask.
 flutter_native_splash:
   color: "#F6F5F2"
   image: assets/brand/logo-wordmark.png
@@ -80,9 +89,9 @@ flutter_native_splash:
   image_dark: assets/brand/logo-wordmark.png
   android_12:
     color: "#F6F5F2"
-    image: assets/brand/logo-wordmark.png
+    image: assets/brand/mark-padded.png
     color_dark: "#F6F5F2"
-    image_dark: assets/brand/logo-wordmark.png
+    image_dark: assets/brand/mark-padded.png
   android: true
   ios: true
 

@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
@@ -177,18 +178,30 @@ class _AppointmentsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final appointments = controller.sortedAppointments;
+    final isFromCache = controller.state.isFromCache;
+    final offset = isFromCache ? 2 : 1;
     return RefreshIndicator(
       onRefresh: controller.load,
       child: ListView.separated(
         key: const PageStorageKey('appointments-list'),
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        itemCount: appointments.length + 1,
+        itemCount: appointments.length + offset,
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
           if (index == 0) {
             return const _AppointmentsHeader();
           }
-          final appointment = appointments[index - 1];
+          if (isFromCache && index == 1) {
+            return OfflineBanner(
+              message:
+                  'Сүлжээгүй байна — сүүлд ачаалсан захиалгуудыг харуулж байна',
+              semanticsLabel:
+                  'Сүлжээгүй байна. Сүүлд ачаалсан захиалгуудын жагсаалтыг харуулж байна.',
+              retryKey: const ValueKey('appointments-offline-retry'),
+              onRetry: controller.load,
+            );
+          }
+          final appointment = appointments[index - offset];
           return _AppointmentCard(
             appointment: appointment,
             isCancelling: controller.isCancelling(appointment.id),

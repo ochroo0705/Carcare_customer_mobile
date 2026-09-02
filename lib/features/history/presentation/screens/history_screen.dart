@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_status.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
@@ -191,18 +192,29 @@ class _HistoryList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final orders = controller.state.orders;
+    final isFromCache = controller.state.isFromCache;
+    final offset = isFromCache ? 2 : 1;
     return RefreshIndicator(
       onRefresh: controller.load,
       child: ListView.separated(
         key: const PageStorageKey('history-list'),
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        itemCount: orders.length + 1,
+        itemCount: orders.length + offset,
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
           if (index == 0) {
             return const _HistoryHeader();
           }
-          final order = orders[index - 1];
+          if (isFromCache && index == 1) {
+            return OfflineBanner(
+              message: 'Сүлжээгүй байна — сүүлд ачаалсан түүхийг харуулж байна',
+              semanticsLabel:
+                  'Сүлжээгүй байна. Сүүлд ачаалсан засварын түүхийг харуулж байна.',
+              retryKey: const ValueKey('history-offline-retry'),
+              onRetry: controller.load,
+            );
+          }
+          final order = orders[index - offset];
           return _OrderCard(
             order: order,
             onTap: () => onOrderSelected(order.id),
