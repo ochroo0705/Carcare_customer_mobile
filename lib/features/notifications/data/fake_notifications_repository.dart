@@ -3,6 +3,9 @@ import 'package:carcare_customer_mobile/features/notifications/domain/app_notifi
 import 'package:carcare_customer_mobile/features/notifications/domain/notification_type.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
 
+/// Customer notification-list API нийтлэгдээгүй тул одоогоор fake-only.
+/// Энэ repository-ийн seed нь UI/FCM flow хөгжүүлэхэд зориулагдсан бөгөөд
+/// production notification history гэж ойлгож болохгүй.
 class FakeNotificationsRepository implements NotificationsRepository {
   FakeNotificationsRepository() : _now = DateTime.now();
 

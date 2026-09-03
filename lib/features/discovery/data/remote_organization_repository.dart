@@ -4,6 +4,12 @@ import 'package:carcare_customer_mobile/features/discovery/data/organization_dto
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 
+/// Public organization catalog-ийн API adapter.
+///
+/// `/orgs` нь list-д зориулсан summary payload, `/orgs/[slug]` нь booking-д
+/// хэрэгтэй detail payload буцаадаг тул хоёр response-ийг нэг DTO гэж үзэхгүй.
+/// Detail-ийн memory cache нь нэг app session доторх давхар хүсэлтийг багасгана;
+/// урт хугацааны offline cache-г [CachingOrganizationRepository] хариуцна.
 class RemoteOrganizationRepository implements OrganizationRepository {
   RemoteOrganizationRepository(this._client);
 

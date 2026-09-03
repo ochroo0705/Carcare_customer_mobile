@@ -1,6 +1,9 @@
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// Account token болон identity-г OS-backed secure storage-д хадгална.
+/// SharedPreferences-д token хийхгүй: API token нь нууц мэдээлэл бөгөөд
+/// app-ийн энгийн тохиргоо/кэштэй ижил хадгалалтын түвшинд байж болохгүй.
 class SecureSessionStore {
   SecureSessionStore({FlutterSecureStorage? storage})
     : _storage = storage ?? const FlutterSecureStorage();
@@ -11,8 +14,10 @@ class SecureSessionStore {
   static const _nameKey = 'account_name';
   final FlutterSecureStorage _storage;
 
+  /// API client-д Authorization header үүсгэхэд хэрэглэнэ.
   Future<String?> readToken() => _storage.read(key: _tokenKey);
 
+  /// Token, id, phone гурав бүрэн байж session хүчинтэй гэж үзнэ.
   Future<Account?> readAccount() async {
     final values = await _storage.readAll();
     final token = values[_tokenKey];
@@ -22,6 +27,8 @@ class SecureSessionStore {
     return Account(id: id, phone: phone, name: values[_nameKey]);
   }
 
+  /// Session-ийн заавал байх талбаруудыг хадгална. Account-ийн нэр optional
+  /// тул байхгүй үед storage-д бичихгүй.
   Future<void> save({required String token, required Account account}) async {
     await Future.wait([
       _storage.write(key: _tokenKey, value: token),
@@ -32,5 +39,6 @@ class SecureSessionStore {
     ]);
   }
 
+  /// Logout/401-ийн дараа бүх session key-г хамтад нь устгана.
   Future<void> clear() => _storage.deleteAll();
 }

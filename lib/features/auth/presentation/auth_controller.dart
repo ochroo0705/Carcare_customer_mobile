@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 
 enum AuthStep { phone, otp }
 
+/// Account realm-ийн OTP flow болон app-ийн authenticated state-г удирдана.
+/// UI зөвхөн энэ state-ийг ажиглана; token хадгалалт, server contract-ийг
+/// [AuthRepository] хэрэгжүүлдэг.
 class AuthController extends ChangeNotifier {
   AuthController(this._repository);
 
@@ -17,11 +20,15 @@ class AuthController extends ChangeNotifier {
 
   bool get isAuthenticated => account != null;
 
+  /// Launch үед secure session-ийг нэг удаа сэргээнэ. Token эвдэрсэн эсвэл
+  /// session байхгүй бол account null хэвээр үлдэж public discovery ажиллана.
   Future<void> restore() async {
     account = await _repository.restoreSession();
     notifyListeners();
   }
 
+  /// Phone-г API руу явуулахаас өмнө Монголын 8 оронтой хэлбэрийг шалгана.
+  /// Амжилттай request-ийн дараа л OTP алхам руу шилжинэ.
   Future<bool> requestOtp(String value) async {
     final normalized = value.replaceAll(RegExp(r'\s+'), '');
     if (!RegExp(r'^\d{8}$').hasMatch(normalized)) {
@@ -36,6 +43,7 @@ class AuthController extends ChangeNotifier {
     });
   }
 
+  /// OTP-г repository-д баталгаажуулж, амжилттай бол account state-г солино.
   Future<bool> verifyOtp(String code) => _run(() async {
     account = await _repository.verifyOtp(phone: phone, code: code.trim());
   });

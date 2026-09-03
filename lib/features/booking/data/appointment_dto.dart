@@ -3,6 +3,9 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 
+/// `GET /appointments`-ийн rich list payload-ийг domain model-оос тусгаарлана.
+/// Backend-ийн nested `tenant`, `branch`, `category`, `accountVehicle`-г энд
+/// flatten хийж, optional хэсгүүдийг байхгүй үед null хэвээр нь үлдээнэ.
 class AppointmentDto {
   AppointmentDto({
     required this.id,
@@ -17,6 +20,9 @@ class AppointmentDto {
     this.payment,
   });
 
+  /// Published API shape-ийг defensive байдлаар шалгана.
+  /// Required талбар дутуу үед partial Appointment үүсгэхгүй, учир нь UI
+  /// дээрх organization/branch нэр нь list card-ийн үндсэн мэдээлэл юм.
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     final status = json['status'];
@@ -69,10 +75,9 @@ class AppointmentDto {
   );
 }
 
-/// Parses the shared `payment` shape returned by every
-/// `/appointments*`/`/appointments/[id]/payment*` endpoint
-/// (`CUSTOMER_API_CONTRACT.md` §"4.1 Цаг захиалгын хураамж"). `null` input
-/// means no fee is required.
+/// `/appointments*` болон `/appointments/[id]/payment*` endpoint-үүдийн
+/// ижил `payment` shape-ийг задлана (`CUSTOMER_API_CONTRACT.md` §"4.1 Цаг
+/// захиалгын хураамж`). `null` input бол хураамж шаардахгүй гэсэн үг.
 AppointmentPayment? appointmentPaymentFromJson(Object? value) {
   if (value is! Map) return null;
   final statusRaw = value['status'];

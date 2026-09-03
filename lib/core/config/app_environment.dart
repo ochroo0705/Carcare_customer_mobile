@@ -1,9 +1,9 @@
-/// Compile-time environment flags. All values come from `--dart-define`,
-/// normally supplied automatically by running/building with
-/// `--dart-define-from-file=.env` (see `.env.example` and
-/// `docs/GOOGLE_MAPS_SETUP.md`) rather than passing each `--dart-define`
-/// flag by hand — a `.vscode/launch.json` entry already does this for VS
-/// Code. A missing/absent `.env` file falls back to the defaults below.
+/// Compile-time орчны тохиргоо. Бүх утга `--dart-define`-ээр орж ирнэ.
+/// Ихэвчлэн тус бүрийг гараар өгөхөөс илүү
+/// `--dart-define-from-file=.env` ашиглана (`.env.example` болон
+/// `docs/GOOGLE_MAPS_SETUP.md`-г үзнэ үү). `.env` байхгүй бол доорх
+/// default утгууд хэрэглэгдэнэ — ингэснээр debug app хоосон тохиргоотойгоор
+/// ч асаж, тохиргооны алдаа нь compile-time биш runtime-д илэрнэ.
 abstract final class AppEnvironment {
   static const apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',

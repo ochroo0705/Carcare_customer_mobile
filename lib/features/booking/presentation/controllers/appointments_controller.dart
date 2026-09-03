@@ -19,6 +19,9 @@ class AppointmentsController extends ChangeNotifier {
 
   bool isCancelling(String id) => _cancellingIds.contains(id);
 
+  /// Active хүсэлтүүдийг ойрын цагаар нь, эцсийн төлөвүүдийг сүүлийн өөрчлөлт
+  /// гэж үзэн шинэ огноогоор нь харуулна. Repository-ийн буцаасан list нь
+  /// unmodifiable байж болох тул энд заавал хуулж байж sort хийнэ.
   List<Appointment> get sortedAppointments {
     final active =
         _state.appointments
@@ -40,6 +43,8 @@ class AppointmentsController extends ChangeNotifier {
     );
     notifyListeners();
     try {
+      // Network амжилттай үед cache-г бүхэлд нь солих нь өмнөх Account-ийн
+      // үлдэгдэл болон шинэ response холилдохоос сэргийлнэ.
       final appointments = await _repository.getAppointments();
       _state = AppointmentsState(
         status: appointments.isEmpty
@@ -49,6 +54,8 @@ class AppointmentsController extends ChangeNotifier {
       );
       await _cache.writeAppointments(appointments);
     } on AppFailure catch (failure) {
+      // Cache нь source of truth биш: зөвхөн сүүлийн амжилттай fetch-ийг
+      // offline үед харуулна, failure message-г state дээр хадгална.
       _state = await _fallbackToCache(failure.message);
     } catch (_) {
       _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');

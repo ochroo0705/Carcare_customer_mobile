@@ -57,6 +57,9 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   final remotePushService = FirebaseRemotePushService();
   final cacheStore = DriftCacheStore(CacheDatabase());
+  // USE_FAKE_API нь бүх feature-ийн repository сонголтыг нэг цэгээс удирдана.
+  // Нэг feature fake, нөгөө feature remote болохоос сэргийлж auth, booking,
+  // vehicle, device-ийг ижил flag-аар зэрэг сонгодог.
   // Cache-first-with-TTL for org detail (hours/address/phone) — served from the
   // local DB when recently seen, so the appointment detail's location card and
   // the discovery detail page skip a round-trip and work offline.

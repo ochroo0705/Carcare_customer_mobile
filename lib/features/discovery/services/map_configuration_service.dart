@@ -1,5 +1,7 @@
 import 'package:flutter/services.dart';
 
+/// Native Maps API key тохиргоог Flutter-д зөвхөн boolean-аар мэдээлнэ.
+/// Key өөрөө Dart state эсвэл log руу дамжихгүй.
 abstract interface class MapConfigurationService {
   Future<bool> isConfigured();
 }
@@ -20,6 +22,8 @@ class NativeMapConfigurationService implements MapConfigurationService {
       // native channel. Keep their existing map-widget behavior intact.
       return true;
     } on PlatformException {
+      // Native тохиргоо уншихад алдаа гарвал map байгуулахгүй, list fallback
+      // харуулна. Maps SDK-г буруу key-тэйгээр initialize хийхээс аюулгүй.
       return false;
     }
   }

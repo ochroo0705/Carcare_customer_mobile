@@ -18,6 +18,9 @@ class HistoryController extends ChangeNotifier {
     _state = HistoryState(status: HistoryStatus.loading, orders: _state.orders);
     notifyListeners();
     try {
+      // Service history endpoint одоогоор нийтлэгдээгүй тул production wiring
+      // нь fake repository-той хэвээр. Remote history contract гармагц энэ
+      // controller-ийн эрэмбэ болон cache fallback-ийг өөрчлөх шаардлагагүй.
       final orders = (await _repository.getServiceHistory()).toList()
         ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
       _state = HistoryState(

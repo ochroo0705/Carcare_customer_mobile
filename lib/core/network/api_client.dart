@@ -1,6 +1,13 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:dio/dio.dart';
 
+/// Customer API-ийн нийтлэг HTTP давхарга.
+///
+/// Bearer token-ийг хүсэлт бүрийн өмнө secure session-оос уншина. 401 ирвэл
+/// session-ийг цэвэрлэх callback дуудагдана — token-д `exp` байхгүй тул
+/// хугацаа дууссан эсэхийг client талд таахгүй, server-ийн 401-г үнэн зөв
+/// дохио гэж үзнэ. Бусад HTTP/network алдааг UI-д тохирох [AppFailure]
+/// төрөлд нэг дор хөрвүүлнэ.
 class ApiClient {
   ApiClient({
     required String baseUrl,
@@ -22,6 +29,8 @@ class ApiClient {
   final Future<String?> Function()? accessTokenProvider;
   final Future<void> Function()? onUnauthorized;
 
+  /// JSON object буцаадаг GET endpoint дуудна.
+  /// API-ийн хариу object биш байвал partial data-г цааш дамжуулахгүй.
   Future<Map<String, dynamic>> getJson(String path) async {
     try {
       final response = await _dio.get<Object?>(path, options: await _options());
@@ -34,6 +43,7 @@ class ApiClient {
     }
   }
 
+  /// JSON object body-той POST endpoint дуудна.
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body,
@@ -53,6 +63,7 @@ class ApiClient {
     }
   }
 
+  /// JSON object буцаадаг DELETE endpoint дуудна.
   Future<Map<String, dynamic>> deleteJson(String path) async {
     try {
       final response = await _dio.delete<Object?>(
@@ -68,12 +79,16 @@ class ApiClient {
     }
   }
 
+  /// Хүсэлт бүр дээр session token-ийг хамгийн сүүлийн утгаар нь авна.
+  /// Token байхгүй public endpoint-д Authorization header нэмэхгүй.
   Future<Options?> _options() async {
     final token = await accessTokenProvider?.call();
     if (token == null || token.isEmpty) return null;
     return Options(headers: {'Authorization': 'Bearer $token'});
   }
 
+  /// Зөвхөн server 401 өгсөн үед session устгана.
+  /// Network тасарсан эсвэл өөр статусыг logout гэж буруу үзэж болохгүй.
   Future<void> _handleUnauthorized(DioException error) async {
     if (error.response?.statusCode == 401 && accessTokenProvider != null) {
       await onUnauthorized?.call();
@@ -81,6 +96,7 @@ class ApiClient {
   }
 }
 
+/// Base URL-г нэг хэлбэрт оруулж, хүсэлт эхлэхээс өмнө буруу тохиргоог барина.
 String _normalizeBaseUrl(String value) {
   final trimmed = value.trim().replaceFirst(RegExp(r'/+$'), '');
   final uri = Uri.tryParse(trimmed);
@@ -90,6 +106,8 @@ String _normalizeBaseUrl(String value) {
   return trimmed;
 }
 
+/// Backend-ийн `{ "error": "..." }` гэрээгээр хүний унших message-г
+/// хадгална; танихгүй response бол аюулгүй ерөнхий мессеж рүү унана.
 AppFailure _mapDioFailure(DioException error) {
   if (error.type == DioExceptionType.connectionError ||
       error.type == DioExceptionType.connectionTimeout ||

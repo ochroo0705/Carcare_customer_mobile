@@ -5,12 +5,19 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 
+/// Customer appointment API adapter.
+///
+/// Бүх endpoint Account bearer token шаарддаг. Create/cancel-ийн contract
+/// алдааг [ApiClient] AppFailure болгон хөрвүүлдэг тул энэ давхарга зөвхөн
+/// payload shape болон domain conversion-ийг хариуцна.
 class RemoteAppointmentRepository implements AppointmentRepository {
   RemoteAppointmentRepository(this._client);
 
   final ApiClient _client;
 
   @override
+  /// UTC ISO-8601 цаг илгээнэ. Server local timezone-оор тайлбарлахгүй байх
+  /// нь өөр timezone-той device дээр захиалгын цаг зөрөхөөс сэргийлнэ.
   Future<CreatedAppointment> createAppointment({
     required String branchId,
     required DateTime requestedAt,
@@ -44,6 +51,8 @@ class RemoteAppointmentRepository implements AppointmentRepository {
   }
 
   @override
+  /// Нэг Account-ийн бүх appointment-ийг server-ээс уншина. Энэ list нь
+  /// rich payload боловч тусдаа appointment detail GET endpoint шаарддаггүй.
   Future<List<Appointment>> getAppointments() async {
     final json = await _client.getJson('/appointments');
     return parseAppointmentListJson(json['appointments'])
@@ -52,6 +61,9 @@ class RemoteAppointmentRepository implements AppointmentRepository {
   }
 
   @override
+  /// Зөвхөн PENDING/CONFIRMED төлөвийг server цуцлуулахыг зөвшөөрнө.
+  /// Client талын canCancel нь UX-д зориулсан урьдчилсан шалгалт; эрхийн
+  /// эцсийн шийдвэр server дээр үлдэнэ.
   Future<void> cancelAppointment(String id) async {
     final json = await _client.postJson('/appointments/$id/cancel', const {});
     if (json['ok'] != true) {

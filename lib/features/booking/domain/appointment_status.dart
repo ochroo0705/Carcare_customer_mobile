@@ -1,3 +1,6 @@
+/// Backend-ийн appointment status-ийг client талын UI төлөвт хөрвүүлнэ.
+/// Энд service completed төлөв байхгүй — `CONFIRMED` нь зөвхөн цаг
+/// баталгаажсаныг илэрхийлнэ, үйлчилгээ дууссаныг биш.
 enum AppointmentStatus {
   pending,
   confirmed,
@@ -17,6 +20,8 @@ AppointmentStatus appointmentStatusFromApi(String value) => switch (value) {
 };
 
 extension AppointmentStatusUi on AppointmentStatus {
+  /// Зөвхөн PENDING/CONFIRMED appointment нь одоо үргэлжилж буй хүсэлт гэж
+  /// үзэгдэнэ. Цуцлах эрхийн эцсийн шалгалтыг server хийдэг.
   bool get isActive =>
       this == AppointmentStatus.pending || this == AppointmentStatus.confirmed;
 
