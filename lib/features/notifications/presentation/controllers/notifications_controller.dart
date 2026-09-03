@@ -34,6 +34,11 @@ class NotificationsController extends ChangeNotifier {
             : NotificationsStatus.data,
         notifications: notifications,
       );
+    } on FeatureUnavailableFailure {
+      // Real API build: no notifications-list endpoint yet (D-014). The in-app
+      // list shows "coming soon"; real pushes still surface via the OS/local
+      // banner in handleIncomingPush, which doesn't depend on the list.
+      _state = const NotificationsState(status: NotificationsStatus.unavailable);
     } on AppFailure catch (failure) {
       _state = NotificationsState(
         status: NotificationsStatus.error,
@@ -91,8 +96,13 @@ class NotificationsController extends ChangeNotifier {
       createdAt: DateTime.now(),
       isRead: false,
     );
-    await _repository.addExternal(notification);
-    await load();
+    try {
+      await _repository.addExternal(notification);
+      await load();
+    } catch (_) {
+      // The in-app list may be unavailable in a real build — never let that
+      // stop the local banner below, which is the actual notification.
+    }
     await _pushService.show(notification);
   }
 }

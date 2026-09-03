@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_status.dart';
@@ -105,6 +106,11 @@ class _HistoryBody extends StatelessWidget {
         onRetry: controller.load,
       ),
       HistoryStatus.empty => const _EmptyHistory(),
+      HistoryStatus.unavailable => const ComingSoonView(
+        icon: Icons.receipt_long_outlined,
+        title: 'Тун удахгүй',
+        message: 'Засварын түүх удахгүй энд харагдана.',
+      ),
       HistoryStatus.data => _HistoryList(
         controller: controller,
         onOrderSelected: onOrderSelected,

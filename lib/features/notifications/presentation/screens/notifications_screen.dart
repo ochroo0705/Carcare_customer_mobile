@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_state.dart';
@@ -48,6 +49,11 @@ class _Body extends StatelessWidget {
         onRetry: controller.load,
       ),
       NotificationsStatus.empty => const _EmptyNotifications(),
+      NotificationsStatus.unavailable => const ComingSoonView(
+        icon: Icons.notifications_none_rounded,
+        title: 'Тун удахгүй',
+        message: 'Мэдэгдлийн жагсаалт удахгүй нэмэгдэнэ.',
+      ),
       NotificationsStatus.data => _NotificationsList(controller: controller),
     };
   }

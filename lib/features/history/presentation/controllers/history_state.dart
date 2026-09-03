@@ -1,6 +1,6 @@
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 
-enum HistoryStatus { initial, loading, data, empty, error }
+enum HistoryStatus { initial, loading, data, empty, error, unavailable }
 
 class HistoryState {
   const HistoryState({

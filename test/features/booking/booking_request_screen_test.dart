@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
@@ -48,6 +49,29 @@ class _CapturingAppointmentRepository implements AppointmentRepository {
 
   @override
   Future<AppointmentPayment?> retryPayment(String appointmentId) async => null;
+}
+
+/// Rejects the booking with a 409-style conflict (slot already taken).
+class _ConflictAppointmentRepository implements AppointmentRepository {
+  @override
+  Future<CreatedAppointment> createAppointment({
+    required String branchId,
+    required DateTime requestedAt,
+    String? note,
+    String? accountVehicleId,
+  }) async => throw const ConflictFailure('Энэ цаг дүүрсэн байна.');
+
+  @override
+  Future<List<Appointment>> getAppointments() async => const [];
+  @override
+  Future<void> cancelAppointment(String id) async {}
+  @override
+  Future<AppointmentPayment?> getPayment(String id) async => null;
+  @override
+  Future<AppointmentPaymentCheckResult> checkPayment(String id) async =>
+      const AppointmentPaymentCheckResult(paid: false);
+  @override
+  Future<AppointmentPayment?> retryPayment(String id) async => null;
 }
 
 const _organization = OrganizationDetail(
@@ -211,5 +235,41 @@ void main() {
     expect(find.byKey(const ValueKey('booking-vehicle')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('booking-add-vehicle')));
     expect(addVehicleTapped, isTrue);
+  });
+
+  testWidgets('surfaces the conflict message when the slot is already taken', (
+    tester,
+  ) async {
+    await _useTallSurface(tester);
+    final vehiclesController = VehiclesController(FakeVehicleRepository());
+    await vehiclesController.load();
+    var completed = false;
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: vehiclesController,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: BookingRequestScreen(
+            organization: _organization,
+            branch: _branch,
+            repository: _ConflictAppointmentRepository(),
+            onAddVehicle: () {},
+            onBack: () {},
+            onCompleted: (_) => completed = true,
+            onUnauthenticated: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _acceptDefaultDateTime(tester);
+    await tester.tap(find.byKey(const ValueKey('submit-booking')));
+    await tester.pumpAndSettle();
+
+    // The 409 message is shown in-place and the booking is NOT completed.
+    expect(find.text('Энэ цаг дүүрсэн байна.'), findsOneWidget);
+    expect(completed, isFalse);
   });
 }

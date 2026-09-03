@@ -28,6 +28,10 @@ class HistoryController extends ChangeNotifier {
         orders: orders,
       );
       await _cache.writeServiceOrders(orders);
+    } on FeatureUnavailableFailure {
+      // Real API build: no History endpoint yet (D-014). Show an honest
+      // "coming soon" state, not fake data or an error.
+      _state = const HistoryState(status: HistoryStatus.unavailable);
     } on AppFailure catch (failure) {
       _state = await _fallbackToCache(failure.message);
     } catch (_) {

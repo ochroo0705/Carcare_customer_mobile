@@ -1,6 +1,6 @@
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 
-enum NotificationsStatus { initial, loading, data, empty, error }
+enum NotificationsStatus { initial, loading, data, empty, error, unavailable }
 
 class NotificationsState {
   const NotificationsState({

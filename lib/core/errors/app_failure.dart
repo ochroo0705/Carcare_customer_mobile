@@ -46,3 +46,14 @@ class ServerFailure extends AppFailure {
 class UnexpectedFailure extends AppFailure {
   const UnexpectedFailure([super.message = 'Тодорхойгүй алдаа гарлаа.']);
 }
+
+/// Thrown by a repository for a feature whose backend endpoint does not exist
+/// yet (History, Notifications list — see D-014). Distinct from an error:
+/// nothing went wrong, the capability simply isn't available in this build, so
+/// the UI shows an honest "coming soon" state instead of a fake list or an
+/// error. Used only against the real API; fake mode still serves seed data.
+class FeatureUnavailableFailure extends AppFailure {
+  const FeatureUnavailableFailure([
+    super.message = 'Энэ хэсэг тун удахгүй нэмэгдэнэ.',
+  ]);
+}

@@ -18,6 +18,10 @@ import 'package:carcare_customer_mobile/features/devices/data/remote_device_repo
 import 'package:carcare_customer_mobile/features/discovery/data/caching_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/remote_organization_repository.dart';
+import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
+import 'package:carcare_customer_mobile/features/history/data/unavailable_service_history_repository.dart';
+import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
+import 'package:carcare_customer_mobile/features/notifications/data/unavailable_notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/remote_vehicle_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -105,12 +109,24 @@ void main() async {
             onUnauthorized: sessionStore.clear,
           ),
         );
+  // History and Notifications have no published `/api/v1/app` endpoint yet
+  // (D-014). Against the real API, serve the honest "coming soon" repos rather
+  // than the fake seeds — those stay for fake mode and tests. Real push
+  // delivery is unaffected (it's OS/local-banner level, not the list).
+  final historyRepository = AppEnvironment.useFakeApi
+      ? FakeServiceHistoryRepository()
+      : const UnavailableServiceHistoryRepository();
+  final notificationsRepository = AppEnvironment.useFakeApi
+      ? FakeNotificationsRepository()
+      : const UnavailableNotificationsRepository();
   runApp(
     CarCareCustomerApp(
       organizationRepository: organizationRepository,
       authRepository: authRepository,
       appointmentRepository: appointmentRepository,
       vehicleRepository: vehicleRepository,
+      historyRepository: historyRepository,
+      notificationsRepository: notificationsRepository,
       deviceRepository: deviceRepository,
       remotePushService: remotePushService,
       connectivityService: const PlatformConnectivityService(),
