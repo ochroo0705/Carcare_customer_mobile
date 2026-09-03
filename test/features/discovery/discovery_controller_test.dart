@@ -1,8 +1,8 @@
+import 'package:carcare_customer_mobile/data/cache/in_memory_cache_store.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   late DiscoveryController controller;
@@ -54,13 +54,16 @@ void main() {
   });
 
   group('offline cache', () {
-    setUp(() => SharedPreferences.setMockInitialValues({}));
+    late InMemoryCacheStore cache;
+
+    setUp(() => cache = InMemoryCacheStore());
 
     test(
       'falls back to the last successful list when a later load fails',
       () async {
         final online = DiscoveryController(
           FakeOrganizationRepository(delay: Duration.zero),
+          cache: cache,
         );
         await online.load();
         expect(online.state.status, DiscoveryStatus.data);
@@ -68,12 +71,13 @@ void main() {
         online.dispose();
 
         // A fresh controller instance simulates a new app start; it only
-        // shares state with the previous one through persisted storage.
+        // shares state with the previous one through the persisted cache.
         final offline = DiscoveryController(
           FakeOrganizationRepository(
             delay: Duration.zero,
             scenario: FakeOrganizationScenario.error,
           ),
+          cache: cache,
         );
         await offline.load();
 
@@ -92,6 +96,7 @@ void main() {
             delay: Duration.zero,
             scenario: FakeOrganizationScenario.error,
           ),
+          cache: cache,
         );
 
         await controller.load();

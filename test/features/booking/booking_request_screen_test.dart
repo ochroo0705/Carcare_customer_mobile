@@ -83,10 +83,22 @@ Future<void> _acceptDefaultDateTime(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// The booking form is a tall ListView (header → calendar → vehicle picker →
+/// note → submit). In the default 800×600 test viewport the calendar — whose
+/// height varies by month (5 vs 6 week-rows) — pushes the vehicle picker and
+/// submit button below the fold, where the lazy ListView never builds them,
+/// making these tests fail intermittently by real-world date. A tall surface
+/// renders the whole form so every control is built and hit-testable.
+Future<void> _useTallSurface(WidgetTester tester) async {
+  await tester.binding.setSurfaceSize(const Size(1000, 2400));
+  addTearDown(() => tester.binding.setSurfaceSize(null));
+}
+
 void main() {
   testWidgets(
     'auto-selects and submits the only vehicle without touching the picker',
     (tester) async {
+      await _useTallSurface(tester);
       final repository = _CapturingAppointmentRepository();
       final vehiclesController = VehiclesController(FakeVehicleRepository());
       await vehiclesController.load();
@@ -126,6 +138,7 @@ void main() {
   testWidgets(
     'submits with no vehicle after the customer clears the selection',
     (tester) async {
+      await _useTallSurface(tester);
       final repository = _CapturingAppointmentRepository();
       final vehiclesController = VehiclesController(FakeVehicleRepository());
       await vehiclesController.load();
@@ -167,6 +180,7 @@ void main() {
   testWidgets('offers an add-vehicle link when the customer has none yet', (
     tester,
   ) async {
+    await _useTallSurface(tester);
     final vehiclesController = VehiclesController(FakeVehicleRepository());
     // Delete the seeded vehicle so the picker falls back to the empty state.
     await vehiclesController.load();

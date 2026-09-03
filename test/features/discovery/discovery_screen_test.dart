@@ -1,6 +1,8 @@
 import 'package:carcare_customer_mobile/app/app.dart';
+import 'package:carcare_customer_mobile/data/cache/in_memory_cache_store.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -54,6 +56,25 @@ void main() {
   testWidgets('offers the list when map initialization times out', (
     tester,
   ) async {
+    // The native map-configuration channel is unimplemented in the test VM, so
+    // `isConfigured()` would otherwise hang and the map would sit on the
+    // loading overlay forever (its 12s timeout timer is only armed once
+    // `isConfigured` resolves). Mock it to "configured" so the loading →
+    // timeout → failed path this test exercises can actually run.
+    const mapChannel = MethodChannel(
+      'mn.carcare.carcare_customer_mobile/map_configuration',
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      mapChannel,
+      (call) async => call.method == 'isConfigured' ? true : null,
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        mapChannel,
+        null,
+      ),
+    );
+
     await tester.pumpWidget(
       CarCareCustomerApp(
         organizationRepository: FakeOrganizationRepository(
@@ -67,7 +88,10 @@ void main() {
     await tester.pump();
     expect(find.text('Газрын зураг ачаалж байна…'), findsOneWidget);
 
-    await tester.pump(const Duration(seconds: 12));
+    // The 12s init-timeout timer is armed only after `isConfigured()` resolves
+    // (one async hop past frame 0), so it fires just past the 12s mark —
+    // advance a hair beyond it rather than landing exactly on the boundary.
+    await tester.pump(const Duration(seconds: 13));
     await tester.pump();
     expect(find.text('Газрын зураг ачаалсангүй'), findsOneWidget);
 
@@ -249,12 +273,17 @@ void main() {
   testWidgets(
     'shows the last loaded list with an offline banner when a later load fails',
     (tester) async {
+      // A single cache shared across both "launches" stands in for the
+      // on-disk Drift cache surviving an app restart.
+      final cache = InMemoryCacheStore();
+
       // First launch: a normal, successful load persists the list to cache.
       await tester.pumpWidget(
         CarCareCustomerApp(
           organizationRepository: FakeOrganizationRepository(
             delay: Duration.zero,
           ),
+          cacheStore: cache,
         ),
       );
       await tester.pumpAndSettle();
@@ -275,6 +304,7 @@ void main() {
             scenario: FakeOrganizationScenario.error,
             delay: Duration.zero,
           ),
+          cacheStore: cache,
         ),
       );
       await tester.pumpAndSettle();

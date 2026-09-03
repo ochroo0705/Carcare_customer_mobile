@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
 import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
 import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
+import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/data/fake_auth_repository.dart';
@@ -32,6 +33,7 @@ class CarCareCustomerApp extends StatefulWidget {
     RemotePushService? remotePushService,
     DeviceIdStore? deviceIdStore,
     ConnectivityService? connectivityService,
+    CacheStore? cacheStore,
     super.key,
   }) : authRepository = authRepository ?? FakeAuthRepository(),
        appointmentRepository =
@@ -44,7 +46,8 @@ class CarCareCustomerApp extends StatefulWidget {
        remotePushService = remotePushService ?? const NoopRemotePushService(),
        deviceIdStore = deviceIdStore ?? DeviceIdStore(),
        connectivityService =
-           connectivityService ?? const NoopConnectivityService();
+           connectivityService ?? const NoopConnectivityService(),
+       cacheStore = cacheStore ?? const NoopCacheStore();
   final OrganizationRepository organizationRepository;
   final AuthRepository authRepository;
   final AppointmentRepository appointmentRepository;
@@ -55,6 +58,7 @@ class CarCareCustomerApp extends StatefulWidget {
   final RemotePushService remotePushService;
   final DeviceIdStore deviceIdStore;
   final ConnectivityService connectivityService;
+  final CacheStore cacheStore;
 
   @override
   State<CarCareCustomerApp> createState() => _CarCareCustomerAppState();
@@ -82,6 +86,7 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
       widget.remotePushService,
       widget.deviceIdStore,
       widget.connectivityService,
+      widget.cacheStore,
     );
   }
 

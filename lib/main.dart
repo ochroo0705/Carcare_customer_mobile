@@ -6,6 +6,8 @@ import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.d
 import 'package:carcare_customer_mobile/core/network/api_client.dart';
 import 'package:carcare_customer_mobile/core/notifications/local_push_service.dart';
 import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
+import 'package:carcare_customer_mobile/data/cache/cache_database.dart';
+import 'package:carcare_customer_mobile/data/cache/drift_cache_store.dart';
 import 'package:carcare_customer_mobile/features/auth/data/fake_auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/data/remote_auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/data/secure_session_store.dart';
@@ -76,6 +78,7 @@ void main() async {
             onUnauthorized: sessionStore.clear,
           ),
         );
+  final cacheStore = DriftCacheStore(CacheDatabase());
   runApp(
     CarCareCustomerApp(
       organizationRepository: organizationRepository,
@@ -85,6 +88,7 @@ void main() async {
       deviceRepository: deviceRepository,
       remotePushService: remotePushService,
       connectivityService: const PlatformConnectivityService(),
+      cacheStore: cacheStore,
     ),
   );
 

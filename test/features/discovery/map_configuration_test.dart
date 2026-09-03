@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
@@ -11,6 +12,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
+        theme: AppTheme.light,
         home: Scaffold(
           body: DiscoveryMap(
             organizations: const [

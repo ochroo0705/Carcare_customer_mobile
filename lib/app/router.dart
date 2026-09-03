@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:carcare_customer_mobile/app/customer_shell.dart';
 import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
+import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
 import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
@@ -103,12 +104,17 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     this.remotePushService,
     this.deviceIdStore,
     this.connectivityService,
-  ) : discoveryController = DiscoveryController(repository)..load() {
+    this.cacheStore,
+  ) : discoveryController = DiscoveryController(repository, cache: cacheStore)
+        ..load() {
     organizationDetailController = OrganizationDetailController(repository);
     authController = AuthController(authRepository)..restore();
-    appointmentsController = AppointmentsController(appointmentRepository);
-    vehiclesController = VehiclesController(vehicleRepository);
-    historyController = HistoryController(historyRepository);
+    appointmentsController = AppointmentsController(
+      appointmentRepository,
+      cache: cacheStore,
+    );
+    vehiclesController = VehiclesController(vehicleRepository, cache: cacheStore);
+    historyController = HistoryController(historyRepository, cache: cacheStore);
     notificationsController = NotificationsController(notificationsRepository);
     discoveryController.addListener(notifyListeners);
     organizationDetailController.addListener(notifyListeners);
@@ -150,6 +156,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   final RemotePushService remotePushService;
   final DeviceIdStore deviceIdStore;
   final ConnectivityService connectivityService;
+  final CacheStore cacheStore;
   final FavoritesController favoritesController = FavoritesController();
   late final StreamSubscription<String> _tokenRefreshSubscription;
   late final StreamSubscription<dynamic> _foregroundMessageSubscription;
