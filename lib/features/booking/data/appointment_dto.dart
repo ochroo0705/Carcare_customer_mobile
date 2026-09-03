@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 
 class AppointmentDto {
@@ -13,6 +14,7 @@ class AppointmentDto {
     this.note,
     this.categoryName,
     this.vehiclePlate,
+    this.payment,
   });
 
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
@@ -38,6 +40,7 @@ class AppointmentDto {
       vehiclePlate: accountVehicle == null
           ? null
           : _optionalString(accountVehicle['plate']),
+      payment: appointmentPaymentFromJson(json['payment']),
     );
   }
 
@@ -50,6 +53,7 @@ class AppointmentDto {
   final String? note;
   final String? categoryName;
   final String? vehiclePlate;
+  final AppointmentPayment? payment;
 
   Appointment toDomain() => Appointment(
     id: id,
@@ -61,6 +65,30 @@ class AppointmentDto {
     note: note,
     categoryName: categoryName,
     vehiclePlate: vehiclePlate,
+    payment: payment,
+  );
+}
+
+/// Parses the shared `payment` shape returned by every
+/// `/appointments*`/`/appointments/[id]/payment*` endpoint
+/// (`CUSTOMER_API_CONTRACT.md` §"4.1 Цаг захиалгын хураамж"). `null` input
+/// means no fee is required.
+AppointmentPayment? appointmentPaymentFromJson(Object? value) {
+  if (value is! Map) return null;
+  final statusRaw = value['status'];
+  final amount = value['amount'];
+  if (statusRaw is! String || amount is! num) return null;
+  return AppointmentPayment(
+    status: appointmentFeeStatusFromApi(statusRaw),
+    amount: amount,
+    currency: value['currency'] is String ? value['currency'] as String : 'MNT',
+    qrImageBase64: value['qrImage'] is String
+        ? value['qrImage'] as String
+        : null,
+    qrText: value['qrText'] is String ? value['qrText'] as String : null,
+    underpaidAmount: value['underpaidAmount'] is num
+        ? value['underpaidAmount'] as num
+        : null,
   );
 }
 

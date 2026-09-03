@@ -2,6 +2,7 @@ import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
@@ -10,9 +11,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class AppointmentsScreen extends StatelessWidget {
-  const AppointmentsScreen({required this.onLoginRequested, super.key});
+  const AppointmentsScreen({
+    required this.onLoginRequested,
+    required this.onPaymentRequested,
+    super.key,
+  });
 
   final VoidCallback onLoginRequested;
+  final ValueChanged<Appointment> onPaymentRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +27,10 @@ class AppointmentsScreen extends StatelessWidget {
     return AppShellBackground(
       child: SafeArea(
         child: isAuthenticated
-            ? _AppointmentsBody(controller: controller)
+            ? _AppointmentsBody(
+                controller: controller,
+                onPaymentRequested: onPaymentRequested,
+              )
             : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
       ),
     );
@@ -74,9 +83,13 @@ class _UnauthenticatedPrompt extends StatelessWidget {
 }
 
 class _AppointmentsBody extends StatelessWidget {
-  const _AppointmentsBody({required this.controller});
+  const _AppointmentsBody({
+    required this.controller,
+    required this.onPaymentRequested,
+  });
 
   final AppointmentsController controller;
+  final ValueChanged<Appointment> onPaymentRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +106,10 @@ class _AppointmentsBody extends StatelessWidget {
         onRetry: controller.load,
       ),
       AppointmentsStatus.empty => const _EmptyAppointments(),
-      AppointmentsStatus.data => _AppointmentsList(controller: controller),
+      AppointmentsStatus.data => _AppointmentsList(
+        controller: controller,
+        onPaymentRequested: onPaymentRequested,
+      ),
     };
   }
 }
@@ -171,9 +187,13 @@ class _EmptyAppointments extends StatelessWidget {
 }
 
 class _AppointmentsList extends StatelessWidget {
-  const _AppointmentsList({required this.controller});
+  const _AppointmentsList({
+    required this.controller,
+    required this.onPaymentRequested,
+  });
 
   final AppointmentsController controller;
+  final ValueChanged<Appointment> onPaymentRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -206,6 +226,11 @@ class _AppointmentsList extends StatelessWidget {
             isCancelling: controller.isCancelling(appointment.id),
             onCancel: appointment.status.canCancel
                 ? () => _confirmCancel(context, appointment)
+                : null,
+            onPaymentTap:
+                appointment.payment != null &&
+                    appointment.payment!.status != AppointmentFeeStatus.paid
+                ? () => onPaymentRequested(appointment)
                 : null,
           );
         },
@@ -259,11 +284,16 @@ class _AppointmentCard extends StatelessWidget {
     required this.appointment,
     required this.isCancelling,
     this.onCancel,
+    this.onPaymentTap,
   });
 
   final Appointment appointment;
   final bool isCancelling;
   final VoidCallback? onCancel;
+
+  /// Non-null only when this appointment has an unpaid/underpaid/failed fee
+  /// (`CUSTOMER_API_CONTRACT.md` §4.1) — tapping opens the payment screen.
+  final VoidCallback? onPaymentTap;
 
   @override
   Widget build(BuildContext context) => GlassSurface(
@@ -320,6 +350,38 @@ class _AppointmentCard extends StatelessWidget {
             appointment.note!.trim().isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(appointment.note!, style: Theme.of(context).textTheme.bodySmall),
+        ],
+        if (onPaymentTap != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.amber.withValues(alpha: 0.12),
+              border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    appointment.payment!.status == AppointmentFeeStatus.failed
+                        ? 'Хураамжийн QR үүсгэхэд алдаа гарсан'
+                        : 'Цаг захиалгын хураамж төлөгдөөгүй',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.amberLightText,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  key: ValueKey('pay-${appointment.id}'),
+                  onPressed: onPaymentTap,
+                  child: const Text('Төлөх'),
+                ),
+              ],
+            ),
+          ),
         ],
         if (onCancel != null) ...[
           const SizedBox(height: 12),

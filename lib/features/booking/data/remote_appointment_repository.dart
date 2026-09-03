@@ -2,6 +2,7 @@ import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/core/network/api_client.dart';
 import 'package:carcare_customer_mobile/features/booking/data/appointment_dto.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 
 class RemoteAppointmentRepository implements AppointmentRepository {
@@ -34,7 +35,12 @@ class RemoteAppointmentRepository implements AppointmentRepository {
     if (id is! String || status is! String || parsedAt == null) {
       throw const UnexpectedFailure('Захиалгын мэдээлэл буруу байна.');
     }
-    return CreatedAppointment(id: id, status: status, requestedAt: parsedAt);
+    return CreatedAppointment(
+      id: id,
+      status: status,
+      requestedAt: parsedAt,
+      payment: appointmentPaymentFromJson(appointment['payment']),
+    );
   }
 
   @override
@@ -51,5 +57,37 @@ class RemoteAppointmentRepository implements AppointmentRepository {
     if (json['ok'] != true) {
       throw const UnexpectedFailure('Захиалга цуцлагдсангүй.');
     }
+  }
+
+  @override
+  Future<AppointmentPayment?> getPayment(String appointmentId) async {
+    final json = await _client.getJson('/appointments/$appointmentId/payment');
+    return appointmentPaymentFromJson(json['payment']);
+  }
+
+  @override
+  Future<AppointmentPaymentCheckResult> checkPayment(
+    String appointmentId,
+  ) async {
+    final json = await _client.postJson(
+      '/appointments/$appointmentId/payment/check',
+      const {},
+    );
+    final underpaid = json['underpaidAmount'];
+    final message = json['message'];
+    return AppointmentPaymentCheckResult(
+      paid: json['paid'] == true,
+      underpaidAmount: underpaid is num ? underpaid : null,
+      message: message is String ? message : null,
+    );
+  }
+
+  @override
+  Future<AppointmentPayment?> retryPayment(String appointmentId) async {
+    final json = await _client.postJson(
+      '/appointments/$appointmentId/payment/retry',
+      const {},
+    );
+    return appointmentPaymentFromJson(json['payment']);
   }
 }

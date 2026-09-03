@@ -6,12 +6,14 @@ import 'package:carcare_customer_mobile/core/notifications/remote_push_service.d
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/login_screen.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
 import 'package:carcare_customer_mobile/features/devices/data/device_id_store.dart';
 import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_payment_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
@@ -155,6 +157,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   String? _selectedSlug;
   String? _bookingBranchId;
   String? _selectedOrderId;
+  String? _paymentAppointmentId;
+  AppointmentPayment? _paymentInitial;
   bool _showLogin = false;
   bool _showAddVehicle = false;
   bool _showNotifications = false;
@@ -194,7 +198,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             onNotificationsRequested: _openNotifications,
             destinations: [
               DiscoveryScreen(onOrganizationSelected: _selectOrganization),
-              AppointmentsScreen(onLoginRequested: _requestLogin),
+              AppointmentsScreen(
+                onLoginRequested: _requestLogin,
+                onPaymentRequested: (appointment) =>
+                    _openPayment(appointment.id, appointment.payment),
+              ),
               HistoryScreen(
                 onLoginRequested: _requestLogin,
                 onOrderSelected: _openOrderDetail,
@@ -274,7 +282,25 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                     content: Text('Цагийн хүсэлт амжилттай илгээгдлээ.'),
                   ),
                 );
+                // A booking fee (CUSTOMER_API_CONTRACT.md §4.1) means this
+                // appointment isn't actually usable yet — open the payment
+                // screen on top of the (already tab-switched) shell so the
+                // customer pays before landing on the appointments list.
+                if (appointment.payment != null) {
+                  _openPayment(appointment.id, appointment.payment);
+                }
               },
+            ),
+          ),
+        if (_paymentAppointmentId != null)
+          MaterialPage<void>(
+            key: ValueKey('payment-$_paymentAppointmentId'),
+            child: AppointmentPaymentScreen(
+              appointmentId: _paymentAppointmentId!,
+              repository: appointmentRepository,
+              initialPayment: _paymentInitial,
+              onBack: _closePayment,
+              onPaymentUpdated: appointmentsController.load,
             ),
           ),
         if (_showAddVehicle)
@@ -314,6 +340,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       onDidRemovePage: (page) {
         if (_showNotifications) {
           _closeNotifications();
+        } else if (_paymentAppointmentId != null) {
+          _closePayment();
         } else if (_selectedOrderId != null) {
           _closeOrderDetail();
         } else if (_showAddVehicle) {
@@ -387,6 +415,18 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeOrderDetail() {
     _selectedOrderId = null;
+    notifyListeners();
+  }
+
+  void _openPayment(String appointmentId, AppointmentPayment? initial) {
+    _paymentAppointmentId = appointmentId;
+    _paymentInitial = initial;
+    notifyListeners();
+  }
+
+  void _closePayment() {
+    _paymentAppointmentId = null;
+    _paymentInitial = null;
     notifyListeners();
   }
 

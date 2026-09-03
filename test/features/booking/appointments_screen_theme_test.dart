@@ -25,7 +25,12 @@ void main() {
       ],
       child: MaterialApp(
         theme: theme,
-        home: Scaffold(body: AppointmentsScreen(onLoginRequested: () {})),
+        home: Scaffold(
+          body: AppointmentsScreen(
+            onLoginRequested: () {},
+            onPaymentRequested: (_) {},
+          ),
+        ),
       ),
     );
 

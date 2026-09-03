@@ -109,7 +109,12 @@ void main() {
           theme: AppTheme.light,
           home: MediaQuery(
             data: const MediaQueryData(textScaler: TextScaler.linear(2)),
-            child: Scaffold(body: AppointmentsScreen(onLoginRequested: () {})),
+            child: Scaffold(
+              body: AppointmentsScreen(
+                onLoginRequested: () {},
+                onPaymentRequested: (_) {},
+              ),
+            ),
           ),
         ),
       ),

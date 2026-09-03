@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
@@ -36,6 +37,17 @@ class _CapturingAppointmentRepository implements AppointmentRepository {
 
   @override
   Future<void> cancelAppointment(String id) async {}
+
+  @override
+  Future<AppointmentPayment?> getPayment(String appointmentId) async => null;
+
+  @override
+  Future<AppointmentPaymentCheckResult> checkPayment(
+    String appointmentId,
+  ) async => const AppointmentPaymentCheckResult(paid: true);
+
+  @override
+  Future<AppointmentPayment?> retryPayment(String appointmentId) async => null;
 }
 
 const _organization = OrganizationDetail(
