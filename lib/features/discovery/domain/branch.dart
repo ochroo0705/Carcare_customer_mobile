@@ -15,6 +15,12 @@ class Branch {
   final String district;
   final double? latitude;
   final double? longitude;
+
+  /// City · district, omitting either part when the API left it blank
+  /// (`Branch.city`/`district` are optional server-side). Empty when both
+  /// are absent.
+  String get locationLabel =>
+      [city, district].where((part) => part.trim().isNotEmpty).join(' · ');
 }
 
 class BranchDetail {
@@ -44,6 +50,12 @@ class BranchDetail {
 
   String get fullAddress =>
       [khoroo, address].where((part) => part.trim().isNotEmpty).join(', ');
+
+  /// City · district, omitting either part when the API left it blank
+  /// (`Branch.city`/`district` are optional server-side). Empty when both
+  /// are absent.
+  String get locationLabel =>
+      [city, district].where((part) => part.trim().isNotEmpty).join(' · ');
 
   String get hoursLabel {
     final opening = _parseClock(openTime);

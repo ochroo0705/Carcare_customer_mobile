@@ -24,6 +24,46 @@ void main() {
     expect(organization.branches.single.latitude, 47.91);
   });
 
+  test('tolerates branches with missing/blank city or district', () {
+    // `Branch.city`/`district` are optional server-side (schema.prisma:
+    // `city String?` / `district String?`); a real tenant can create a
+    // branch without them. The list must still load rather than throwing.
+    final organization = OrganizationSummaryDto.fromJson({
+      'slug': 'infosystems',
+      'name': 'Инфосистемс',
+      'branches': [
+        {
+          'id': 'branch-1',
+          'name': 'Үндсэн салбар',
+          'city': null,
+          'district': '   ',
+        },
+      ],
+    }).toDomain();
+
+    final branch = organization.branches.single;
+    expect(branch.city, '');
+    expect(branch.district, '');
+    expect(branch.locationLabel, '');
+  });
+
+  test('locationLabel joins only the parts the API provided', () {
+    final organization = OrganizationSummaryDto.fromJson({
+      'slug': 'infosystems',
+      'name': 'Инфосистемс',
+      'branches': [
+        {
+          'id': 'branch-1',
+          'name': 'Үндсэн салбар',
+          'city': 'Улаанбаатар',
+          'district': null,
+        },
+      ],
+    }).toDomain();
+
+    expect(organization.branches.single.locationLabel, 'Улаанбаатар');
+  });
+
   test('parses detail hours and maps missing hours to unknown', () {
     final organization = OrganizationDetailDto.fromJson({
       'slug': 'infosystems',

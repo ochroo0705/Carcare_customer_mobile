@@ -725,7 +725,7 @@ class _SelectedBranchCard extends StatelessWidget {
               const SizedBox(height: 10),
               _CardDetail(
                 icon: Icons.place_outlined,
-                text: '${branch.city} · ${branch.district}',
+                text: branch.locationLabel,
               ),
               const SizedBox(height: 12),
               SizedBox(

@@ -151,7 +151,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Авто сервисээ\nхялбархан олоорой'), findsOneWidget);
+    expect(find.text('Нэр, хот эсвэл дүүргээр хайх'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.view_list_outlined));
     await tester.pumpAndSettle();

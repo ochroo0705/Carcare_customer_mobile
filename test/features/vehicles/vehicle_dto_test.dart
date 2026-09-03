@@ -63,6 +63,21 @@ void main() {
     expect(result.capacity, 1496);
   });
 
+  test('tolerates a HUR lookup with missing make/model', () {
+    // HUR fields are nullable server-side; a plate can be registered with
+    // make/model absent. The lookup must still return, autofilling what it
+    // has, rather than throwing (which would fail the whole lookup).
+    final result = parseVehicleLookupJson({
+      'vehicle': {'plate': '1234УБА', 'make': null, 'model': '  '},
+      'source': 'hur',
+    });
+
+    expect(result.plate, '1234УБА');
+    expect(result.make, '');
+    expect(result.model, '');
+    expect(result.source, VehicleLookupSource.hur);
+  });
+
   test('defaults an unrecognized source to global', () {
     final result = parseVehicleLookupJson({
       'vehicle': {'plate': '1234УБА', 'make': 'Toyota', 'model': 'Prius'},

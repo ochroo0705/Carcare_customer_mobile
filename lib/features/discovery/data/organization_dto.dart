@@ -45,8 +45,8 @@ class BranchSummaryDto {
       BranchSummaryDto(
         id: _requiredString(json, 'id'),
         name: _requiredString(json, 'name'),
-        city: _requiredString(json, 'city'),
-        district: _requiredString(json, 'district'),
+        city: _optionalString(json['city']) ?? '',
+        district: _optionalString(json['district']) ?? '',
         latitude: _optionalDouble(json['latitude']),
         longitude: _optionalDouble(json['longitude']),
       );
@@ -119,8 +119,8 @@ class BranchDetailDto {
       BranchDetailDto(
         id: _requiredString(json, 'id'),
         name: _requiredString(json, 'name'),
-        city: _requiredString(json, 'city'),
-        district: _requiredString(json, 'district'),
+        city: _optionalString(json['city']) ?? '',
+        district: _optionalString(json['district']) ?? '',
         khoroo: _optionalString(json['khoroo']) ?? '',
         address: _optionalString(json['address']) ?? '',
         latitude: _optionalDouble(json['latitude']),

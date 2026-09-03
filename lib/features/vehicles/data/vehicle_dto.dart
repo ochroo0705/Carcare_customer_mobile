@@ -74,10 +74,14 @@ VehicleLookupResult parseVehicleLookupJson(Map<String, dynamic> json) {
   final source = json['source'] == 'hur'
       ? VehicleLookupSource.hur
       : VehicleLookupSource.global;
+  // HUR fields are all nullable server-side (`HurVehicle.plate/make/model:
+  // string | null`) — a plate can be registered with make/model missing.
+  // Default the blanks to '' so the lookup autofills what it can and the
+  // customer completes the rest, rather than failing the whole lookup.
   return VehicleLookupResult(
-    plate: _requiredString(map, 'plate'),
-    make: _requiredString(map, 'make'),
-    model: _requiredString(map, 'model'),
+    plate: _optionalString(map['plate']) ?? '',
+    make: _optionalString(map['make']) ?? '',
+    model: _optionalString(map['model']) ?? '',
     source: source,
     year: _optionalInt(map['year']),
     vin: _optionalString(map['vin']),

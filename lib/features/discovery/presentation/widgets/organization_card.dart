@@ -42,7 +42,7 @@ class OrganizationCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '${primaryBranch.city} · ${primaryBranch.district}',
+                  primaryBranch.locationLabel,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall,
