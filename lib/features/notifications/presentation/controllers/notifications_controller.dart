@@ -13,11 +13,8 @@ class NotificationsController extends ChangeNotifier {
   final NotificationsRepository _repository;
   final LocalPushService _pushService;
   NotificationsState _state = const NotificationsState();
-  bool _sendingTest = false;
 
   NotificationsState get state => _state;
-
-  bool get isSendingTest => _sendingTest;
 
   int get unreadCount =>
       _state.notifications.where((notification) => !notification.isRead).length;
@@ -97,19 +94,5 @@ class NotificationsController extends ChangeNotifier {
     await _repository.addExternal(notification);
     await load();
     await _pushService.show(notification);
-  }
-
-  Future<void> sendTestNotification() async {
-    if (_sendingTest) return;
-    _sendingTest = true;
-    notifyListeners();
-    try {
-      final notification = await _repository.simulateIncoming();
-      await load();
-      await _pushService.show(notification);
-    } finally {
-      _sendingTest = false;
-      notifyListeners();
-    }
   }
 }

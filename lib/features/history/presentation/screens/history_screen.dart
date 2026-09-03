@@ -22,7 +22,9 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isAuthenticated = context.watch<AuthController>().isAuthenticated;
+    final isAuthenticated = context.select<AuthController, bool>(
+      (c) => c.isAuthenticated,
+    );
     final controller = context.watch<HistoryController>();
     return AppShellBackground(
       child: SafeArea(

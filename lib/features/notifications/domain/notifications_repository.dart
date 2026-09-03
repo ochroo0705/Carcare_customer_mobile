@@ -7,13 +7,7 @@ abstract interface class NotificationsRepository {
 
   Future<void> markAllRead();
 
-  /// Demo-only: appends a new unread notification, simulating one arriving
-  /// from a backend that doesn't exist yet. Returns the notification so the
-  /// caller can surface a local device notification for it.
-  Future<AppNotification> simulateIncoming();
-
   /// Appends a notification received from a real push (FCM foreground
-  /// message) to the in-app list. Unlike [simulateIncoming], the caller
-  /// supplies real data rather than the repository synthesizing it.
+  /// message) to the in-app list — the caller supplies the real data.
   Future<void> addExternal(AppNotification notification);
 }

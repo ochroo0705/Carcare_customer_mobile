@@ -33,16 +33,6 @@ void main() {
     expect(controller.unreadCount, 0);
   });
 
-  test('sendTestNotification adds a new unread notification', () async {
-    final controller = NotificationsController(FakeNotificationsRepository());
-    await controller.load();
-    final before = controller.unreadCount;
-
-    await controller.sendTestNotification();
-
-    expect(controller.unreadCount, before + 1);
-  });
-
   test(
     'handleIncomingPush maps a push payload and adds it as the newest item',
     () async {

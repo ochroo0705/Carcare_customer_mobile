@@ -30,10 +30,12 @@ class CustomerShellState extends State<CustomerShell> {
   @override
   Widget build(BuildContext context) {
     final themeController = context.watch<ThemeController>();
-    final account = context.watch<AuthController>().account;
+    // Select only the slices this shell renders, so it doesn't rebuild on
+    // every unrelated change to the auth/notifications controllers (e.g. a
+    // notification's read-state flipping when the unread count is unchanged).
+    final account = context.select<AuthController, Account?>((c) => c.account);
     final unreadNotificationCount = context
-        .watch<NotificationsController>()
-        .unreadCount;
+        .select<NotificationsController, int>((c) => c.unreadCount);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= 720;

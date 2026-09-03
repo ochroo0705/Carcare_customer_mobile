@@ -28,19 +28,6 @@ class NotificationsScreen extends StatelessWidget {
       body: AppShellBackground(
         child: SafeArea(top: false, child: _Body(controller: controller)),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        key: const ValueKey('notifications-send-test'),
-        onPressed: controller.isSendingTest
-            ? null
-            : controller.sendTestNotification,
-        icon: controller.isSendingTest
-            ? const SizedBox.square(
-                dimension: 18,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : const Icon(Icons.notifications_active_outlined),
-        label: const Text('Тест мэдэгдэл илгээх'),
-      ),
     );
   }
 }

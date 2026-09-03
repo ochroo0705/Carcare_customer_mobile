@@ -7,7 +7,6 @@ class FakeNotificationsRepository implements NotificationsRepository {
   FakeNotificationsRepository() : _now = DateTime.now();
 
   final DateTime _now;
-  var _sequence = 0;
 
   late final List<AppNotification> _notifications = [
     AppNotification(
@@ -54,21 +53,6 @@ class FakeNotificationsRepository implements NotificationsRepository {
     for (var i = 0; i < _notifications.length; i++) {
       _notifications[i] = _notifications[i].copyWith(isRead: true);
     }
-  }
-
-  @override
-  Future<AppNotification> simulateIncoming() async {
-    _sequence += 1;
-    final notification = AppNotification(
-      id: 'fake-notification-$_sequence',
-      type: NotificationType.broadcast,
-      title: 'Тест мэдэгдэл',
-      message: 'Энэ бол туршилтын мэдэгдэл #$_sequence.',
-      createdAt: DateTime.now(),
-      isRead: false,
-    );
-    _notifications.insert(0, notification);
-    return notification;
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/organization_avatar.dart';
 import 'package:flutter/material.dart';
 
 class OrganizationCard extends StatelessWidget {
@@ -25,10 +26,9 @@ class OrganizationCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 26,
-            backgroundColor: scheme.primaryContainer,
-            child: Text(organization.name.characters.first.toUpperCase()),
+          OrganizationAvatar(
+            name: organization.name,
+            logoUrl: organization.logoUrl,
           ),
           const SizedBox(width: 14),
           Expanded(

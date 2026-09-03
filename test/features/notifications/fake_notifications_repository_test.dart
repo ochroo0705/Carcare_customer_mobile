@@ -33,16 +33,4 @@ void main() {
     final notifications = await repository.getNotifications();
     expect(notifications.every((n) => n.isRead), isTrue);
   });
-
-  test('simulateIncoming prepends a new unread notification', () async {
-    final repository = FakeNotificationsRepository();
-    final before = await repository.getNotifications();
-
-    final incoming = await repository.simulateIncoming();
-
-    final after = await repository.getNotifications();
-    expect(after, hasLength(before.length + 1));
-    expect(after.first.id, incoming.id);
-    expect(incoming.isRead, isFalse);
-  });
 }
