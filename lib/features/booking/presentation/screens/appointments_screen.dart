@@ -13,11 +13,13 @@ import 'package:provider/provider.dart';
 class AppointmentsScreen extends StatelessWidget {
   const AppointmentsScreen({
     required this.onLoginRequested,
+    required this.onAppointmentSelected,
     required this.onPaymentRequested,
     super.key,
   });
 
   final VoidCallback onLoginRequested;
+  final ValueChanged<String> onAppointmentSelected;
   final ValueChanged<Appointment> onPaymentRequested;
 
   @override
@@ -31,6 +33,7 @@ class AppointmentsScreen extends StatelessWidget {
         child: isAuthenticated
             ? _AppointmentsBody(
                 controller: controller,
+                onAppointmentSelected: onAppointmentSelected,
                 onPaymentRequested: onPaymentRequested,
               )
             : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
@@ -87,10 +90,12 @@ class _UnauthenticatedPrompt extends StatelessWidget {
 class _AppointmentsBody extends StatelessWidget {
   const _AppointmentsBody({
     required this.controller,
+    required this.onAppointmentSelected,
     required this.onPaymentRequested,
   });
 
   final AppointmentsController controller;
+  final ValueChanged<String> onAppointmentSelected;
   final ValueChanged<Appointment> onPaymentRequested;
 
   @override
@@ -110,6 +115,7 @@ class _AppointmentsBody extends StatelessWidget {
       AppointmentsStatus.empty => const _EmptyAppointments(),
       AppointmentsStatus.data => _AppointmentsList(
         controller: controller,
+        onAppointmentSelected: onAppointmentSelected,
         onPaymentRequested: onPaymentRequested,
       ),
     };
@@ -191,10 +197,12 @@ class _EmptyAppointments extends StatelessWidget {
 class _AppointmentsList extends StatelessWidget {
   const _AppointmentsList({
     required this.controller,
+    required this.onAppointmentSelected,
     required this.onPaymentRequested,
   });
 
   final AppointmentsController controller;
+  final ValueChanged<String> onAppointmentSelected;
   final ValueChanged<Appointment> onPaymentRequested;
 
   @override
@@ -226,6 +234,7 @@ class _AppointmentsList extends StatelessWidget {
           return _AppointmentCard(
             appointment: appointment,
             isCancelling: controller.isCancelling(appointment.id),
+            onTap: () => onAppointmentSelected(appointment.id),
             onCancel: appointment.status.canCancel
                 ? () => _confirmCancel(context, appointment)
                 : null,
@@ -285,12 +294,14 @@ class _AppointmentCard extends StatelessWidget {
   const _AppointmentCard({
     required this.appointment,
     required this.isCancelling,
+    this.onTap,
     this.onCancel,
     this.onPaymentTap,
   });
 
   final Appointment appointment;
   final bool isCancelling;
+  final VoidCallback? onTap;
   final VoidCallback? onCancel;
 
   /// Non-null only when this appointment has an unpaid/underpaid/failed fee
@@ -299,6 +310,8 @@ class _AppointmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => GlassSurface(
+    key: ValueKey('appointment-card-${appointment.id}'),
+    onTap: onTap,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -359,8 +372,8 @@ class _AppointmentCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.amber.withValues(alpha: 0.12),
-              border: Border.all(color: AppColors.amber.withValues(alpha: 0.3)),
+              color: AppColors.red.withValues(alpha: 0.12),
+              border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
@@ -372,7 +385,7 @@ class _AppointmentCard extends StatelessWidget {
                         : 'Цаг захиалгын хураамж төлөгдөөгүй',
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.amberLightText,
+                      color: AppColors.red,
                     ),
                   ),
                 ),

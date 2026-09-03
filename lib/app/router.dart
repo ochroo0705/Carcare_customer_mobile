@@ -14,6 +14,7 @@ import 'package:carcare_customer_mobile/features/devices/data/device_id_store.da
 import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_payment_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
@@ -93,7 +94,7 @@ class CustomerRouteInformationParser
 class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     with ChangeNotifier, PopNavigatorRouterDelegateMixin<CustomerRoutePath> {
   CustomerRouterDelegate(
-    OrganizationRepository repository,
+    this.organizationRepository,
     this.themeController,
     AuthRepository authRepository,
     this.appointmentRepository,
@@ -105,9 +106,13 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     this.deviceIdStore,
     this.connectivityService,
     this.cacheStore,
-  ) : discoveryController = DiscoveryController(repository, cache: cacheStore)
-        ..load() {
-    organizationDetailController = OrganizationDetailController(repository);
+  ) : discoveryController = DiscoveryController(
+        organizationRepository,
+        cache: cacheStore,
+      )..load() {
+    organizationDetailController = OrganizationDetailController(
+      organizationRepository,
+    );
     authController = AuthController(authRepository)..restore();
     appointmentsController = AppointmentsController(
       appointmentRepository,
@@ -138,6 +143,16 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     );
     _connectivitySubscription = connectivityService.onConnectivityChanged
         .listen(_onConnectivityChanged);
+    // Deep-link a background notification tap into the relevant screen.
+    _notificationTapSubscription = remotePushService.onMessageOpenedApp.listen(
+      (message) => _handleNotificationTap(message.data),
+    );
+    // A tap that cold-started the app: handle after the first frame so the
+    // shell exists and its tab can be selected.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final initial = await remotePushService.getInitialMessage();
+      if (initial != null) _handleNotificationTap(initial.data);
+    });
   }
 
   final DiscoveryController discoveryController;
@@ -147,6 +162,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   late final VehiclesController vehiclesController;
   late final HistoryController historyController;
   late final NotificationsController notificationsController;
+  final OrganizationRepository organizationRepository;
   final ThemeController themeController;
   final AppointmentRepository appointmentRepository;
   final VehicleRepository vehicleRepository;
@@ -161,9 +177,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   late final StreamSubscription<String> _tokenRefreshSubscription;
   late final StreamSubscription<dynamic> _foregroundMessageSubscription;
   late final StreamSubscription<bool> _connectivitySubscription;
+  late final StreamSubscription<dynamic> _notificationTapSubscription;
   String? _selectedSlug;
   String? _bookingBranchId;
   String? _selectedOrderId;
+  String? _selectedAppointmentId;
   String? _paymentAppointmentId;
   AppointmentPayment? _paymentInitial;
   bool _showLogin = false;
@@ -207,6 +225,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               DiscoveryScreen(onOrganizationSelected: _selectOrganization),
               AppointmentsScreen(
                 onLoginRequested: _requestLogin,
+                onAppointmentSelected: _openAppointmentDetail,
                 onPaymentRequested: (appointment) =>
                     _openPayment(appointment.id, appointment.payment),
               ),
@@ -284,6 +303,10 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 _shellKey.currentState?.selectDestination(
                   _appointmentsTabIndex,
                 );
+                // Land on the new appointment's detail page (it resolves the
+                // id against the list `load()` above kicks off). Backing out of
+                // it returns to the appointments tab underneath.
+                _openAppointmentDetail(appointment.id);
                 messenger?.showSnackBar(
                   const SnackBar(
                     content: Text('Цагийн хүсэлт амжилттай илгээгдлээ.'),
@@ -291,12 +314,23 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 );
                 // A booking fee (CUSTOMER_API_CONTRACT.md §4.1) means this
                 // appointment isn't actually usable yet — open the payment
-                // screen on top of the (already tab-switched) shell so the
-                // customer pays before landing on the appointments list.
+                // screen on top of the detail page so the customer pays first;
+                // backing out of payment leaves them on the appointment detail.
                 if (appointment.payment != null) {
                   _openPayment(appointment.id, appointment.payment);
                 }
               },
+            ),
+          ),
+        if (_selectedAppointmentId != null)
+          MaterialPage<void>(
+            key: ValueKey('appointment-detail-$_selectedAppointmentId'),
+            child: AppointmentDetailScreen(
+              appointmentId: _selectedAppointmentId!,
+              organizationRepository: organizationRepository,
+              onBack: _closeAppointmentDetail,
+              onPay: (appointment) =>
+                  _openPayment(appointment.id, appointment.payment),
             ),
           ),
         if (_paymentAppointmentId != null)
@@ -353,6 +387,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           _closeOrderDetail();
         } else if (_showAddVehicle) {
           _closeAddVehicle();
+        } else if (_selectedAppointmentId != null) {
+          _closeAppointmentDetail();
         } else if (_showLogin) {
           _cancelLogin();
         } else if (_bookingBranchId != null) {
@@ -422,6 +458,54 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeOrderDetail() {
     _selectedOrderId = null;
+    notifyListeners();
+  }
+
+  void _openAppointmentDetail(String id) {
+    _selectedAppointmentId = id;
+    notifyListeners();
+  }
+
+  /// Routes a tapped push notification to the relevant screen, per the payload
+  /// contract in `carcare.mn/docs/mobile-device-push.md` §4:
+  /// `data.appointmentId` (appointment_confirmed/reminder) → that appointment's
+  /// detail; anything else (broadcast) → the notifications list. Any transient
+  /// overlays already on the stack are cleared first so the target lands
+  /// cleanly on the shell.
+  void _handleNotificationTap(Map<String, dynamic> data) {
+    final appointmentId = data['appointmentId'];
+    if (appointmentId is String &&
+        appointmentId.isNotEmpty &&
+        authController.isAuthenticated) {
+      _clearOverlays();
+      appointmentsController.load();
+      _shellKey.currentState?.selectDestination(_appointmentsTabIndex);
+      _openAppointmentDetail(appointmentId);
+      return;
+    }
+    // No routable appointment (broadcast, missing id, or signed out): surface
+    // the in-app notifications list, where the message already landed.
+    _clearOverlays();
+    _openNotifications();
+  }
+
+  /// Dismisses every transient page so a deep link isn't buried under whatever
+  /// the customer happened to have open.
+  void _clearOverlays() {
+    _selectedSlug = null;
+    _bookingBranchId = null;
+    _selectedOrderId = null;
+    _selectedAppointmentId = null;
+    _paymentAppointmentId = null;
+    _paymentInitial = null;
+    _showLogin = false;
+    _showAddVehicle = false;
+    _showNotifications = false;
+    notifyListeners();
+  }
+
+  void _closeAppointmentDetail() {
+    _selectedAppointmentId = null;
     notifyListeners();
   }
 
@@ -562,6 +646,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _tokenRefreshSubscription.cancel();
     _foregroundMessageSubscription.cancel();
     _connectivitySubscription.cancel();
+    _notificationTapSubscription.cancel();
     discoveryController.removeListener(notifyListeners);
     organizationDetailController.removeListener(notifyListeners);
     authController.removeListener(notifyListeners);

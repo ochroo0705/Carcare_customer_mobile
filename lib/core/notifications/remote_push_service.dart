@@ -10,7 +10,18 @@ abstract interface class RemotePushService {
 
   Stream<String> get onTokenRefresh;
 
+  /// Foreground messages (the OS does not display these; the app shows a local
+  /// banner and appends to the in-app list).
   Stream<RemoteMessage> get onMessage;
+
+  /// Fires when the user taps a notification while the app is in the
+  /// background (not terminated). Used to deep-link into the relevant screen.
+  Stream<RemoteMessage> get onMessageOpenedApp;
+
+  /// The notification that cold-started the app (tapped while terminated), or
+  /// `null` if the app was launched normally. Deliver-once semantics — the
+  /// plugin returns it only on the first call after launch.
+  Future<RemoteMessage?> getInitialMessage();
 }
 
 class FirebaseRemotePushService implements RemotePushService {
@@ -23,6 +34,14 @@ class FirebaseRemotePushService implements RemotePushService {
 
   @override
   Stream<RemoteMessage> get onMessage => FirebaseMessaging.onMessage;
+
+  @override
+  Stream<RemoteMessage> get onMessageOpenedApp =>
+      FirebaseMessaging.onMessageOpenedApp;
+
+  @override
+  Future<RemoteMessage?> getInitialMessage() =>
+      FirebaseMessaging.instance.getInitialMessage();
 }
 
 /// Default for anywhere that doesn't explicitly wire real FCM — every
@@ -38,4 +57,10 @@ class NoopRemotePushService implements RemotePushService {
 
   @override
   Stream<RemoteMessage> get onMessage => const Stream.empty();
+
+  @override
+  Stream<RemoteMessage> get onMessageOpenedApp => const Stream.empty();
+
+  @override
+  Future<RemoteMessage?> getInitialMessage() async => null;
 }

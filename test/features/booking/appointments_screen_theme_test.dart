@@ -28,6 +28,7 @@ void main() {
         home: Scaffold(
           body: AppointmentsScreen(
             onLoginRequested: () {},
+            onAppointmentSelected: (_) {},
             onPaymentRequested: (_) {},
           ),
         ),

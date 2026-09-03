@@ -15,6 +15,7 @@ import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_r
 import 'package:carcare_customer_mobile/features/booking/data/remote_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/devices/data/fake_device_repository.dart';
 import 'package:carcare_customer_mobile/features/devices/data/remote_device_repository.dart';
+import 'package:carcare_customer_mobile/features/discovery/data/caching_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/remote_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
@@ -55,11 +56,18 @@ void main() async {
 
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   final remotePushService = FirebaseRemotePushService();
-  final organizationRepository = AppEnvironment.useFakeApi
-      ? FakeOrganizationRepository()
-      : RemoteOrganizationRepository(
-          ApiClient(baseUrl: AppEnvironment.apiBaseUrl),
-        );
+  final cacheStore = DriftCacheStore(CacheDatabase());
+  // Cache-first-with-TTL for org detail (hours/address/phone) — served from the
+  // local DB when recently seen, so the appointment detail's location card and
+  // the discovery detail page skip a round-trip and work offline.
+  final organizationRepository = CachingOrganizationRepository(
+    AppEnvironment.useFakeApi
+        ? FakeOrganizationRepository()
+        : RemoteOrganizationRepository(
+            ApiClient(baseUrl: AppEnvironment.apiBaseUrl),
+          ),
+    cacheStore,
+  );
   final sessionStore = SecureSessionStore();
   final authRepository = AppEnvironment.useFakeApi
       ? FakeAuthRepository()
@@ -94,7 +102,6 @@ void main() async {
             onUnauthorized: sessionStore.clear,
           ),
         );
-  final cacheStore = DriftCacheStore(CacheDatabase());
   runApp(
     CarCareCustomerApp(
       organizationRepository: organizationRepository,

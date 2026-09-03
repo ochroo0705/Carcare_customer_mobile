@@ -14,6 +14,7 @@ class InMemoryCacheStore implements CacheStore {
   List<Vehicle>? _vehicles;
   List<Appointment>? _appointments;
   List<ServiceOrder>? _serviceOrders;
+  final Map<String, CachedOrganizationDetail> _organizationDetails = {};
 
   static List<T>? _readable<T>(List<T>? stored) =>
       (stored == null || stored.isEmpty) ? null : List<T>.unmodifiable(stored);
@@ -52,4 +53,14 @@ class InMemoryCacheStore implements CacheStore {
       _serviceOrders = List.of(orders);
   @override
   Future<void> clearServiceOrders() async => _serviceOrders = null;
+
+  @override
+  Future<CachedOrganizationDetail?> readOrganizationDetail(String slug) async =>
+      _organizationDetails[slug];
+  @override
+  Future<void> writeOrganizationDetail(OrganizationDetail detail) async =>
+      _organizationDetails[detail.slug] = (
+        detail: detail,
+        cachedAt: DateTime.now(),
+      );
 }

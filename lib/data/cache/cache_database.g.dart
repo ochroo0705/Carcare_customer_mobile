@@ -2281,6 +2281,289 @@ class CachedServiceOrdersCompanion
   }
 }
 
+class $CachedOrganizationDetailsTable extends CachedOrganizationDetails
+    with
+        TableInfo<
+          $CachedOrganizationDetailsTable,
+          CachedOrganizationDetailRow
+        > {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CachedOrganizationDetailsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _slugMeta = const VerificationMeta('slug');
+  @override
+  late final GeneratedColumn<String> slug = GeneratedColumn<String>(
+    'slug',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _payloadJsonMeta = const VerificationMeta(
+    'payloadJson',
+  );
+  @override
+  late final GeneratedColumn<String> payloadJson = GeneratedColumn<String>(
+    'payload_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _cachedAtMeta = const VerificationMeta(
+    'cachedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> cachedAt = GeneratedColumn<DateTime>(
+    'cached_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [slug, payloadJson, cachedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'cached_organization_details';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CachedOrganizationDetailRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('slug')) {
+      context.handle(
+        _slugMeta,
+        slug.isAcceptableOrUnknown(data['slug']!, _slugMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_slugMeta);
+    }
+    if (data.containsKey('payload_json')) {
+      context.handle(
+        _payloadJsonMeta,
+        payloadJson.isAcceptableOrUnknown(
+          data['payload_json']!,
+          _payloadJsonMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadJsonMeta);
+    }
+    if (data.containsKey('cached_at')) {
+      context.handle(
+        _cachedAtMeta,
+        cachedAt.isAcceptableOrUnknown(data['cached_at']!, _cachedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cachedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {slug};
+  @override
+  CachedOrganizationDetailRow map(
+    Map<String, dynamic> data, {
+    String? tablePrefix,
+  }) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CachedOrganizationDetailRow(
+      slug: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}slug'],
+      )!,
+      payloadJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload_json'],
+      )!,
+      cachedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}cached_at'],
+      )!,
+    );
+  }
+
+  @override
+  $CachedOrganizationDetailsTable createAlias(String alias) {
+    return $CachedOrganizationDetailsTable(attachedDatabase, alias);
+  }
+}
+
+class CachedOrganizationDetailRow extends DataClass
+    implements Insertable<CachedOrganizationDetailRow> {
+  final String slug;
+  final String payloadJson;
+  final DateTime cachedAt;
+  const CachedOrganizationDetailRow({
+    required this.slug,
+    required this.payloadJson,
+    required this.cachedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['slug'] = Variable<String>(slug);
+    map['payload_json'] = Variable<String>(payloadJson);
+    map['cached_at'] = Variable<DateTime>(cachedAt);
+    return map;
+  }
+
+  CachedOrganizationDetailsCompanion toCompanion(bool nullToAbsent) {
+    return CachedOrganizationDetailsCompanion(
+      slug: Value(slug),
+      payloadJson: Value(payloadJson),
+      cachedAt: Value(cachedAt),
+    );
+  }
+
+  factory CachedOrganizationDetailRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CachedOrganizationDetailRow(
+      slug: serializer.fromJson<String>(json['slug']),
+      payloadJson: serializer.fromJson<String>(json['payloadJson']),
+      cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'slug': serializer.toJson<String>(slug),
+      'payloadJson': serializer.toJson<String>(payloadJson),
+      'cachedAt': serializer.toJson<DateTime>(cachedAt),
+    };
+  }
+
+  CachedOrganizationDetailRow copyWith({
+    String? slug,
+    String? payloadJson,
+    DateTime? cachedAt,
+  }) => CachedOrganizationDetailRow(
+    slug: slug ?? this.slug,
+    payloadJson: payloadJson ?? this.payloadJson,
+    cachedAt: cachedAt ?? this.cachedAt,
+  );
+  CachedOrganizationDetailRow copyWithCompanion(
+    CachedOrganizationDetailsCompanion data,
+  ) {
+    return CachedOrganizationDetailRow(
+      slug: data.slug.present ? data.slug.value : this.slug,
+      payloadJson: data.payloadJson.present
+          ? data.payloadJson.value
+          : this.payloadJson,
+      cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedOrganizationDetailRow(')
+          ..write('slug: $slug, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('cachedAt: $cachedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(slug, payloadJson, cachedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CachedOrganizationDetailRow &&
+          other.slug == this.slug &&
+          other.payloadJson == this.payloadJson &&
+          other.cachedAt == this.cachedAt);
+}
+
+class CachedOrganizationDetailsCompanion
+    extends UpdateCompanion<CachedOrganizationDetailRow> {
+  final Value<String> slug;
+  final Value<String> payloadJson;
+  final Value<DateTime> cachedAt;
+  final Value<int> rowid;
+  const CachedOrganizationDetailsCompanion({
+    this.slug = const Value.absent(),
+    this.payloadJson = const Value.absent(),
+    this.cachedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CachedOrganizationDetailsCompanion.insert({
+    required String slug,
+    required String payloadJson,
+    required DateTime cachedAt,
+    this.rowid = const Value.absent(),
+  }) : slug = Value(slug),
+       payloadJson = Value(payloadJson),
+       cachedAt = Value(cachedAt);
+  static Insertable<CachedOrganizationDetailRow> custom({
+    Expression<String>? slug,
+    Expression<String>? payloadJson,
+    Expression<DateTime>? cachedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (slug != null) 'slug': slug,
+      if (payloadJson != null) 'payload_json': payloadJson,
+      if (cachedAt != null) 'cached_at': cachedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CachedOrganizationDetailsCompanion copyWith({
+    Value<String>? slug,
+    Value<String>? payloadJson,
+    Value<DateTime>? cachedAt,
+    Value<int>? rowid,
+  }) {
+    return CachedOrganizationDetailsCompanion(
+      slug: slug ?? this.slug,
+      payloadJson: payloadJson ?? this.payloadJson,
+      cachedAt: cachedAt ?? this.cachedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (slug.present) {
+      map['slug'] = Variable<String>(slug.value);
+    }
+    if (payloadJson.present) {
+      map['payload_json'] = Variable<String>(payloadJson.value);
+    }
+    if (cachedAt.present) {
+      map['cached_at'] = Variable<DateTime>(cachedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CachedOrganizationDetailsCompanion(')
+          ..write('slug: $slug, ')
+          ..write('payloadJson: $payloadJson, ')
+          ..write('cachedAt: $cachedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$CacheDatabase extends GeneratedDatabase {
   _$CacheDatabase(QueryExecutor e) : super(e);
   $CacheDatabaseManager get managers => $CacheDatabaseManager(this);
@@ -2291,6 +2574,8 @@ abstract class _$CacheDatabase extends GeneratedDatabase {
       $CachedAppointmentsTable(this);
   late final $CachedServiceOrdersTable cachedServiceOrders =
       $CachedServiceOrdersTable(this);
+  late final $CachedOrganizationDetailsTable cachedOrganizationDetails =
+      $CachedOrganizationDetailsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -2300,6 +2585,7 @@ abstract class _$CacheDatabase extends GeneratedDatabase {
     cachedVehicles,
     cachedAppointments,
     cachedServiceOrders,
+    cachedOrganizationDetails,
   ];
 }
 
@@ -3528,6 +3814,201 @@ typedef $$CachedServiceOrdersTableProcessedTableManager =
       CachedServiceOrderRow,
       PrefetchHooks Function()
     >;
+typedef $$CachedOrganizationDetailsTableCreateCompanionBuilder =
+    CachedOrganizationDetailsCompanion Function({
+      required String slug,
+      required String payloadJson,
+      required DateTime cachedAt,
+      Value<int> rowid,
+    });
+typedef $$CachedOrganizationDetailsTableUpdateCompanionBuilder =
+    CachedOrganizationDetailsCompanion Function({
+      Value<String> slug,
+      Value<String> payloadJson,
+      Value<DateTime> cachedAt,
+      Value<int> rowid,
+    });
+
+class $$CachedOrganizationDetailsTableFilterComposer
+    extends Composer<_$CacheDatabase, $CachedOrganizationDetailsTable> {
+  $$CachedOrganizationDetailsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CachedOrganizationDetailsTableOrderingComposer
+    extends Composer<_$CacheDatabase, $CachedOrganizationDetailsTable> {
+  $$CachedOrganizationDetailsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get slug => $composableBuilder(
+    column: $table.slug,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get cachedAt => $composableBuilder(
+    column: $table.cachedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CachedOrganizationDetailsTableAnnotationComposer
+    extends Composer<_$CacheDatabase, $CachedOrganizationDetailsTable> {
+  $$CachedOrganizationDetailsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get slug =>
+      $composableBuilder(column: $table.slug, builder: (column) => column);
+
+  GeneratedColumn<String> get payloadJson => $composableBuilder(
+    column: $table.payloadJson,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get cachedAt =>
+      $composableBuilder(column: $table.cachedAt, builder: (column) => column);
+}
+
+class $$CachedOrganizationDetailsTableTableManager
+    extends
+        RootTableManager<
+          _$CacheDatabase,
+          $CachedOrganizationDetailsTable,
+          CachedOrganizationDetailRow,
+          $$CachedOrganizationDetailsTableFilterComposer,
+          $$CachedOrganizationDetailsTableOrderingComposer,
+          $$CachedOrganizationDetailsTableAnnotationComposer,
+          $$CachedOrganizationDetailsTableCreateCompanionBuilder,
+          $$CachedOrganizationDetailsTableUpdateCompanionBuilder,
+          (
+            CachedOrganizationDetailRow,
+            BaseReferences<
+              _$CacheDatabase,
+              $CachedOrganizationDetailsTable,
+              CachedOrganizationDetailRow
+            >,
+          ),
+          CachedOrganizationDetailRow,
+          PrefetchHooks Function()
+        > {
+  $$CachedOrganizationDetailsTableTableManager(
+    _$CacheDatabase db,
+    $CachedOrganizationDetailsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CachedOrganizationDetailsTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$CachedOrganizationDetailsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CachedOrganizationDetailsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> slug = const Value.absent(),
+                Value<String> payloadJson = const Value.absent(),
+                Value<DateTime> cachedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CachedOrganizationDetailsCompanion(
+                slug: slug,
+                payloadJson: payloadJson,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String slug,
+                required String payloadJson,
+                required DateTime cachedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => CachedOrganizationDetailsCompanion.insert(
+                slug: slug,
+                payloadJson: payloadJson,
+                cachedAt: cachedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<
+                    $CachedOrganizationDetailsTable,
+                    CachedOrganizationDetailRow
+                  >(table),
+                  BaseReferences<
+                    _$CacheDatabase,
+                    $CachedOrganizationDetailsTable,
+                    CachedOrganizationDetailRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CachedOrganizationDetailsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$CacheDatabase,
+      $CachedOrganizationDetailsTable,
+      CachedOrganizationDetailRow,
+      $$CachedOrganizationDetailsTableFilterComposer,
+      $$CachedOrganizationDetailsTableOrderingComposer,
+      $$CachedOrganizationDetailsTableAnnotationComposer,
+      $$CachedOrganizationDetailsTableCreateCompanionBuilder,
+      $$CachedOrganizationDetailsTableUpdateCompanionBuilder,
+      (
+        CachedOrganizationDetailRow,
+        BaseReferences<
+          _$CacheDatabase,
+          $CachedOrganizationDetailsTable,
+          CachedOrganizationDetailRow
+        >,
+      ),
+      CachedOrganizationDetailRow,
+      PrefetchHooks Function()
+    >;
 
 class $CacheDatabaseManager {
   final _$CacheDatabase _db;
@@ -3540,4 +4021,9 @@ class $CacheDatabaseManager {
       $$CachedAppointmentsTableTableManager(_db, _db.cachedAppointments);
   $$CachedServiceOrdersTableTableManager get cachedServiceOrders =>
       $$CachedServiceOrdersTableTableManager(_db, _db.cachedServiceOrders);
+  $$CachedOrganizationDetailsTableTableManager get cachedOrganizationDetails =>
+      $$CachedOrganizationDetailsTableTableManager(
+        _db,
+        _db.cachedOrganizationDetails,
+      );
 }

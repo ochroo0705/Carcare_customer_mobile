@@ -112,6 +112,7 @@ void main() {
             child: Scaffold(
               body: AppointmentsScreen(
                 onLoginRequested: () {},
+                onAppointmentSelected: (_) {},
                 onPaymentRequested: (_) {},
               ),
             ),

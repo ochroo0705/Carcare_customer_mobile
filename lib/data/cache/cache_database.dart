@@ -87,12 +87,29 @@ class CachedServiceOrders extends Table {
   Set<Column<Object>> get primaryKey => {id};
 }
 
+/// Full organization detail (phone + rich `BranchDetail`: hours, khoroo,
+/// address, coords) that the summary [CachedOrganizations] table doesn't hold.
+/// Stored as one JSON payload per org since nothing queries its inner fields —
+/// it's read whole, by slug. `cachedAt` drives a cache-first-with-TTL read (see
+/// `CachingOrganizationRepository`), so a recently-seen org's detail renders
+/// instantly and skips the API.
+@DataClassName('CachedOrganizationDetailRow')
+class CachedOrganizationDetails extends Table {
+  TextColumn get slug => text()();
+  TextColumn get payloadJson => text()();
+  DateTimeColumn get cachedAt => dateTime()();
+
+  @override
+  Set<Column<Object>> get primaryKey => {slug};
+}
+
 @DriftDatabase(
   tables: [
     CachedOrganizations,
     CachedVehicles,
     CachedAppointments,
     CachedServiceOrders,
+    CachedOrganizationDetails,
   ],
 )
 class CacheDatabase extends _$CacheDatabase {
@@ -102,5 +119,14 @@ class CacheDatabase extends _$CacheDatabase {
   CacheDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      // v2 added the organization-detail cache table.
+      if (from < 2) await m.createTable(cachedOrganizationDetails);
+    },
+  );
 }

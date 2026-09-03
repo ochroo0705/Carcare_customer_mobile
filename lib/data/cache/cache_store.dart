@@ -3,6 +3,13 @@ import 'package:carcare_customer_mobile/features/discovery/domain/organization.d
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 
+/// A cached organization detail plus when it was stored, so a reader can decide
+/// whether it is still fresh (see `CachingOrganizationRepository`).
+typedef CachedOrganizationDetail = ({
+  OrganizationDetail detail,
+  DateTime cachedAt,
+});
+
 /// Persistence port for the offline read cache. Each `read*` returns the last
 /// successfully-cached list, or `null` when nothing usable is stored (an empty
 /// collection reads back as `null`, matching the original SharedPreferences
@@ -27,6 +34,12 @@ abstract interface class CacheStore {
   Future<List<ServiceOrder>?> readServiceOrders();
   Future<void> writeServiceOrders(List<ServiceOrder> orders);
   Future<void> clearServiceOrders();
+
+  /// Full organization detail (hours/address/phone), keyed by slug. Unlike the
+  /// collection reads above, this is a per-org upsert with a timestamp — the
+  /// caller decides freshness. Returns `null` when nothing is stored.
+  Future<CachedOrganizationDetail?> readOrganizationDetail(String slug);
+  Future<void> writeOrganizationDetail(OrganizationDetail detail);
 }
 
 /// A cache that stores nothing. Used as the default when a controller is
@@ -62,4 +75,10 @@ class NoopCacheStore implements CacheStore {
   Future<void> writeServiceOrders(List<ServiceOrder> orders) async {}
   @override
   Future<void> clearServiceOrders() async {}
+
+  @override
+  Future<CachedOrganizationDetail?> readOrganizationDetail(String slug) async =>
+      null;
+  @override
+  Future<void> writeOrganizationDetail(OrganizationDetail detail) async {}
 }

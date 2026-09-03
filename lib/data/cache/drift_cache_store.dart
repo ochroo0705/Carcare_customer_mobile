@@ -168,6 +168,41 @@ class DriftCacheStore implements CacheStore {
   @override
   Future<void> clearServiceOrders() => _clear(_db.cachedServiceOrders);
 
+  // --- Organization detail (per-slug upsert) -------------------------------
+
+  @override
+  Future<CachedOrganizationDetail?> readOrganizationDetail(String slug) async {
+    try {
+      final row =
+          await (_db.select(_db.cachedOrganizationDetails)
+                ..where((t) => t.slug.equals(slug)))
+              .getSingleOrNull();
+      if (row == null) return null;
+      final detail = _organizationDetailFromJson(slug, row.payloadJson);
+      if (detail == null) return null;
+      return (detail: detail, cachedAt: row.cachedAt);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> writeOrganizationDetail(OrganizationDetail detail) async {
+    try {
+      await _db
+          .into(_db.cachedOrganizationDetails)
+          .insertOnConflictUpdate(
+            CachedOrganizationDetailsCompanion.insert(
+              slug: detail.slug,
+              payloadJson: jsonEncode(_organizationDetailToJson(detail)),
+              cachedAt: DateTime.now(),
+            ),
+          );
+    } catch (_) {
+      // Best-effort.
+    }
+  }
+
   // --- Helpers -------------------------------------------------------------
 
   Future<void> _clear(TableInfo<Table, dynamic> table) async {
@@ -330,6 +365,87 @@ CachedServiceOrdersCompanion _serviceOrderToCompanion(
   vehiclePlate: Value(order.vehiclePlate),
   cachedAt: cachedAt,
 );
+
+// --- OrganizationDetail <-> JSON --------------------------------------------
+
+Map<String, dynamic> _organizationDetailToJson(OrganizationDetail detail) => {
+  'name': detail.name,
+  'logoUrl': detail.logoUrl,
+  'phone': detail.phone,
+  'branches': detail.branches
+      .map(
+        (branch) => <String, dynamic>{
+          'id': branch.id,
+          'name': branch.name,
+          'city': branch.city,
+          'district': branch.district,
+          'khoroo': branch.khoroo,
+          'address': branch.address,
+          'latitude': branch.latitude,
+          'longitude': branch.longitude,
+          'openTime': branch.openTime,
+          'closeTime': branch.closeTime,
+        },
+      )
+      .toList(),
+};
+
+OrganizationDetail? _organizationDetailFromJson(String slug, String raw) {
+  final decoded = jsonDecode(raw);
+  if (decoded is! Map) return null;
+  final name = decoded['name'];
+  if (name is! String) return null;
+  final branches = <BranchDetail>[];
+  final branchesRaw = decoded['branches'];
+  if (branchesRaw is List) {
+    for (final entry in branchesRaw) {
+      if (entry is! Map) continue;
+      final id = entry['id'];
+      final branchName = entry['name'];
+      final city = entry['city'];
+      final district = entry['district'];
+      final khoroo = entry['khoroo'];
+      final address = entry['address'];
+      if (id is! String ||
+          branchName is! String ||
+          city is! String ||
+          district is! String ||
+          khoroo is! String ||
+          address is! String) {
+        continue;
+      }
+      branches.add(
+        BranchDetail(
+          id: id,
+          name: branchName,
+          city: city,
+          district: district,
+          khoroo: khoroo,
+          address: address,
+          latitude: entry['latitude'] is num
+              ? (entry['latitude'] as num).toDouble()
+              : null,
+          longitude: entry['longitude'] is num
+              ? (entry['longitude'] as num).toDouble()
+              : null,
+          openTime: entry['openTime'] is String
+              ? entry['openTime'] as String
+              : null,
+          closeTime: entry['closeTime'] is String
+              ? entry['closeTime'] as String
+              : null,
+        ),
+      );
+    }
+  }
+  return OrganizationDetail(
+    slug: slug,
+    name: name,
+    logoUrl: decoded['logoUrl'] is String ? decoded['logoUrl'] as String : null,
+    phone: decoded['phone'] is String ? decoded['phone'] as String : null,
+    branches: branches,
+  );
+}
 
 ServiceOrder _serviceOrderFromRow(CachedServiceOrderRow row) => ServiceOrder(
   id: row.id,

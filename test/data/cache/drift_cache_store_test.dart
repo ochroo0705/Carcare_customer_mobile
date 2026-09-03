@@ -174,4 +174,42 @@ void main() {
     expect(cached.first.totalAmount, 150000);
     expect(cached[1].vehiclePlate, isNull);
   });
+
+  test('organization detail round-trips with a timestamp', () async {
+    const detail = OrganizationDetail(
+      slug: 'auto-doctor',
+      name: 'Auto Doctor',
+      logoUrl: 'https://example.test/logo.png',
+      phone: '7700 1122',
+      branches: [
+        BranchDetail(
+          id: 'b1',
+          name: 'Баянзүрх салбар',
+          city: 'Улаанбаатар',
+          district: 'Баянзүрх',
+          khoroo: '26-р хороо',
+          address: 'Нарны зам 18',
+          latitude: 47.9187,
+          longitude: 106.9684,
+          openTime: '09:00',
+          closeTime: '19:00',
+        ),
+      ],
+    );
+
+    await store.writeOrganizationDetail(detail);
+    final cached = await store.readOrganizationDetail('auto-doctor');
+
+    expect(cached, isNotNull);
+    expect(cached!.detail.phone, '7700 1122');
+    final branch = cached.detail.branches.single;
+    expect(branch.fullAddress, '26-р хороо, Нарны зам 18');
+    expect(branch.hoursLabel, '09:00–19:00');
+    expect(branch.latitude, 47.9187);
+    expect(
+      DateTime.now().difference(cached.cachedAt) < const Duration(minutes: 1),
+      isTrue,
+    );
+    expect(await store.readOrganizationDetail('unknown-slug'), isNull);
+  });
 }
