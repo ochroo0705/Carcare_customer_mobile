@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/app.dart';
 import 'package:carcare_customer_mobile/core/config/app_environment.dart';
 import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
@@ -35,8 +37,6 @@ void main() async {
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
   final remotePushService = FirebaseRemotePushService();
-  await FirebaseMessaging.instance.requestPermission();
-  await LocalPushService.instance.initialize();
   final organizationRepository = AppEnvironment.useFakeApi
       ? FakeOrganizationRepository()
       : RemoteOrganizationRepository(
@@ -87,4 +87,16 @@ void main() async {
       connectivityService: const PlatformConnectivityService(),
     ),
   );
+
+  // Deferred until after the first frame so launch is never gated on them.
+  // `requestPermission()` in particular blocks on the OS permission dialog
+  // on first run; the local-notification channel setup is a plugin round-trip.
+  // Neither needs to complete before the UI is visible — a foreground push in
+  // the brief window before this finishes is the only edge, and it's rare.
+  unawaited(_initPushNotifications());
+}
+
+Future<void> _initPushNotifications() async {
+  await FirebaseMessaging.instance.requestPermission();
+  await LocalPushService.instance.initialize();
 }
