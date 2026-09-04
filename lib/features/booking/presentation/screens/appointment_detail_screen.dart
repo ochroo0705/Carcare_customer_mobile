@@ -73,9 +73,7 @@ class AppointmentDetailScreen extends StatelessWidget {
               onCancel: appointment.status.canCancel
                   ? () => _confirmCancel(context, controller, appointment)
                   : null,
-              onPay:
-                  appointment.payment != null &&
-                      appointment.payment!.status != AppointmentFeeStatus.paid
+              onPay: appointment.canPayFee
                   ? () => onPay(appointment)
                   : null,
             ),
@@ -230,6 +228,14 @@ class _AppointmentDetailBody extends StatelessWidget {
               ],
             ),
           ),
+        ],
+        // Хураамж төлөгдсөн бол баталгаажуулах badge — цаг захиалгын status
+        // (Хүлээгдэж буй) нь салангид: төлбөр төлөгдсөн ч ажилтан баталгаажуулах
+        // хүртэл PENDING хэвээр. Хоёрыг андуурахгүйн тулд төлбөрийг тусад нь
+        // тэмдэглэнэ.
+        if (appointment.payment?.status == AppointmentFeeStatus.paid) ...[
+          const SizedBox(height: 14),
+          _FeePaidBadge(key: ValueKey('detail-fee-paid-${appointment.id}')),
         ],
         if (onCancel != null) ...[
           const SizedBox(height: 14),
@@ -634,6 +640,33 @@ class _StatusChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Хураамж төлөгдсөнийг харуулах ногоон badge (цаг захиалгын status-аас
+/// тусдаа — доор жагсаалтын дэлгэц дээр ижил дүр зурагтай).
+class _FeePaidBadge extends StatelessWidget {
+  const _FeePaidBadge({super.key});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: AppColors.green.withValues(alpha: 0.12),
+      border: Border.all(color: AppColors.green.withValues(alpha: 0.35)),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: const Row(
+      children: [
+        Icon(Icons.check_circle_rounded, size: 18, color: AppColors.green),
+        SizedBox(width: 8),
+        Text(
+          'Хураамж төлөгдсөн',
+          style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.green),
+        ),
+      ],
+    ),
+  );
 }
 
 String _formatDateTime(DateTime value) =>

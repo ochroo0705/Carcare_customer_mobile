@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
@@ -44,23 +45,87 @@ class AppointmentPaymentScreen extends StatefulWidget {
 
 enum _LoadStatus { loading, data, error }
 
-class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
+class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen>
+    with WidgetsBindingObserver {
   _LoadStatus _status = _LoadStatus.loading;
   AppointmentPayment? _payment;
   String? _message;
-  bool _checking = false;
+  bool _checking = false; // manual check in flight — drives the button label
   bool _retrying = false;
+
+  // Auto-confirm (A): while the fee is still open, quietly poll the same
+  // server-verified, idempotent `checkPayment` the button calls, so a user who
+  // pays and simply waits sees the screen flip to "paid" on its own. Bounded —
+  // stops on a terminal status, on the deadline, and on dispose — so it can
+  // never become a runaway request loop.
+  Timer? _pollTimer;
+  DateTime? _pollDeadline;
+  bool _checkInFlight = false; // guards manual + auto from overlapping
+  static const _pollInterval = Duration(seconds: 4);
+  static const _pollMaxDuration = Duration(minutes: 3);
+
+  /// A fee that could still transition to paid if more money arrives. Terminal
+  /// states (`paid`, `failed`) and "no fee" are not pollable.
+  bool get _isPollable =>
+      _payment != null &&
+      (_payment!.status == AppointmentFeeStatus.pending ||
+          _payment!.status == AppointmentFeeStatus.underpaid);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final initial = widget.initialPayment;
     if (initial != null) {
       _payment = initial;
       _status = _LoadStatus.data;
+      _maybeStartPolling();
     } else {
       _load();
     }
+  }
+
+  @override
+  void dispose() {
+    _stopPolling();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Resume-check (B): the user typically leaves to their bank app and comes
+  // back — re-check immediately on resume so the flip feels instant, and make
+  // sure polling is running (a backgrounded timer may have been throttled).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && _isPollable) {
+      _runCheck(silent: true);
+      _maybeStartPolling();
+    }
+  }
+
+  void _maybeStartPolling() {
+    if (!_isPollable) {
+      _stopPolling();
+      return;
+    }
+    if (_pollTimer != null) return; // already polling
+    _pollDeadline = DateTime.now().add(_pollMaxDuration);
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _autoPoll());
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _pollDeadline = null;
+  }
+
+  Future<void> _autoPoll() async {
+    if (!_isPollable ||
+        (_pollDeadline != null && DateTime.now().isAfter(_pollDeadline!))) {
+      _stopPolling();
+      return;
+    }
+    await _runCheck(silent: true);
   }
 
   Future<void> _load() async {
@@ -72,6 +137,7 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
         _payment = payment;
         _status = _LoadStatus.data;
       });
+      _maybeStartPolling();
     } on AppFailure catch (failure) {
       if (!mounted) return;
       setState(() {
@@ -87,9 +153,18 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
     }
   }
 
-  Future<void> _check() async {
-    if (_checking) return;
-    setState(() => _checking = true);
+  /// Manual "Төлбөр шалгах" tap. Same logic as the auto-poll, but not silent —
+  /// it surfaces "not paid yet" / errors as snackbars and shows the button
+  /// spinner.
+  void _check() => _runCheck(silent: false);
+
+  /// Confirms payment against the server. [silent] auto-polls suppress the
+  /// button spinner and the "not paid yet"/error snackbars (a poll every few
+  /// seconds must not spam the user); state transitions still apply.
+  Future<void> _runCheck({required bool silent}) async {
+    if (_checkInFlight) return;
+    _checkInFlight = true;
+    if (!silent) setState(() => _checking = true);
     try {
       final result = await widget.repository.checkPayment(widget.appointmentId);
       if (!mounted) return;
@@ -101,6 +176,7 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
             currency: _payment?.currency ?? 'MNT',
           );
         });
+        _stopPolling();
         widget.onPaymentUpdated?.call();
       } else if (result.underpaidAmount != null) {
         final current = _payment;
@@ -112,27 +188,31 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
               currency: current.currency,
               qrImageBase64: current.qrImageBase64,
               qrText: current.qrText,
+              urls: current.urls,
               underpaidAmount: result.underpaidAmount,
             );
           });
         }
-        _showSnack(
-          result.message ?? 'Дутуу төлбөр ирсэн байна.',
-          isError: true,
-        );
-      } else {
+        if (!silent) {
+          _showSnack(
+            result.message ?? 'Дутуу төлбөр ирсэн байна.',
+            isError: true,
+          );
+        }
+      } else if (!silent) {
         _showSnack(
           result.message ?? 'Төлбөр төлөгдөөгүй байна. Банкны аппаар QR-аа уншуулсны дараа дахин шалгана уу.',
         );
       }
     } on AppFailure catch (failure) {
-      if (mounted) _showSnack(failure.message, isError: true);
+      if (mounted && !silent) _showSnack(failure.message, isError: true);
     } catch (_) {
-      if (mounted) {
+      if (mounted && !silent) {
         _showSnack('Тодорхойгүй алдаа гарлаа.', isError: true);
       }
     } finally {
-      if (mounted) setState(() => _checking = false);
+      _checkInFlight = false;
+      if (mounted && !silent) setState(() => _checking = false);
     }
   }
 
@@ -145,6 +225,7 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
       );
       if (!mounted) return;
       setState(() => _payment = payment);
+      _maybeStartPolling(); // a fresh pending invoice — resume auto-confirm
       widget.onPaymentUpdated?.call();
     } on AppFailure catch (failure) {
       if (mounted) _showSnack(failure.message, isError: true);
@@ -166,13 +247,43 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
     );
   }
 
-  Future<void> _openBankApp(String qrText) async {
-    final uri = Uri.tryParse(qrText);
-    if (uri == null) return;
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!launched && mounted) {
-      _showSnack('Банкны апп нээгдсэнгүй.', isError: true);
+  Future<void> _openBankLink(String link) async {
+    final uri = Uri.tryParse(link);
+    if (uri == null) {
+      if (mounted) _showSnack('Банкны холбоос буруу байна.', isError: true);
+      return;
     }
+    try {
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched && mounted) {
+        // Апп суулгаагүй, эсвэл scheme-ийг Android <queries>/iOS
+        // LSApplicationQueriesSchemes-д зарлаагүй үед false буцаана.
+        _showSnack(
+          'Банкны апп нээгдсэнгүй. Уг банкны апп суусан эсэхээ шалгана уу.',
+          isError: true,
+        );
+      }
+    } catch (_) {
+      if (mounted) _showSnack('Банкны апп нээгдсэнгүй.', isError: true);
+    }
+  }
+
+  Future<void> _pickBank(List<QpayBankUrl> urls) async {
+    // Ганц банк бол шууд нээнэ; олон бол сонголтын хуудас гаргана.
+    if (urls.length == 1) {
+      await _openBankLink(urls.first.link);
+      return;
+    }
+    final selected = await showModalBottomSheet<QpayBankUrl>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => _BankPickerSheet(urls: urls),
+    );
+    if (selected != null) await _openBankLink(selected.link);
   }
 
   @override
@@ -223,7 +334,7 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen> {
                   retrying: _retrying,
                   onCheck: _check,
                   onRetry: _retry,
-                  onOpenBankApp: _openBankApp,
+                  onPickBank: _pickBank,
                   onDone: widget.onBack,
                 ),
               ],
@@ -268,7 +379,7 @@ class _PaymentPanel extends StatelessWidget {
     required this.retrying,
     required this.onCheck,
     required this.onRetry,
-    required this.onOpenBankApp,
+    required this.onPickBank,
     required this.onDone,
   });
 
@@ -277,7 +388,7 @@ class _PaymentPanel extends StatelessWidget {
   final bool retrying;
   final VoidCallback onCheck;
   final VoidCallback onRetry;
-  final ValueChanged<String> onOpenBankApp;
+  final ValueChanged<List<QpayBankUrl>> onPickBank;
   final VoidCallback onDone;
 
   @override
@@ -364,17 +475,30 @@ class _PaymentPanel extends StatelessWidget {
                 fit: BoxFit.contain,
               ),
             ),
-            if (payment.qrText != null) ...[
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => onOpenBankApp(payment.qrText!),
-                child: const Text('Банкны апп руу шилжих →'),
+            if (payment.urls.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.tonalIcon(
+                  key: const ValueKey('payment-pick-bank'),
+                  onPressed: () => onPickBank(payment.urls),
+                  icon: const Icon(Icons.account_balance_rounded, size: 18),
+                  label: Text(
+                    payment.urls.length == 1
+                        ? '${payment.urls.first.label}-аар төлөх'
+                        : 'Банкны аппаар төлөх',
+                  ),
+                ),
               ),
             ],
             const SizedBox(height: 8),
             Text(
-              'Утсаараа банкны апп нээж QR-аа уншуулна уу. Төлбөр төлөгдсөний '
-              'дараа доорх товчоор шалгана уу.',
+              payment.urls.isNotEmpty
+                  ? 'Банкаа сонгож апп руугаа шилжин төлнө үү, эсвэл өөр '
+                        'утсаараа QR-аа уншуулна уу. Дараа нь доорх товчоор '
+                        'шалгана уу.'
+                  : 'Утсаараа банкны апп нээж QR-аа уншуулна уу. Төлбөр '
+                        'төлөгдсөний дараа доорх товчоор шалгана уу.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodySmall
                   ?.copyWith(color: scheme.onSurfaceVariant),
@@ -391,6 +515,65 @@ class _PaymentPanel extends StatelessWidget {
               style: Theme.of(context).textTheme.bodyMedium
                   ?.copyWith(color: scheme.onSurfaceVariant),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Банк сонгох доод хуудас — QPay `urls`-аас нэг банкыг буцаана. Лого татаж
+/// чадаагүй бол банкны нэрний эхний үсгээр орлуулна (сүлжээ/CSP асуудалд
+/// найдваргүй болгохгүй).
+class _BankPickerSheet extends StatelessWidget {
+  const _BankPickerSheet({required this.urls});
+
+  final List<QpayBankUrl> urls;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
+            child: Text(
+              'Банкаа сонгоно уу',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: 8),
+              itemCount: urls.length,
+              separatorBuilder: (_, _) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final bank = urls[i];
+                return ListTile(
+                  key: ValueKey('bank-${bank.name}-$i'),
+                  leading: CircleAvatar(
+                    backgroundColor: scheme.surfaceContainerHighest,
+                    foregroundImage: bank.logo.isNotEmpty
+                        ? NetworkImage(bank.logo)
+                        : null,
+                    child: Text(
+                      bank.label.isNotEmpty
+                          ? bank.label.substring(0, 1).toUpperCase()
+                          : '?',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                  title: Text(bank.label),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => Navigator.of(context).pop(bank),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );

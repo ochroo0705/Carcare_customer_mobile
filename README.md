@@ -59,3 +59,29 @@ flutter build apk --debug
 ```
 
 Real `.env` files, build output, Flutter caches, and IDE-local files are intentionally excluded from Git.
+
+## Google Play release
+
+The Android release build requires a private upload keystore. Create one outside
+the repository, then create `android/key.properties` locally:
+
+```text
+storePassword=<keystore-password>
+keyPassword=<key-password>
+keyAlias=upload
+storeFile=C:\\Users\\<user>\\upload-keystore.jks
+```
+
+The keystore and properties file are ignored by Git. After configuring them,
+build the Play upload bundle with the production `--dart-define` values:
+
+```bash
+flutter clean
+flutter build appbundle --release \
+  --dart-define=APP_ENV=production \
+  --dart-define=USE_FAKE_API=false \
+  --dart-define=API_BASE_URL=<production-api-base-url>
+```
+
+Upload `build/app/outputs/bundle/release/app-release.aab` to an internal test
+track first, then promote it to production after testing.

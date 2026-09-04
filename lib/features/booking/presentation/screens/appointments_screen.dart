@@ -238,9 +238,7 @@ class _AppointmentsList extends StatelessWidget {
             onCancel: appointment.status.canCancel
                 ? () => _confirmCancel(context, appointment)
                 : null,
-            onPaymentTap:
-                appointment.payment != null &&
-                    appointment.payment!.status != AppointmentFeeStatus.paid
+            onPaymentTap: appointment.canPayFee
                 ? () => onPaymentRequested(appointment)
                 : null,
           );
@@ -393,6 +391,34 @@ class _AppointmentCard extends StatelessWidget {
                   key: ValueKey('pay-${appointment.id}'),
                   onPressed: onPaymentTap,
                   child: const Text('Төлөх'),
+                ),
+              ],
+            ),
+          ),
+        ],
+        // Хураамж төлөгдсөнийг тусад нь харуулна — цаг захиалгын status
+        // (Хүлээгдэж буй) төлбөрөөр өөрчлөгддөггүй (ажилтан баталгаажуулна).
+        if (appointment.payment?.status == AppointmentFeeStatus.paid) ...[
+          const SizedBox(height: 12),
+          Container(
+            key: ValueKey('fee-paid-${appointment.id}'),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.green.withValues(alpha: 0.12),
+              border: Border.all(color: AppColors.green.withValues(alpha: 0.35)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, size: 16, color: AppColors.green),
+                SizedBox(width: 8),
+                Text(
+                  'Хураамж төлөгдсөн',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.green,
+                  ),
                 ),
               ],
             ),

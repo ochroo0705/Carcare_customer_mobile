@@ -4,6 +4,71 @@ import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('appointmentPaymentFromJson QPay urls', () {
+    test('parses the bank deep-link list from a pending fee', () {
+      final payment = appointmentPaymentFromJson({
+        'status': 'PENDING',
+        'amount': 5000,
+        'currency': 'MNT',
+        'qrText': 'qpay://inv',
+        'qrImage': 'BASE64',
+        'urls': [
+          {
+            'name': 'Khan bank',
+            'name_mn': 'Хаан банк',
+            'logo': 'https://qpay.mn/khan.png',
+            'description': 'Хаан банкаар төлөх',
+            'link': 'khanbank://q?qr=X',
+          },
+        ],
+      });
+
+      expect(payment, isNotNull);
+      expect(payment!.urls, hasLength(1));
+      expect(payment.urls.first.label, 'Хаан банк');
+      expect(payment.urls.first.link, 'khanbank://q?qr=X');
+    });
+
+    test('defaults urls to empty when absent (pre-feature invoice)', () {
+      final payment = appointmentPaymentFromJson({
+        'status': 'PENDING',
+        'amount': 5000,
+        'currency': 'MNT',
+      });
+
+      expect(payment!.urls, isEmpty);
+    });
+
+    test('skips url rows that carry no link', () {
+      final payment = appointmentPaymentFromJson({
+        'status': 'PENDING',
+        'amount': 5000,
+        'currency': 'MNT',
+        'urls': [
+          {'name': 'Broken', 'name_mn': 'Эвдэрсэн', 'logo': ''},
+          {'name_mn': 'Хаан банк', 'link': 'khanbank://q'},
+        ],
+      });
+
+      expect(payment!.urls, hasLength(1));
+      expect(payment.urls.first.label, 'Хаан банк');
+    });
+
+    test('falls back to the english name for the label when name_mn is empty',
+        () {
+      final payment = appointmentPaymentFromJson({
+        'status': 'PENDING',
+        'amount': 5000,
+        'currency': 'MNT',
+        'urls': [
+          {'name': 'Pocket', 'name_mn': '', 'link': 'pocket://q'},
+        ],
+      });
+
+      expect(payment!.urls.single.label, 'Pocket');
+    });
+  });
+
   test('parses a full appointment matching the published contract', () {
     final appointment = AppointmentDto.fromJson({
       'id': 'apt-1',

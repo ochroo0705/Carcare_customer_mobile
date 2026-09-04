@@ -90,6 +90,69 @@ void main() {
     controller.dispose();
   });
 
+  testWidgets('hides the pay button when the appointment is cancelled even if '
+      'the fee is unpaid', (tester) async {
+    // Regression: a fee that is still PENDING must not be payable once the
+    // appointment itself is cancelled — paying a dead booking is nonsensical.
+    final appointment = Appointment(
+      id: 'apt-cancelled',
+      status: AppointmentStatus.cancelled,
+      requestedAt: DateTime(2026, 10, 1, 10),
+      tenantName: 'Auto Doctor Service',
+      tenantSlug: 'auto-doctor',
+      branchName: 'Баянзүрх салбар',
+      payment: const AppointmentPayment(
+        status: AppointmentFeeStatus.pending,
+        amount: 5000,
+        currency: 'MNT',
+        qrText: 'qpay://example',
+        qrImageBase64: '',
+      ),
+    );
+    final controller = AppointmentsController(_OneAppointmentRepo(appointment));
+    await controller.load();
+
+    await _pump(tester, controller, 'apt-cancelled');
+
+    expect(
+      find.byKey(const ValueKey('detail-pay-apt-cancelled')),
+      findsNothing,
+    );
+    expect(find.text('Төлөх'), findsNothing);
+    controller.dispose();
+  });
+
+  testWidgets('shows a fee-paid badge (and no pay button) once the fee is '
+      'paid, while the appointment stays pending', (tester) async {
+    final appointment = Appointment(
+      id: 'apt-paid',
+      status: AppointmentStatus.pending, // staff not yet confirmed
+      requestedAt: DateTime(2026, 10, 1, 10),
+      tenantName: 'Auto Doctor Service',
+      tenantSlug: 'auto-doctor',
+      branchName: 'Баянзүрх салбар',
+      payment: const AppointmentPayment(
+        status: AppointmentFeeStatus.paid,
+        amount: 5000,
+        currency: 'MNT',
+      ),
+    );
+    final controller = AppointmentsController(_OneAppointmentRepo(appointment));
+    await controller.load();
+
+    await _pump(tester, controller, 'apt-paid');
+
+    expect(
+      find.byKey(const ValueKey('detail-fee-paid-apt-paid')),
+      findsOneWidget,
+    );
+    expect(find.text('Хураамж төлөгдсөн'), findsOneWidget);
+    expect(find.byKey(const ValueKey('detail-pay-apt-paid')), findsNothing);
+    // Appointment status itself is unchanged — payment ≠ staff confirmation.
+    expect(find.text('Хүлээгдэж буй'), findsOneWidget);
+    controller.dispose();
+  });
+
   testWidgets('invokes onPay with the appointment when Төлөх is tapped', (
     tester,
   ) async {

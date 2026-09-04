@@ -91,10 +91,36 @@ AppointmentPayment? appointmentPaymentFromJson(Object? value) {
         ? value['qrImage'] as String
         : null,
     qrText: value['qrText'] is String ? value['qrText'] as String : null,
+    urls: _bankUrlsFromJson(value['urls']),
     underpaidAmount: value['underpaidAmount'] is num
         ? value['underpaidAmount'] as num
         : null,
   );
+}
+
+/// QPay банкны deep link жагсаалтыг задлана. Талбар байхгүй/null/буруу бол
+/// хоосон жагсаалт (фичер нэвтрэхээс өмнөх invoice, эсвэл хураамжгүй). `link`
+/// заавал шаардлагатай — линкгүй мөрийг алгасна (нээх юмгүй товч гаргахгүй).
+List<QpayBankUrl> _bankUrlsFromJson(Object? value) {
+  if (value is! List) return const [];
+  final result = <QpayBankUrl>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    final link = item['link'];
+    if (link is! String || link.isEmpty) continue;
+    result.add(
+      QpayBankUrl(
+        name: item['name'] is String ? item['name'] as String : '',
+        nameMn: item['name_mn'] is String ? item['name_mn'] as String : '',
+        logo: item['logo'] is String ? item['logo'] as String : '',
+        link: link,
+        description: item['description'] is String
+            ? item['description'] as String
+            : null,
+      ),
+    );
+  }
+  return List.unmodifiable(result);
 }
 
 List<AppointmentDto> parseAppointmentListJson(Object? value) {

@@ -68,6 +68,20 @@ class FakeAppointmentRepository implements AppointmentRepository {
     currency: 'MNT',
     qrImageBase64: _fakeQrImageBase64,
     qrText: 'qpay://fake-invoice',
+    urls: [
+      QpayBankUrl(
+        name: 'Khan bank',
+        nameMn: 'Хаан банк',
+        logo: '',
+        link: 'khanbank://q?qPay_QRcode=FAKE',
+      ),
+      QpayBankUrl(
+        name: 'Trade and Development bank',
+        nameMn: 'Худалдаа хөгжлийн банк',
+        logo: '',
+        link: 'tdbbank://q?qPay_QRcode=FAKE',
+      ),
+    ],
   );
 
   /// Tracks how many times `checkPayment` has been called per appointment,

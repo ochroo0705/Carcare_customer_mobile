@@ -48,5 +48,38 @@
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>
+
+        <!-- QPay банкны deep link scheme-үүд. Android 11+ (API 30) дээр эдгээрийг
+             эндхэн зарлаагүй бол url_launcher-ийн launchUrl() чимээгүй false
+             буцаана (банкны апп нээгдэхгүй). Жагсаалтыг QPay-ийн нийтэлсэн
+             deeplink-үүдтэй тааруулж шинэчилж байх ёстой — шинэ банк нэмэгдвэл
+             энд scheme-ийг нь нэмнэ. Ерөнхий http(s) шилжилтэд зориулж VIEW-г
+             бас зарлав. -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="qpaywallet"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="qpay"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="khanbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="statebankmongolia"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="tdbbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="xacbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="most"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="mostmoney"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="capitronbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="bogdbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="ckbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="chinggis"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="nibank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="transbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="mbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="arigbank"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="socialpay"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="candypay"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="toki"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="monpay"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="ardapp"/></intent>
+        <intent><action android:name="android.intent.action.VIEW"/><data android:scheme="pocket"/></intent>
     </queries>
 </manifest>

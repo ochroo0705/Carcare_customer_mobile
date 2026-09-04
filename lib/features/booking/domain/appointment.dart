@@ -31,6 +31,16 @@ class Appointment {
   /// `null`, so a paid badge can still be shown).
   final AppointmentPayment? payment;
 
+  /// Хураамжийг төлөх боломжтой эсэх — цорын ганц эх сурвалж (detail + list
+  /// хоёулаа үүнийг ашиглана). Зөвхөн (1) цаг захиалга идэвхтэй (pending/
+  /// confirmed) — цуцалсан/татгалзсан/ирээгүй бол төлбөр утгагүй, (2) хураамж
+  /// шаардлагатай, (3) бүрэн төлөгдөөгүй үед л зөвшөөрнө. Server эцсийн
+  /// шалгалтыг өөрөө хийдэг; энэ нь UI-г буруу төлөвт харуулахаас сэргийлнэ.
+  bool get canPayFee =>
+      status.isActive &&
+      payment != null &&
+      payment!.status != AppointmentFeeStatus.paid;
+
   Appointment copyWith({
     AppointmentStatus? status,
     AppointmentPayment? payment,

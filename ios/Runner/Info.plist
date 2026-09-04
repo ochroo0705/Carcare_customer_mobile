@@ -78,5 +78,34 @@
 		</array>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<!-- QPay банкны deep link scheme-үүд. iOS дээр эдгээрийг зарлаагүй бол
+		     canOpenURL/launchUrl false буцаана (банкны апп нээгдэхгүй). QPay-ийн
+		     нийтэлсэн deeplink жагсаалттай тааруулж, AndroidManifest.xml-ийн
+		     <queries>-тэй хамт шинэчилж байх. -->
+		<key>LSApplicationQueriesSchemes</key>
+		<array>
+			<string>qpaywallet</string>
+			<string>qpay</string>
+			<string>khanbank</string>
+			<string>statebankmongolia</string>
+			<string>tdbbank</string>
+			<string>xacbank</string>
+			<string>most</string>
+			<string>mostmoney</string>
+			<string>capitronbank</string>
+			<string>bogdbank</string>
+			<string>ckbank</string>
+			<string>chinggis</string>
+			<string>nibank</string>
+			<string>transbank</string>
+			<string>mbank</string>
+			<string>arigbank</string>
+			<string>socialpay</string>
+			<string>candypay</string>
+			<string>toki</string>
+			<string>monpay</string>
+			<string>ardapp</string>
+			<string>pocket</string>
+		</array>
 	</dict>
 </plist>
