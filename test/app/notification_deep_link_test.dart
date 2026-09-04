@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
 import 'dart:async';
 
 import 'package:carcare_customer_mobile/app/app.dart';
@@ -54,6 +55,7 @@ class _AuthedRepo implements AuthRepository {
 }
 
 void main() {
+  setUpAll(() => debugDisableAppBootstrap = true);
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets('tapping an appointment push opens that appointment detail', (

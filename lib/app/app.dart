@@ -16,6 +16,8 @@ import 'package:carcare_customer_mobile/features/history/data/fake_service_histo
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
+import 'package:carcare_customer_mobile/features/onboarding/presentation/onboarding_gate.dart';
+import 'package:carcare_customer_mobile/features/splash/presentation/splash_gate.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:flutter/material.dart';
@@ -128,6 +130,12 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
       themeMode: _themeController.mode,
       routerDelegate: _routerDelegate,
       routeInformationParser: _parser,
+      builder: (context, child) => SplashGate(
+        child: OnboardingGate(
+          onRequestLogin: _routerDelegate.requestLogin,
+          child: child ?? const SizedBox.shrink(),
+        ),
+      ),
     ),
   );
 }

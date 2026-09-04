@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
 import 'package:carcare_customer_mobile/app/app.dart';
 import 'package:carcare_customer_mobile/data/cache/in_memory_cache_store.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
@@ -24,6 +25,7 @@ Future<void> _scrollUntilVisible(
 );
 
 void main() {
+  setUpAll(() => debugDisableAppBootstrap = true);
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets(

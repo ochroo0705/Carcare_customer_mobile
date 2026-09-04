@@ -19,9 +19,10 @@ import 'package:carcare_customer_mobile/features/discovery/data/caching_organiza
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/remote_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
-import 'package:carcare_customer_mobile/features/history/data/unavailable_service_history_repository.dart';
+import 'package:carcare_customer_mobile/features/history/data/remote_service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/data/unavailable_notifications_repository.dart';
+import 'package:carcare_customer_mobile/features/onboarding/data/onboarding_store.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/remote_vehicle_repository.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -109,13 +110,19 @@ void main() async {
             onUnauthorized: sessionStore.clear,
           ),
         );
-  // History and Notifications have no published `/api/v1/app` endpoint yet
-  // (D-014). Against the real API, serve the honest "coming soon" repos rather
-  // than the fake seeds — those stay for fake mode and tests. Real push
-  // delivery is unaffected (it's OS/local-banner level, not the list).
+  // History now has a real `/api/v1/app/orders` endpoint (web commit
+  // `79f0e9e`) — wire the remote repo against it. Notifications still have no
+  // published endpoint (D-014), so that one stays on the honest "coming soon"
+  // repo against the real API. Fake seeds stay for fake mode and tests.
   final historyRepository = AppEnvironment.useFakeApi
       ? FakeServiceHistoryRepository()
-      : const UnavailableServiceHistoryRepository();
+      : RemoteServiceHistoryRepository(
+          ApiClient(
+            baseUrl: AppEnvironment.apiBaseUrl,
+            accessTokenProvider: sessionStore.readToken,
+            onUnauthorized: sessionStore.clear,
+          ),
+        );
   final notificationsRepository = AppEnvironment.useFakeApi
       ? FakeNotificationsRepository()
       : const UnavailableNotificationsRepository();
@@ -143,6 +150,11 @@ void main() async {
 }
 
 Future<void> _initPushNotifications() async {
-  await FirebaseMessaging.instance.requestPermission();
+  // On first run, onboarding's permission page owns the notification prompt, so
+  // don't ask here (it would fire before onboarding is even shown). On later
+  // runs, request as before — harmless if already granted/denied.
+  if (await const OnboardingStore().hasCompleted()) {
+    await FirebaseMessaging.instance.requestPermission();
+  }
   await LocalPushService.instance.initialize();
 }

@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
 import 'package:carcare_customer_mobile/app/app.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/auth/data/fake_auth_repository.dart';
@@ -24,6 +25,7 @@ Future<void> _login(WidgetTester tester) async {
 }
 
 void main() {
+  setUpAll(() => debugDisableAppBootstrap = true);
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets(

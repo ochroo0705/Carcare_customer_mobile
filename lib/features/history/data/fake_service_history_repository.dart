@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
+import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
@@ -129,6 +130,23 @@ class FakeServiceHistoryRepository implements ServiceHistoryRepository {
   Future<ServiceOrderDetail> getServiceOrderDetail(String id) async {
     final order = _orders.where((order) => order.id == id).firstOrNull;
     if (order == null) throw const NotFoundFailure();
-    return ServiceOrderDetail(order: order, items: _items[id] ?? const []);
+    return ServiceOrderDetail(
+      order: order,
+      items: _items[id] ?? const [],
+      reports: _reports[id] ?? const [],
+    );
   }
+
+  /// Fake mode-д оношилгооны тайлангийн хэсгийг харуулах цөөн жишээ.
+  late final Map<String, List<DiagnosticReportSummary>> _reports = {
+    'seed-history-1': [
+      DiagnosticReportSummary(
+        id: 'seed-report-1',
+        templateName: 'Ерөнхий үзлэг',
+        type: 'INSPECTION',
+        createdAt: _now.subtract(const Duration(days: 30)),
+        mileageAtReport: 82000,
+      ),
+    ],
+  };
 }

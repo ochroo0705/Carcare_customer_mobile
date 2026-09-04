@@ -441,6 +441,10 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  /// Public entry point for showing the login screen — used by onboarding's
+  /// "Бүртгэлдээ нэвтрэх" soft-login hand-off.
+  void requestLogin() => _requestLogin();
+
   void _openAddVehicle() {
     _showAddVehicle = true;
     notifyListeners();

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/config/app_environment.dart';
@@ -239,10 +240,10 @@ class _OrganizationHero extends StatelessWidget {
                           color: CarCareTheme.of(context).glassBorder,
                         ),
                       ),
-                      child: Text(
-                        organization.name.characters.first.toUpperCase(),
-                        style: Theme.of(context).textTheme.headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.w900),
+                      clipBehavior: Clip.antiAlias,
+                      child: _HeroLogo(
+                        name: organization.name,
+                        logoUrl: organization.logoUrl,
                       ),
                     ),
                     const SizedBox(width: 15),
@@ -329,6 +330,42 @@ class _OrganizationHero extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Байгууллагын лого — hero-гийн gradient хүрээ дотор дүүргэж харуулна
+/// (`OrganizationAvatar`-тай ижил `CachedNetworkImage` cache-ийг URL-ээр
+/// хуваалцана). Лого байхгүй/уншиж байх/алдаа гарвал нэрний эхний үсэг рүү
+/// уначна — дискавери жагсаалттай ижил зан төлөв, hero-гийн загварыг хадгална.
+class _HeroLogo extends StatelessWidget {
+  const _HeroLogo({required this.name, required this.logoUrl});
+
+  final String name;
+  final String? logoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    // Center the letter itself: as a CachedNetworkImage placeholder/errorWidget
+    // it fills the 66×66 image box, which does not center its child (the letter
+    // would otherwise stick to the top-left).
+    final letter = Center(
+      child: Text(
+        name.characters.isEmpty ? '?' : name.characters.first.toUpperCase(),
+        style: Theme.of(
+          context,
+        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+      ),
+    );
+    final url = logoUrl?.trim();
+    if (url == null || url.isEmpty) return letter;
+    return CachedNetworkImage(
+      imageUrl: url,
+      width: 66,
+      height: 66,
+      fit: BoxFit.cover,
+      placeholder: (_, _) => letter,
+      errorWidget: (_, _, _) => letter,
     );
   }
 }
