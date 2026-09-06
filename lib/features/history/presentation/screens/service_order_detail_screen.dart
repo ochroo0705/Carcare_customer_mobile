@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
@@ -73,7 +74,7 @@ class _ServiceOrderDetailScreenState extends State<ServiceOrderDetailScreen> {
   );
 
   Widget _body() => switch (_status) {
-    _DetailStatus.loading => const Center(child: CircularProgressIndicator()),
+    _DetailStatus.loading => const SkeletonDetail(),
     _DetailStatus.error => Center(
       child: Padding(
         padding: const EdgeInsets.all(32),

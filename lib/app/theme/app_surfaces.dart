@@ -28,7 +28,7 @@ class AppShellBackground extends StatelessWidget {
   }
 }
 
-class GlassSurface extends StatelessWidget {
+class GlassSurface extends StatefulWidget {
   const GlassSurface({
     required this.child,
     this.padding = const EdgeInsets.all(16),
@@ -40,28 +40,93 @@ class GlassSurface extends StatelessWidget {
   final VoidCallback? onTap;
 
   @override
+  State<GlassSurface> createState() => _GlassSurfaceState();
+}
+
+class _GlassSurfaceState extends State<GlassSurface>
+    with SingleTickerProviderStateMixin {
+  // 0 → resting, 1 → fully pressed. The press-in always plays to completion
+  // before releasing, so a quick tap reads as a deliberate dip instead of a
+  // flicker. Depth is applied as 1 - value * 0.03 (i.e. down to 0.97).
+  late final AnimationController _press = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 140),
+    reverseDuration: const Duration(milliseconds: 220),
+  )..addStatusListener((status) {
+      // If the finger already lifted while pressing in, spring back once the
+      // dip has fully landed.
+      if (status == AnimationStatus.completed && !_pointerDown) {
+        _press.reverse();
+      }
+    });
+
+  late final Animation<double> _scale = Tween<double>(begin: 1, end: 0.97)
+      .animate(CurvedAnimation(
+        parent: _press,
+        curve: Curves.easeOut,
+        reverseCurve: Curves.easeOut,
+      ));
+
+  bool _pointerDown = false;
+
+  bool get _interactive =>
+      widget.onTap != null &&
+      !(MediaQuery.maybeOf(context)?.disableAnimations ?? false);
+
+  void _onDown() {
+    if (!_interactive) return;
+    _pointerDown = true;
+    _press.forward();
+  }
+
+  void _onUp() {
+    _pointerDown = false;
+    // Reverse now only if the dip already finished; otherwise the status
+    // listener reverses it the moment the press-in completes.
+    if (_press.status == AnimationStatus.completed) _press.reverse();
+  }
+
+  @override
+  void dispose() {
+    _press.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = CarCareTheme.of(context);
-    return ClipRRect(
+    final surface = ClipRRect(
       borderRadius: BorderRadius.circular(AppRadii.large),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: onTap,
+            onTap: widget.onTap,
             child: Container(
-              padding: padding,
+              padding: widget.padding,
               decoration: BoxDecoration(
                 color: theme.glass,
                 border: Border.all(color: theme.glassBorder),
                 borderRadius: BorderRadius.circular(AppRadii.large),
               ),
-              child: child,
+              child: widget.child,
             ),
           ),
         ),
       ),
+    );
+
+    if (widget.onTap == null) return surface;
+
+    // A press "give" that coexists with InkWell's ripple: Listener observes
+    // raw pointer events without entering the gesture arena, so it never
+    // competes with the tap/scroll recognizers underneath.
+    return Listener(
+      onPointerDown: (_) => _onDown(),
+      onPointerUp: (_) => _onUp(),
+      onPointerCancel: (_) => _onUp(),
+      child: ScaleTransition(scale: _scale, child: surface),
     );
   }
 }

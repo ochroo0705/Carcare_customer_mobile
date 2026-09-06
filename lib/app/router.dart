@@ -40,6 +40,7 @@ import 'package:carcare_customer_mobile/features/vehicles/presentation/controlle
 import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/add_vehicle_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 sealed class CustomerRoutePath {
   const CustomerRoutePath();
@@ -188,6 +189,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   bool _showAddVehicle = false;
   bool _showNotifications = false;
   bool _wasAuthenticated = false;
+  bool _disposed = false;
 
   @override
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -288,6 +290,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 notifyListeners();
               },
               onCompleted: (appointment) {
+                HapticFeedback.mediumImpact();
                 final context = navigatorKey?.currentContext;
                 final messenger = context == null
                     ? null
@@ -585,10 +588,17 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   /// this app doesn't ship push on) or a failed request must never block
   /// login.
   Future<void> _registerDeviceForPush() async {
+    final account = authController.account;
+    if (account == null || _disposed) return;
     try {
       final token = await remotePushService.getToken();
-      if (token == null) return;
+      if (token == null ||
+          _disposed ||
+          !identical(authController.account, account)) {
+        return;
+      }
       final deviceId = await deviceIdStore.getOrCreate();
+      if (_disposed || !identical(authController.account, account)) return;
       await deviceRepository.registerDevice(
         deviceId: deviceId,
         platform: _platformName,
@@ -596,6 +606,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       );
     } catch (_) {
       // Best-effort — push registration failing must never block sign-in.
+      if (kDebugMode) debugPrint('Push device registration could not complete.');
     }
   }
 
@@ -612,9 +623,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   /// refreshes, but only while signed in — there's no account to attach an
   /// unauthenticated refresh to.
   Future<void> _onTokenRefreshed(String token) async {
-    if (!authController.isAuthenticated) return;
+    final account = authController.account;
+    if (account == null || _disposed) return;
     try {
       final deviceId = await deviceIdStore.getOrCreate();
+      if (_disposed || !identical(authController.account, account)) return;
       await deviceRepository.registerDevice(
         deviceId: deviceId,
         platform: _platformName,
@@ -647,6 +660,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   @override
   void dispose() {
+    _disposed = true;
     _tokenRefreshSubscription.cancel();
     _foregroundMessageSubscription.cancel();
     _connectivitySubscription.cancel();

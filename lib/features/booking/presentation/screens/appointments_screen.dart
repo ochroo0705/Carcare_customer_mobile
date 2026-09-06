@@ -1,6 +1,8 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
@@ -106,7 +108,7 @@ class _AppointmentsBody extends StatelessWidget {
         container: true,
         liveRegion: true,
         label: 'Захиалгуудыг ачаалж байна',
-        child: Center(child: CircularProgressIndicator()),
+        child: const SkeletonCardList(),
       ),
       AppointmentsStatus.error => _ErrorView(
         message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
@@ -231,16 +233,19 @@ class _AppointmentsList extends StatelessWidget {
             );
           }
           final appointment = appointments[index - offset];
-          return _AppointmentCard(
-            appointment: appointment,
-            isCancelling: controller.isCancelling(appointment.id),
-            onTap: () => onAppointmentSelected(appointment.id),
-            onCancel: appointment.status.canCancel
-                ? () => _confirmCancel(context, appointment)
-                : null,
-            onPaymentTap: appointment.canPayFee
-                ? () => onPaymentRequested(appointment)
-                : null,
+          return RiseIn(
+            index: index - offset,
+            child: _AppointmentCard(
+              appointment: appointment,
+              isCancelling: controller.isCancelling(appointment.id),
+              onTap: () => onAppointmentSelected(appointment.id),
+              onCancel: appointment.status.canCancel
+                  ? () => _confirmCancel(context, appointment)
+                  : null,
+              onPaymentTap: appointment.canPayFee
+                  ? () => onPaymentRequested(appointment)
+                  : null,
+            ),
           );
         },
       ),

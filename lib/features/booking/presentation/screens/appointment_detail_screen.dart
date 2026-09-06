@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
@@ -77,7 +78,7 @@ class AppointmentDetailScreen extends StatelessWidget {
                   ? () => onPay(appointment)
                   : null,
             ),
-            (null, true) => const Center(child: CircularProgressIndicator()),
+            (null, true) => const SkeletonDetail(),
             (null, false) => _NotFound(onBack: onBack),
           },
         ),

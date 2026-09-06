@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
@@ -296,7 +297,7 @@ class _AppointmentPaymentScreenState extends State<AppointmentPaymentScreen>
   );
 
   Widget _body() => switch (_status) {
-    _LoadStatus.loading => const Center(child: CircularProgressIndicator()),
+    _LoadStatus.loading => const SkeletonDetail(sections: 2),
     _LoadStatus.error => Center(
       child: Padding(
         padding: const EdgeInsets.all(32),

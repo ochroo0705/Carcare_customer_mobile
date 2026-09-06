@@ -1,7 +1,9 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
+import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_status.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
@@ -99,7 +101,7 @@ class _HistoryBody extends StatelessWidget {
         container: true,
         liveRegion: true,
         label: 'Түүхийг ачаалж байна',
-        child: Center(child: CircularProgressIndicator()),
+        child: const SkeletonCardList(showTrailing: true),
       ),
       HistoryStatus.error => _ErrorView(
         message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
@@ -222,9 +224,12 @@ class _HistoryList extends StatelessWidget {
             );
           }
           final order = orders[index - offset];
-          return _OrderCard(
-            order: order,
-            onTap: () => onOrderSelected(order.id),
+          return RiseIn(
+            index: index - offset,
+            child: _OrderCard(
+              order: order,
+              onTap: () => onOrderSelected(order.id),
+            ),
           );
         },
       ),

@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
@@ -113,12 +114,12 @@ class _ProfileBody extends StatelessWidget {
       ...switch (state.status) {
         VehiclesStatus.initial || VehiclesStatus.loading => [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 40),
+            padding: const EdgeInsets.symmetric(vertical: 8),
             child: Semantics(
               container: true,
               liveRegion: true,
               label: 'Профайлыг ачаалж байна',
-              child: Center(child: CircularProgressIndicator()),
+              child: const SkeletonCardColumn(),
             ),
           ),
         ],

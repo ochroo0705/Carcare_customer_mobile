@@ -4,6 +4,7 @@ import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 class CustomerShell extends StatefulWidget {
@@ -22,10 +23,35 @@ class CustomerShell extends StatefulWidget {
   State<CustomerShell> createState() => CustomerShellState();
 }
 
-class CustomerShellState extends State<CustomerShell> {
+class CustomerShellState extends State<CustomerShell>
+    with SingleTickerProviderStateMixin {
   static const _profileIndex = 3;
 
   int _selectedIndex = 0;
+
+  // Drives a quick scale-in of the content area whenever the tab changes. The
+  // IndexedStack underneath keeps every tab mounted (state + offstage
+  // semantics preserved); this just eases the swap so it isn't abrupt.
+  //
+  // Transform-only (scale), never opacity: tab bodies paint glass
+  // (BackdropFilter), and fading a backdrop filter isolates it in an opacity
+  // layer that disables the blur mid-animation then snaps it back — a visible
+  // flicker of the background gradient.
+  late final AnimationController _tabAnim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 220),
+    value: 1,
+  );
+  late final Animation<double> _tabScale = Tween<double>(
+    begin: 0.985,
+    end: 1,
+  ).animate(CurvedAnimation(parent: _tabAnim, curve: Curves.easeOut));
+
+  @override
+  void dispose() {
+    _tabAnim.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,9 +65,12 @@ class CustomerShellState extends State<CustomerShell> {
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= 720;
-        final content = IndexedStack(
-          index: _selectedIndex,
-          children: widget.destinations,
+        final content = ScaleTransition(
+          scale: _tabScale,
+          child: IndexedStack(
+            index: _selectedIndex,
+            children: widget.destinations,
+          ),
         );
         return Scaffold(
           appBar: AppBar(
@@ -140,7 +169,11 @@ class CustomerShellState extends State<CustomerShell> {
 
   void _selectDestination(int index) {
     if (_selectedIndex == index) return;
+    HapticFeedback.selectionClick();
     setState(() => _selectedIndex = index);
+    if (!(MediaQuery.maybeOf(context)?.disableAnimations ?? false)) {
+      _tabAnim.forward(from: 0);
+    }
   }
 
   /// Lets the router imperatively switch tabs, e.g. jumping to Appointments
@@ -188,9 +221,16 @@ class _NotificationBell extends StatelessWidget {
       onPressed: onTap,
       icon: const Icon(Icons.notifications_outlined),
     );
-    if (unreadCount <= 0) return icon;
+    final label = unreadCount > 9 ? '9+' : '$unreadCount';
     return Badge(
-      label: Text(unreadCount > 9 ? '9+' : '$unreadCount'),
+      isLabelVisible: unreadCount > 0,
+      label: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 220),
+        transitionBuilder: (child, animation) =>
+            ScaleTransition(scale: animation, child: child),
+        // Key by value so incrementing the count pops the new number in.
+        child: Text(label, key: ValueKey(label)),
+      ),
       child: icon,
     );
   }

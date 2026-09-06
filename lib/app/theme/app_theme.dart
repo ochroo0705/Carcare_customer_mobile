@@ -94,6 +94,45 @@ class CarCareTheme extends ThemeExtension<CarCareTheme> {
   }
 }
 
+/// A consistent, subtle push transition for every route on every platform: the
+/// incoming page slides up a few pixels while easing from 98% to full size.
+///
+/// Deliberately transform-only — NO opacity fade. Pages here paint the glass
+/// `GlassSurface` (a `BackdropFilter`); fading a subtree that contains a
+/// backdrop filter isolates it in an opacity layer, which disables the blur for
+/// the duration of the fade and then snaps it back on completion — a visible
+/// flicker of the blurred background. Slides and scales are transform layers,
+/// so the glass keeps compositing correctly throughout.
+class _FadeSlidePageTransitionsBuilder extends PageTransitionsBuilder {
+  const _FadeSlidePageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (MediaQuery.maybeOf(context)?.disableAnimations ?? false) return child;
+    final curved = CurvedAnimation(
+      parent: animation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+    return SlideTransition(
+      position: Tween<Offset>(
+        begin: const Offset(0, 0.025),
+        end: Offset.zero,
+      ).animate(curved),
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+        child: child,
+      ),
+    );
+  }
+}
+
 abstract final class AppTheme {
   static ThemeData get light => _theme(Brightness.light);
   static ThemeData get dark => _theme(Brightness.dark);
@@ -151,6 +190,15 @@ abstract final class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: background,
       canvasColor: background,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _FadeSlidePageTransitionsBuilder(),
+          TargetPlatform.iOS: _FadeSlidePageTransitionsBuilder(),
+          TargetPlatform.macOS: _FadeSlidePageTransitionsBuilder(),
+          TargetPlatform.windows: _FadeSlidePageTransitionsBuilder(),
+          TargetPlatform.linux: _FadeSlidePageTransitionsBuilder(),
+        },
+      ),
       extensions: [extension],
       appBarTheme: AppBarTheme(
         elevation: 0,

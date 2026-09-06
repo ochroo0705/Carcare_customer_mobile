@@ -1,6 +1,8 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
@@ -110,8 +112,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     return switch (state.status) {
       DiscoveryStatus.initial || DiscoveryStatus.loading => const [
         SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: CircularProgressIndicator()),
+          hasScrollBody: true,
+          child: SkeletonAvatarCardList(),
         ),
       ],
       DiscoveryStatus.empty => const [
@@ -188,12 +190,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
               final organization = organizations[index];
-              return OrganizationCard(
-                organization: organization,
-                isFavorite: favoritesController.contains(organization.slug),
-                onFavoriteToggle: () =>
-                    favoritesController.toggle(organization.slug),
-                onTap: () => widget.onOrganizationSelected(organization.slug),
+              return RiseIn(
+                index: index,
+                child: OrganizationCard(
+                  organization: organization,
+                  isFavorite: favoritesController.contains(organization.slug),
+                  onFavoriteToggle: () =>
+                      favoritesController.toggle(organization.slug),
+                  onTap: () => widget.onOrganizationSelected(organization.slug),
+                ),
               );
             },
           ),

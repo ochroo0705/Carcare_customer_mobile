@@ -2,6 +2,7 @@ import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/organization_avatar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class OrganizationCard extends StatelessWidget {
   const OrganizationCard({
@@ -66,13 +67,25 @@ class OrganizationCard extends StatelessWidget {
             children: [
               IconButton(
                 key: ValueKey('favorite-${organization.slug}'),
-                onPressed: onFavoriteToggle,
+                onPressed: onFavoriteToggle == null
+                    ? null
+                    : () {
+                        HapticFeedback.selectionClick();
+                        onFavoriteToggle!();
+                      },
                 tooltip: isFavorite ? 'Хадгалснаас хасах' : 'Хадгалах',
-                icon: Icon(
-                  isFavorite
-                      ? Icons.favorite_rounded
-                      : Icons.favorite_border_rounded,
-                  color: isFavorite ? scheme.primary : null,
+                icon: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 220),
+                  transitionBuilder: (child, animation) =>
+                      ScaleTransition(scale: animation, child: child),
+                  child: Icon(
+                    isFavorite
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    // Key by state so the switcher pops the heart on toggle.
+                    key: ValueKey(isFavorite),
+                    color: isFavorite ? scheme.primary : null,
+                  ),
                 ),
               ),
               const Icon(Icons.chevron_right),

@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/config/app_environment.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
@@ -43,7 +44,7 @@ class OrganizationDetailScreen extends StatelessWidget {
         child:
             status == OrganizationDetailStatus.loading ||
                 status == OrganizationDetailStatus.initial
-            ? const Center(child: CircularProgressIndicator())
+            ? const SkeletonDetail()
             : status == OrganizationDetailStatus.error
             ? _DetailError(
                 message: errorMessage ?? 'Мэдээлэл ачаалсангүй.',

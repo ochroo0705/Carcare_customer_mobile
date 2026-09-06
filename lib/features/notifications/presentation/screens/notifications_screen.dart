@@ -1,5 +1,7 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
+import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_state.dart';
@@ -43,7 +45,7 @@ class _Body extends StatelessWidget {
     final state = controller.state;
     return switch (state.status) {
       NotificationsStatus.initial || NotificationsStatus.loading =>
-        const Center(child: CircularProgressIndicator()),
+        const SkeletonNotificationList(),
       NotificationsStatus.error => _ErrorView(
         message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
         onRetry: controller.load,
@@ -133,11 +135,14 @@ class _NotificationsList extends StatelessWidget {
         separatorBuilder: (_, _) => const SizedBox(height: 10),
         itemBuilder: (context, index) {
           final notification = notifications[index];
-          return _NotificationCard(
-            notification: notification,
-            onTap: notification.isRead
-                ? null
-                : () => controller.markRead(notification.id),
+          return RiseIn(
+            index: index,
+            child: _NotificationCard(
+              notification: notification,
+              onTap: notification.isRead
+                  ? null
+                  : () => controller.markRead(notification.id),
+            ),
           );
         },
       ),
