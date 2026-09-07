@@ -221,6 +221,8 @@ void main() {
     await tester.tap(find.text('Нэвтрэх →'));
     await tester.pumpAndSettle();
     expect(find.text('Цаг хүсэх'), findsOneWidget);
+    // Header shows the branch name; the branch-switch dropdown itself stays
+    // hidden until a category is selected (dev decision — category-first).
     expect(find.text('Сүхбаатар салбар'), findsOneWidget);
   });
 

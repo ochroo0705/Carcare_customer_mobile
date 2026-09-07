@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 
 class CreatedAppointment {
   const CreatedAppointment({
@@ -16,11 +17,21 @@ class CreatedAppointment {
 }
 
 abstract interface class AppointmentRepository {
+  /// Тухайн салбарын өгөгдсөн өдрийн боломжит цагууд — сонгосон ангилалуудын
+  /// нийт хугацаанд тохируулан (booking v2). categoryIds хоосон бол салбарын
+  /// default slot урт.
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds,
+  });
+
   Future<CreatedAppointment> createAppointment({
     required String branchId,
     required DateTime requestedAt,
     String? note,
     String? accountVehicleId,
+    List<String> categoryIds,
   });
 
   Future<List<Appointment>> getAppointments();

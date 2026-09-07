@@ -119,7 +119,7 @@ class CacheDatabase extends _$CacheDatabase {
   CacheDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -127,6 +127,10 @@ class CacheDatabase extends _$CacheDatabase {
     onUpgrade: (m, from, to) async {
       // v2 added the organization-detail cache table.
       if (from < 2) await m.createTable(cachedOrganizationDetails);
+      // v3 (booking v2): хуучин cached org detail-ууд `branch.categories`-гүй
+      // хадгалагдсан. Тэдгээрийг нэг удаа цэвэрлэж, дараагийн ачаалалд шинээр
+      // (ангилалтай) татуулна. Table бүтэц өөрчлөгдөөгүй — зөвхөн хуучин мөр арилгана.
+      if (from < 3) await delete(cachedOrganizationDetails).go();
     },
   );
 }

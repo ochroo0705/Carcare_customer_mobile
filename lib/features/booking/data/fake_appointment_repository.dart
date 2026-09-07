@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 
 /// A small checkerboard placeholder, clearly not a real QPay QR — this is
 /// fake-repository data, never scannable. Mirrors the shape of a real QPay
@@ -91,11 +92,34 @@ class FakeAppointmentRepository implements AppointmentRepository {
   final Map<String, int> _checkAttempts = {};
 
   @override
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds = const [],
+  }) async {
+    // Fake: 09:00–17:30-ийн 30 минутын нүхнүүд, бүгд сул.
+    final duration = 30 * (categoryIds.isEmpty ? 1 : categoryIds.length);
+    final slots = <AvailabilitySlot>[];
+    for (var m = 9 * 60; m + duration <= 18 * 60; m += 30) {
+      slots.add(
+        AvailabilitySlot(
+          hour: m ~/ 60,
+          minute: m % 60,
+          available: true,
+          remaining: 1,
+        ),
+      );
+    }
+    return DayAvailability(open: true, durationMinutes: duration, slots: slots);
+  }
+
+  @override
   Future<CreatedAppointment> createAppointment({
     required String branchId,
     required DateTime requestedAt,
     String? note,
     String? accountVehicleId,
+    List<String> categoryIds = const [],
   }) async {
     _sequence += 1;
     final id = 'fake-appointment-$_sequence';

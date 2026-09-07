@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/core/network/api_client.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/organization_dto.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 
@@ -17,8 +18,22 @@ class RemoteOrganizationRepository implements OrganizationRepository {
   final Map<String, OrganizationDetail> _detailCache = {};
 
   @override
-  Future<List<Organization>> getOrganizations() async {
-    final json = await _client.getJson('/orgs');
+  Future<List<Organization>> getOrganizations({
+    OrganizationFilter? filter,
+  }) async {
+    final query = <String, String>{};
+    if (filter != null && filter.hasNearMe) {
+      query['lat'] = filter.lat!.toString();
+      query['lng'] = filter.lng!.toString();
+      if (filter.radiusKm != null) {
+        query['radius'] = filter.radiusKm!.toString();
+      }
+    }
+    if (filter != null && filter.openNow) query['openNow'] = '1';
+    final path = query.isEmpty
+        ? '/orgs'
+        : '/orgs?${Uri(queryParameters: query).query}';
+    final json = await _client.getJson(path);
     final items = json['orgs'];
     if (items is! List) {
       throw const UnexpectedFailure('API жагсаалт буруу байна.');

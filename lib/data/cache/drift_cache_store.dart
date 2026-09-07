@@ -385,10 +385,41 @@ Map<String, dynamic> _organizationDetailToJson(OrganizationDetail detail) => {
           'longitude': branch.longitude,
           'openTime': branch.openTime,
           'closeTime': branch.closeTime,
+          // Booking v2: салбарын санал болгож буй ангилалууд (offline cache-д ч
+          // хадгална — эс бөгөөс cache-ээс уншихад ангилал алга болно).
+          'categories': branch.categories
+              .map(
+                (category) => <String, dynamic>{
+                  'id': category.id,
+                  'name': category.name,
+                  'durationMinutes': category.durationMinutes,
+                },
+              )
+              .toList(),
         },
       )
       .toList(),
 };
+
+List<BranchServiceCategory> _branchCategoriesFromJson(Object? raw) {
+  if (raw is! List) return const [];
+  final categories = <BranchServiceCategory>[];
+  for (final entry in raw) {
+    if (entry is! Map) continue;
+    final id = entry['id'];
+    final name = entry['name'];
+    if (id is! String || name is! String) continue;
+    final duration = entry['durationMinutes'];
+    categories.add(
+      BranchServiceCategory(
+        id: id,
+        name: name,
+        durationMinutes: duration is num ? duration.toInt() : 30,
+      ),
+    );
+  }
+  return categories;
+}
 
 OrganizationDetail? _organizationDetailFromJson(String slug, String raw) {
   final decoded = jsonDecode(raw);
@@ -434,6 +465,7 @@ OrganizationDetail? _organizationDetailFromJson(String slug, String raw) {
           closeTime: entry['closeTime'] is String
               ? entry['closeTime'] as String
               : null,
+          categories: _branchCategoriesFromJson(entry['categories']),
         ),
       );
     }

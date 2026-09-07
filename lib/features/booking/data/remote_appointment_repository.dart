@@ -4,6 +4,7 @@ import 'package:carcare_customer_mobile/features/booking/data/appointment_dto.da
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 
 /// Customer appointment API adapter.
 ///
@@ -18,11 +19,60 @@ class RemoteAppointmentRepository implements AppointmentRepository {
   @override
   /// UTC ISO-8601 цаг илгээнэ. Server local timezone-оор тайлбарлахгүй байх
   /// нь өөр timezone-той device дээр захиалгын цаг зөрөхөөс сэргийлнэ.
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds = const [],
+  }) async {
+    final dateStr =
+        '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    final query = <String, String>{'date': dateStr};
+    if (categoryIds.isNotEmpty) query['categoryIds'] = categoryIds.join(',');
+    final path =
+        '/branches/${Uri.encodeComponent(branchId)}/availability'
+        '?${Uri(queryParameters: query).query}';
+    final json = await _client.getJson(path);
+    final duration = json['durationMinutes'];
+    final rawSlots = json['slots'];
+    final slots = <AvailabilitySlot>[];
+    if (rawSlots is List) {
+      for (final item in rawSlots) {
+        if (item is! Map) continue;
+        final time = item['time'];
+        if (time is! String) continue;
+        final parts = time.split(':');
+        if (parts.length != 2) continue;
+        final hour = int.tryParse(parts[0]);
+        final minute = int.tryParse(parts[1]);
+        if (hour == null || minute == null) continue;
+        final remaining = item['remaining'];
+        slots.add(
+          AvailabilitySlot(
+            hour: hour,
+            minute: minute,
+            available: item['available'] == true,
+            remaining: remaining is num ? remaining.toInt() : 0,
+          ),
+        );
+      }
+    }
+    return DayAvailability(
+      open: json['open'] == true,
+      durationMinutes: duration is num ? duration.toInt() : 0,
+      reason: json['reason'] is String ? json['reason'] as String : null,
+      slots: slots,
+    );
+  }
+
+  @override
   Future<CreatedAppointment> createAppointment({
     required String branchId,
     required DateTime requestedAt,
     String? note,
     String? accountVehicleId,
+    List<String> categoryIds = const [],
   }) async {
     final json = await _client.postJson('/appointments', {
       'branchId': branchId,
@@ -30,6 +80,7 @@ class RemoteAppointmentRepository implements AppointmentRepository {
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
       if (accountVehicleId != null && accountVehicleId.isNotEmpty)
         'accountVehicleId': accountVehicleId,
+      if (categoryIds.isNotEmpty) 'categoryIds': categoryIds,
     });
     final value = json['appointment'];
     if (value is! Map) {

@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/data/cache/in_memory_cache_store.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/caching_organization_repository.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,7 +18,9 @@ class _CountingDelegate implements OrganizationRepository {
   bool fail = false;
 
   @override
-  Future<List<Organization>> getOrganizations() async => const [];
+  Future<List<Organization>> getOrganizations({
+    OrganizationFilter? filter,
+  }) async => const [];
 
   @override
   Future<OrganizationDetail> getOrganization(String slug) async {

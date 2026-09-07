@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
@@ -15,13 +16,41 @@ class DiscoveryController extends ChangeNotifier {
   String _query = '';
   String _city = '';
   String _district = '';
+  // Booking v2 серверийн шүүлт. Зай/эрэмбийн логик backend дээр — "ойролцоо"
+  // асаахад координатыг серверт дамжуулж, салбар БҮРД distanceKm ирж, ойроор
+  // эрэмбэлэгдэнэ (radius дамжуулахгүй тул юу ч хасахгүй). "Одоо нээлттэй" мөн
+  // серверийн шүүлт (цаг/хуваарь list payload-д байхгүй).
+  bool _nearMe = false;
+  bool _openNow = false;
+  double? _lat;
+  double? _lng;
+  // Тухайн шүүлт байршил авах/дахин ачаалж буй эсэх (chip дээр spinner үзүүлэхэд).
+  bool _nearMePending = false;
+  bool _openNowPending = false;
 
   DiscoveryState get state => _state;
   String get query => _query;
   String get city => _city;
   String get district => _district;
+  bool get nearMe => _nearMe;
+  bool get openNow => _openNow;
+  bool get nearMePending => _nearMePending;
+  bool get openNowPending => _openNowPending;
   bool get hasActiveFilters =>
-      _query.isNotEmpty || _city.isNotEmpty || _district.isNotEmpty;
+      _query.isNotEmpty ||
+      _city.isNotEmpty ||
+      _district.isNotEmpty ||
+      _nearMe ||
+      _openNow;
+
+  OrganizationFilter? get _serverFilter {
+    // radius дамжуулахгүй — сервер бүх салбарт зай онооно, ойроор эрэмбэлнэ.
+    if (_nearMe && _lat != null && _lng != null) {
+      return OrganizationFilter(lat: _lat, lng: _lng, openNow: _openNow);
+    }
+    if (_openNow) return const OrganizationFilter(openNow: true);
+    return null;
+  }
 
   List<String> get cities {
     final values = <String>{};
@@ -68,6 +97,8 @@ class DiscoveryController extends ChangeNotifier {
           })
           .toList(growable: false);
       if (branches.isEmpty) continue;
+      // Зай (distanceKm) болон ойрын эрэмбэ серверээс ирнэ — client дахин
+      // эрэмбэлэхгүй (сервер аль хэдийн ойроор эрэмбэлсэн).
       results.add(
         Organization(
           slug: organization.slug,
@@ -102,29 +133,86 @@ class DiscoveryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearFilters() {
-    if (!hasActiveFilters) return;
-    _query = '';
-    _city = '';
-    _district = '';
+  /// "Одоо нээлттэй" серверийн шүүлтийг асаах/унтраах — жагсаалтыг дахин ачаална.
+  Future<void> setOpenNow(bool value) async {
+    if (_openNow == value) return;
+    _openNow = value;
+    _openNowPending = true;
+    notifyListeners();
+    await load();
+    _openNowPending = false;
     notifyListeners();
   }
 
+  /// "Ойролцоо" серверийн шүүлт (координатыг backend дээр зай/эрэмбэд ашиглана).
+  ///
+  /// Optimistic: асаахад toggle-ийг ШУУД идэвхжүүлж (chip тэр даруй сонгогдоно),
+  /// дараа нь [locate]-ээр координат авч жагсаалтыг дахин ачаална. Координат авч
+  /// чадвал `true`, эс бөгөөс toggle-ийг буцааж унтрааж `false` буцаана.
+  Future<bool> setNearMe(
+    bool enabled, {
+    Future<({double lat, double lng})?> Function()? locate,
+  }) async {
+    if (!enabled) {
+      if (!_nearMe) return true;
+      _nearMe = false;
+      _lat = null;
+      _lng = null;
+      await load();
+      return true;
+    }
+    // Optimistic — chip-ийг тэр даруй сонгогдсон харагдуулж, spinner асаана.
+    _nearMe = true;
+    _nearMePending = true;
+    notifyListeners();
+    final coords = await locate?.call();
+    if (coords == null) {
+      _nearMe = false;
+      _nearMePending = false;
+      notifyListeners();
+      return false;
+    }
+    _lat = coords.lat;
+    _lng = coords.lng;
+    await load();
+    _nearMePending = false;
+    notifyListeners();
+    return true;
+  }
+
+  void clearFilters() {
+    if (!hasActiveFilters) return;
+    final hadServerFilter = _nearMe || _openNow;
+    _query = '';
+    _city = '';
+    _district = '';
+    _nearMe = false;
+    _openNow = false;
+    _lat = null;
+    _lng = null;
+    notifyListeners();
+    // Сервер шүүлт унтарсан бол шүүлтгүй жагсаалтыг дахин ачаална.
+    if (hadServerFilter) load();
+  }
+
   Future<void> load() async {
+    final filter = _serverFilter;
     _state = DiscoveryState(
       status: DiscoveryStatus.loading,
       organizations: _state.organizations,
     );
     notifyListeners();
     try {
-      final organizations = await _repository.getOrganizations();
+      final organizations = await _repository.getOrganizations(filter: filter);
       _state = DiscoveryState(
         status: organizations.isEmpty
             ? DiscoveryStatus.empty
             : DiscoveryStatus.data,
         organizations: organizations,
       );
-      await _cache.writeOrganizations(organizations);
+      // Зөвхөн шүүлтгүй бүрэн жагсаалтыг offline cache-д хадгална (шүүсэн дэд
+      // жагсаалт cache-ийг бохирдуулахгүй).
+      if (filter == null) await _cache.writeOrganizations(organizations);
     } on AppFailure catch (failure) {
       _state = await _fallbackToCache(failure.message);
     } catch (_) {

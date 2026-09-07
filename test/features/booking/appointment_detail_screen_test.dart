@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_r
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_detail_screen.dart';
@@ -33,11 +34,19 @@ class _OneAppointmentRepo implements AppointmentRepository {
   @override
   Future<AppointmentPayment?> retryPayment(String id) async => null;
   @override
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds = const [],
+  }) => throw UnimplementedError();
+
+  @override
   Future<CreatedAppointment> createAppointment({
     required String branchId,
     required DateTime requestedAt,
     String? note,
     String? accountVehicleId,
+    List<String> categoryIds = const [],
   }) => throw UnimplementedError();
   @override
   Future<AppointmentPaymentCheckResult> checkPayment(String id) =>

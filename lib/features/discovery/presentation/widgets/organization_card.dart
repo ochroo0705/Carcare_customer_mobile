@@ -57,6 +57,13 @@ class OrganizationCard extends StatelessWidget {
                       icon: Icons.storefront_outlined,
                       label: '${organization.branches.length} салбар',
                     ),
+                    // "Ойролцоо" шүүлт идэвхтэй үед хамгийн ойр салбарын зай
+                    // (branches нь сервер талд ойроор эрэмбэлэгдсэн).
+                    if (primaryBranch.distanceLabel != null)
+                      _InfoChip(
+                        icon: Icons.near_me_outlined,
+                        label: primaryBranch.distanceLabel!,
+                      ),
                   ],
                 ),
               ],

@@ -4,6 +4,7 @@ import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_r
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
@@ -13,9 +14,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
+DayAvailability _fakeAvailability() => DayAvailability(
+  open: true,
+  durationMinutes: 30,
+  slots: [
+    for (var m = 9 * 60; m < 12 * 60; m += 30)
+      AvailabilitySlot(
+        hour: m ~/ 60,
+        minute: m % 60,
+        available: true,
+        remaining: 1,
+      ),
+  ],
+);
+
 class _CapturingAppointmentRepository implements AppointmentRepository {
   bool called = false;
   String? capturedVehicleId;
+
+  @override
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds = const [],
+  }) async => _fakeAvailability();
 
   @override
   Future<CreatedAppointment> createAppointment({
@@ -23,6 +45,7 @@ class _CapturingAppointmentRepository implements AppointmentRepository {
     required DateTime requestedAt,
     String? note,
     String? accountVehicleId,
+    List<String> categoryIds = const [],
   }) async {
     called = true;
     capturedVehicleId = accountVehicleId;
@@ -54,11 +77,19 @@ class _CapturingAppointmentRepository implements AppointmentRepository {
 /// Rejects the booking with a 409-style conflict (slot already taken).
 class _ConflictAppointmentRepository implements AppointmentRepository {
   @override
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds = const [],
+  }) async => _fakeAvailability();
+
+  @override
   Future<CreatedAppointment> createAppointment({
     required String branchId,
     required DateTime requestedAt,
     String? note,
     String? accountVehicleId,
+    List<String> categoryIds = const [],
   }) async => throw const ConflictFailure('Энэ цаг дүүрсэн байна.');
 
   @override

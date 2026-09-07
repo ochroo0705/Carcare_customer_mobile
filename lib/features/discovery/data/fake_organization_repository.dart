@@ -14,7 +14,10 @@ class FakeOrganizationRepository implements OrganizationRepository {
   final Duration delay;
 
   @override
-  Future<List<Organization>> getOrganizations() async {
+  Future<List<Organization>> getOrganizations({
+    OrganizationFilter? filter,
+  }) async {
+    // Fake mode серверийн шүүлтийг дуурайлгахгүй — бүх жагсаалтыг буцаана.
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     return switch (scenario) {
       FakeOrganizationScenario.data => _organizations,

@@ -39,6 +39,7 @@ class BranchSummaryDto {
     required this.district,
     this.latitude,
     this.longitude,
+    this.distanceKm,
   });
 
   factory BranchSummaryDto.fromJson(Map<String, dynamic> json) =>
@@ -49,6 +50,7 @@ class BranchSummaryDto {
         district: _optionalString(json['district']) ?? '',
         latitude: _optionalDouble(json['latitude']),
         longitude: _optionalDouble(json['longitude']),
+        distanceKm: _optionalDouble(json['distanceKm']),
       );
 
   final String id;
@@ -57,6 +59,7 @@ class BranchSummaryDto {
   final String district;
   final double? latitude;
   final double? longitude;
+  final double? distanceKm;
 
   Branch toDomain() => Branch(
     id: id,
@@ -65,6 +68,7 @@ class BranchSummaryDto {
     district: district,
     latitude: latitude,
     longitude: longitude,
+    distanceKm: distanceKm,
   );
 }
 
@@ -109,6 +113,7 @@ class BranchDetailDto {
     required this.district,
     required this.khoroo,
     required this.address,
+    required this.categories,
     this.latitude,
     this.longitude,
     this.openTime,
@@ -127,6 +132,11 @@ class BranchDetailDto {
         longitude: _optionalDouble(json['longitude']),
         openTime: _optionalString(json['openTime']),
         closeTime: _optionalString(json['closeTime']),
+        // Booking v2: салбарын санал болгож буй ангилалууд (ЗААВАЛ БИШ; хуучин
+        // API-д байхгүй бол хоосон — _mapList null дээр шидэх тул List үед л дуудна).
+        categories: json['categories'] is List
+            ? _mapList(json['categories'], _categoryFromJson)
+            : const <BranchServiceCategory>[],
       );
 
   final String id;
@@ -139,6 +149,7 @@ class BranchDetailDto {
   final double? longitude;
   final String? openTime;
   final String? closeTime;
+  final List<BranchServiceCategory> categories;
 
   BranchDetail toDomain() => BranchDetail(
     id: id,
@@ -151,6 +162,16 @@ class BranchDetailDto {
     longitude: longitude,
     openTime: openTime,
     closeTime: closeTime,
+    categories: categories,
+  );
+}
+
+BranchServiceCategory _categoryFromJson(Map<String, dynamic> json) {
+  final duration = json['durationMinutes'];
+  return BranchServiceCategory(
+    id: _requiredString(json, 'id'),
+    name: _requiredString(json, 'name'),
+    durationMinutes: duration is num ? duration.toInt() : 30,
   );
 }
 

@@ -8,6 +8,7 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/controll
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/organization_card.dart';
+import 'package:carcare_customer_mobile/features/discovery/services/device_location_service.dart';
 import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -109,7 +110,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     DiscoveryController controller,
     FavoritesController favoritesController,
   ) {
-    return switch (state.status) {
+    // Шүүлт солиход (reload) өмнөх жагсаалт хэвээр байвал skeleton руу
+    // "гялсхийхгүй" — өмнөх өгөгдлийг үзүүлсээр байна (зөвхөн анхны ачаалалд
+    // skeleton). Ингэснээр filter section болон жагсаалт тогтвортой харагдана.
+    final effectiveStatus =
+        state.status == DiscoveryStatus.loading &&
+            state.organizations.isNotEmpty
+        ? DiscoveryStatus.data
+        : state.status;
+    return switch (effectiveStatus) {
       DiscoveryStatus.initial || DiscoveryStatus.loading => const [
         SliverFillRemaining(
           hasScrollBody: true,
@@ -278,7 +287,7 @@ class _DiscoveryHeader extends StatelessWidget {
                             : const Icon(Icons.tune_rounded),
                       ),
                     ),
-                    if (state.status == DiscoveryStatus.data &&
+                    if (state.organizations.isNotEmpty &&
                         controller.cities.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Row(
@@ -305,7 +314,11 @@ class _DiscoveryHeader extends StatelessWidget {
                         ],
                       ),
                     ],
-                    if (state.status == DiscoveryStatus.data) ...[
+                    if (state.organizations.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _ServerFilterChips(controller: controller),
+                    ],
+                    if (state.organizations.isNotEmpty) ...[
                       const SizedBox(height: 18),
                       Row(
                         children: [
@@ -343,7 +356,7 @@ class _DiscoveryHeader extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    state.status == DiscoveryStatus.data
+                    state.organizations.isNotEmpty
                         ? '${organizations.length} байгууллагаас сонгох'
                         : 'Танд тохирох газраа олоорой',
                     style: Theme.of(context).textTheme.bodySmall
@@ -522,4 +535,72 @@ class _MessageState extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// Booking v2 — серверийн "ойролцоо" / "одоо нээлттэй" шүүлтийн toggle-ууд.
+class _ServerFilterChips extends StatelessWidget {
+  const _ServerFilterChips({required this.controller});
+
+  final DiscoveryController controller;
+
+  Future<void> _toggleNearMe(BuildContext context, bool selected) async {
+    // Optimistic: chip тэр даруй сонгогдоно; байршил авч чадаагүй бол буцна.
+    final ok = await controller.setNearMe(
+      selected,
+      locate: selected
+          ? () async {
+              final location = await const GeolocatorDeviceLocationService()
+                  .current();
+              return location == null
+                  ? null
+                  : (lat: location.lat, lng: location.lng);
+            }
+          : null,
+    );
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Байршлыг авч чадсангүй. Байршлын зөвшөөрөл, тохиргоогоо шалгана уу.',
+          ),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        FilterChip(
+          label: const Text('Ойролцоо'),
+          avatar: _chipAvatar(
+            Icons.near_me_outlined,
+            pending: controller.nearMePending,
+          ),
+          selected: controller.nearMe,
+          onSelected: (selected) => _toggleNearMe(context, selected),
+        ),
+        const SizedBox(width: 10),
+        FilterChip(
+          label: const Text('Одоо нээлттэй'),
+          avatar: _chipAvatar(
+            Icons.schedule_outlined,
+            pending: controller.openNowPending,
+          ),
+          selected: controller.openNow,
+          onSelected: controller.setOpenNow,
+        ),
+      ],
+    );
+  }
+
+  Widget _chipAvatar(IconData icon, {required bool pending}) {
+    if (!pending) return Icon(icon, size: 18);
+    return const SizedBox(
+      width: 16,
+      height: 16,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    );
+  }
 }

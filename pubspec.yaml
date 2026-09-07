@@ -50,6 +50,7 @@ dependencies:
   drift_flutter: ^0.3.1
   firebase_crashlytics: ^5.3.0
   cached_network_image: ^4.0.0
+  geolocator: ^14.0.2
 
 dev_dependencies:
   flutter_test:

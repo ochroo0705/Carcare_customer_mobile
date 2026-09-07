@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 
@@ -23,7 +24,8 @@ class CachingOrganizationRepository implements OrganizationRepository {
   final Duration ttl;
 
   @override
-  Future<List<Organization>> getOrganizations() => _delegate.getOrganizations();
+  Future<List<Organization>> getOrganizations({OrganizationFilter? filter}) =>
+      _delegate.getOrganizations(filter: filter);
 
   @override
   Future<OrganizationDetail> getOrganization(String slug) async {
