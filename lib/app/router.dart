@@ -464,9 +464,16 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  /// Тухайн цагийн дэлгэрэнгүйг нээнэ — сая ачаалсан жагсаалтаас биш, ХАМГИЙН
+  /// СҮҮЛИЙН төлвийг (жишээ нь: ажилтан аль хэдийн өөрчилсөн ServiceItem
+  /// статус) харуулахын тулд орох бүрт дахин ачаална. Дэлгэрэнгүй дэлгэц өөрөө
+  /// `StatelessWidget` бөгөөд ямар ч lifecycle hook-гүй тул үүнгүйгээр гарч
+  /// орж ирэхэд өмнөх in-memory төлөв хэвээрээ харагдана (network cache биш —
+  /// зүгээр л дахин асуугаагүй байсан).
   void _openAppointmentDetail(String id) {
     _selectedAppointmentId = id;
     notifyListeners();
+    appointmentsController.load();
   }
 
   /// Routes a tapped push notification to the relevant screen, per the payload

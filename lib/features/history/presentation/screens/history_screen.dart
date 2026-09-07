@@ -1,15 +1,14 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
-import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
 import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
-import 'package:carcare_customer_mobile/features/history/domain/service_order_status.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/widgets/service_order_status_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -274,7 +273,7 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _StatusChip(status: order.status),
+              ServiceOrderStatusChip(status: order.status),
             ],
           ),
           const SizedBox(height: 4),
@@ -313,36 +312,6 @@ class _OrderCard extends StatelessWidget {
       ),
     ),
   );
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final ServiceOrderStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      ServiceOrderStatus.paid => AppColors.green,
-      ServiceOrderStatus.partiallyPaid => AppColors.blue,
-      ServiceOrderStatus.unpaid => AppColors.red,
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status.localizedLabel,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
 }
 
 String _formatDate(DateTime value) =>

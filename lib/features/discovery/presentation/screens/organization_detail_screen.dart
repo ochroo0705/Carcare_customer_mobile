@@ -112,19 +112,8 @@ class _OrganizationDetails extends StatelessWidget {
         GlassSurface(child: _CategoryChipRow(categories: _allCategories)),
       ],
       const SizedBox(height: 24),
-      _SectionTitle(
-        title: 'Салбарууд',
-        subtitle: '${organization.branches.length} салбар цаг захиалга авч байна',
-      ),
-      const SizedBox(height: 12),
-      if (organization.branches.isEmpty)
-        const _NoBranches()
-      else
-        for (final branch in organization.branches) ...[
-          _BranchInfoCard(branch: branch),
-          const SizedBox(height: 12),
-        ],
-      const SizedBox(height: 12),
+      // Хамгийн чухал үйлдэл (Цаг захиалах) тул салбаруудын жагсаалтаас
+      // (зөвхөн танилцах мэдээлэл) ӨМНӨ, дэлгэц дээр эрт харагдахаар байрлана.
       FilledButton.icon(
         key: ValueKey('detail-book-${organization.slug}'),
         onPressed:
@@ -139,6 +128,18 @@ class _OrganizationDetails extends StatelessWidget {
         ),
       ),
       const SizedBox(height: 24),
+      _SectionTitle(
+        title: 'Салбарууд',
+        subtitle: '${organization.branches.length} салбар цаг захиалга авч байна',
+      ),
+      const SizedBox(height: 12),
+      if (organization.branches.isEmpty)
+        const _NoBranches()
+      else
+        for (final branch in organization.branches) ...[
+          _BranchInfoCard(branch: branch),
+          const SizedBox(height: 12),
+        ],
       if (AppEnvironment.bookingEnabled)
         const _BookingSteps()
       else

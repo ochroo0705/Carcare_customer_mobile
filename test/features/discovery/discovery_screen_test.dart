@@ -190,17 +190,20 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(organizationCard);
     await tester.pumpAndSettle();
-    // Tenant profile page: both branches' info render at once (no chip
+    // Tenant profile page: "Цаг захиалах" is the primary action, placed
+    // above the (informational-only) branches list.
+    final bookButton = find.text('Цаг захиалах');
+    expect(bookButton, findsOneWidget);
+    // Both branches' info render at once further down (no chip
     // selector/pre-selection any more — that now lives inside booking only).
+    final sbdBranch = find.text('Сүхбаатар салбар');
+    await _scrollUntilVisible(tester, sbdBranch, 300);
     expect(find.text('Баянзүрх салбар'), findsOneWidget);
-    expect(find.text('Сүхбаатар салбар'), findsOneWidget);
+    expect(sbdBranch, findsOneWidget);
     expect(find.text('1-р хороо, Олимпын гудамж 9'), findsOneWidget);
     expect(find.text('09:00–18:00'), findsOneWidget);
-    // Both branches' full info now renders above the button, pushing it past
-    // the widget-test viewport's default cache extent — scroll to reach it.
-    final bookButton = find.text('Цаг захиалах');
-    await _scrollUntilVisible(tester, bookButton, 300);
-    expect(bookButton, findsOneWidget);
+
+    await _scrollUntilVisible(tester, bookButton, -300);
     await tester.tap(bookButton);
     await tester.pumpAndSettle();
     expect(find.text('Нэвтрэх / Бүртгүүлэх'), findsOneWidget);

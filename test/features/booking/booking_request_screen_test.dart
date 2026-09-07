@@ -105,12 +105,6 @@ class _ConflictAppointmentRepository implements AppointmentRepository {
   Future<AppointmentPayment?> retryPayment(String id) async => null;
 }
 
-const _organization = OrganizationDetail(
-  slug: 'infosystems',
-  name: 'Инфосистемс',
-  branches: [],
-);
-
 const _branch = BranchDetail(
   id: 'branch-1',
   name: 'Үндсэн салбар',
@@ -120,6 +114,15 @@ const _branch = BranchDetail(
   address: 'Энхтайваны өргөн чөлөө',
   openTime: '09:00',
   closeTime: '18:00',
+);
+
+// Ганц салбартай тул BookingRequestScreen үүнийг шууд автоматаар сонгоно
+// (category-first урсгал: олон салбартай бол салбар сонгох алхам шаардлагатай,
+// ганцтай бол шаардлагагүй).
+const _organization = OrganizationDetail(
+  slug: 'infosystems',
+  name: 'Инфосистемс',
+  branches: [_branch],
 );
 
 /// Navigates the calendar to next month and picks its first day — always in
@@ -165,7 +168,6 @@ void main() {
             theme: AppTheme.light,
             home: BookingRequestScreen(
               organization: _organization,
-              branch: _branch,
               repository: repository,
               onAddVehicle: () {},
               onBack: () {},
@@ -205,7 +207,6 @@ void main() {
             theme: AppTheme.light,
             home: BookingRequestScreen(
               organization: _organization,
-              branch: _branch,
               repository: repository,
               onAddVehicle: () {},
               onBack: () {},
@@ -251,7 +252,6 @@ void main() {
           theme: AppTheme.light,
           home: BookingRequestScreen(
             organization: _organization,
-            branch: _branch,
             repository: FakeAppointmentRepository(),
             onAddVehicle: () => addVehicleTapped = true,
             onBack: () {},
@@ -283,7 +283,6 @@ void main() {
           theme: AppTheme.light,
           home: BookingRequestScreen(
             organization: _organization,
-            branch: _branch,
             repository: _ConflictAppointmentRepository(),
             onAddVehicle: () {},
             onBack: () {},

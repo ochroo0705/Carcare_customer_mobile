@@ -6,6 +6,7 @@ import 'package:carcare_customer_mobile/features/history/domain/service_history_
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/widgets/service_order_status_chip.dart';
 import 'package:flutter/material.dart';
 
 enum _DetailStatus { loading, data, error }
@@ -119,10 +120,19 @@ class _DetailBody extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                order.tenantName,
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      order.tenantName,
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ServiceOrderStatusChip(status: order.status),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
