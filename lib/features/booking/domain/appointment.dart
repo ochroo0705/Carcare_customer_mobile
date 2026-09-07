@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 
 class Appointment {
   const Appointment({
@@ -13,6 +14,7 @@ class Appointment {
     this.categoryName,
     this.vehiclePlate,
     this.payment,
+    this.serviceProgress,
   });
 
   final String id;
@@ -31,6 +33,11 @@ class Appointment {
   /// `null`, so a paid badge can still be shown).
   final AppointmentPayment? payment;
 
+  /// Progress for the ServiceOrder created after staff confirms this booking.
+  /// It is absent while the appointment has not yet become an order, and may
+  /// also be absent on an offline cached appointment.
+  final AppointmentServiceProgress? serviceProgress;
+
   /// Хураамжийг төлөх боломжтой эсэх — цорын ганц эх сурвалж (detail + list
   /// хоёулаа үүнийг ашиглана). Зөвхөн (1) цаг захиалга идэвхтэй (pending/
   /// confirmed) — цуцалсан/татгалзсан/ирээгүй бол төлбөр утгагүй, (2) хураамж
@@ -44,6 +51,7 @@ class Appointment {
   Appointment copyWith({
     AppointmentStatus? status,
     AppointmentPayment? payment,
+    AppointmentServiceProgress? serviceProgress,
   }) => Appointment(
     id: id,
     status: status ?? this.status,
@@ -55,5 +63,6 @@ class Appointment {
     categoryName: categoryName,
     vehiclePlate: vehiclePlate,
     payment: payment ?? this.payment,
+    serviceProgress: serviceProgress ?? this.serviceProgress,
   );
 }

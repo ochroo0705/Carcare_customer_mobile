@@ -55,10 +55,12 @@ class OrganizationRoutePath extends CustomerRoutePath {
   final String slug;
 }
 
+/// Category-first booking-д тодорхой салбар урьдчилан шаардлагагүй болсон
+/// тул энэ зам зөвхөн байгууллагын slug-ийг тээнэ (`branchId` арилгав) —
+/// салбарыг `BookingRequestScreen` дотор л сонгоно.
 class BookingRoutePath extends CustomerRoutePath {
-  const BookingRoutePath(this.slug, this.branchId);
+  const BookingRoutePath(this.slug);
   final String slug;
-  final String branchId;
 }
 
 class CustomerRouteInformationParser
@@ -68,10 +70,10 @@ class CustomerRouteInformationParser
     RouteInformation routeInformation,
   ) async {
     final segments = routeInformation.uri.pathSegments;
-    if (segments.length == 4 &&
+    if (segments.length == 3 &&
         segments.first == 'organizations' &&
         segments[2] == 'book') {
-      return BookingRoutePath(segments[1], segments[3]);
+      return BookingRoutePath(segments[1]);
     }
     if (segments.length == 2 && segments.first == 'organizations') {
       return OrganizationRoutePath(segments[1]);
@@ -85,8 +87,8 @@ class CustomerRouteInformationParser
         OrganizationRoutePath(:final slug) => RouteInformation(
           uri: Uri.parse('/organizations/$slug'),
         ),
-        BookingRoutePath(:final slug, :final branchId) => RouteInformation(
-          uri: Uri.parse('/organizations/$slug/book/$branchId'),
+        BookingRoutePath(:final slug) => RouteInformation(
+          uri: Uri.parse('/organizations/$slug/book'),
         ),
         DiscoveryRoutePath() => RouteInformation(uri: Uri.parse('/')),
       };
@@ -180,7 +182,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   late final StreamSubscription<bool> _connectivitySubscription;
   late final StreamSubscription<dynamic> _notificationTapSubscription;
   String? _selectedSlug;
-  String? _bookingBranchId;
+  bool _booking = false;
   String? _selectedOrderId;
   String? _selectedAppointmentId;
   String? _paymentAppointmentId;
@@ -202,18 +204,13 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   @override
   CustomerRoutePath get currentConfiguration {
     if (_selectedSlug == null) return const DiscoveryRoutePath();
-    if (_bookingBranchId != null) {
-      return BookingRoutePath(_selectedSlug!, _bookingBranchId!);
-    }
+    if (_booking) return BookingRoutePath(_selectedSlug!);
     return OrganizationRoutePath(_selectedSlug!);
   }
 
   @override
   Widget build(BuildContext context) {
     final organization = organizationDetailController.organization;
-    final bookingBranch = organization?.branches
-        .where((branch) => branch.id == _bookingBranchId)
-        .firstOrNull;
     return Navigator(
       key: navigatorKey,
       pages: [
@@ -259,8 +256,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                   favoritesController.toggle(organization.slug);
                 }
               },
-              onBook: (organization, branch) {
-                _startBooking(organization.slug, branch.id);
+              onBook: (organization) {
+                _startBooking(organization.slug);
               },
             ),
           ),
@@ -275,12 +272,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
         if (!_showLogin &&
             authController.isAuthenticated &&
             organization != null &&
-            bookingBranch != null)
+            _booking)
           MaterialPage<void>(
-            key: ValueKey('booking-${organization.slug}-${bookingBranch.id}'),
+            key: ValueKey('booking-${organization.slug}'),
             child: BookingRequestScreen(
               organization: organization,
-              branch: bookingBranch,
               repository: appointmentRepository,
               onAddVehicle: _openAddVehicle,
               onBack: _closeBooking,
@@ -394,7 +390,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           _closeAppointmentDetail();
         } else if (_showLogin) {
           _cancelLogin();
-        } else if (_bookingBranchId != null) {
+        } else if (_booking) {
           _closeBooking();
         } else if (page.key != const ValueKey('customer-shell')) {
           _closeDetails();
@@ -405,7 +401,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeDetails() {
     _selectedSlug = null;
-    _bookingBranchId = null;
+    _booking = false;
     notifyListeners();
   }
 
@@ -416,20 +412,20 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   }
 
   void _closeBooking() {
-    _bookingBranchId = null;
+    _booking = false;
     notifyListeners();
   }
 
-  void _startBooking(String slug, String branchId) {
+  void _startBooking(String slug) {
     _selectedSlug = slug;
-    _bookingBranchId = branchId;
+    _booking = true;
     _showLogin = !authController.isAuthenticated;
     notifyListeners();
   }
 
   void _cancelLogin() {
     _showLogin = false;
-    _bookingBranchId = null;
+    _booking = false;
     authController.resetFlow();
     notifyListeners();
   }
@@ -500,7 +496,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   /// the customer happened to have open.
   void _clearOverlays() {
     _selectedSlug = null;
-    _bookingBranchId = null;
+    _booking = false;
     _selectedOrderId = null;
     _selectedAppointmentId = null;
     _paymentAppointmentId = null;
@@ -644,17 +640,17 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   @override
   Future<void> setNewRoutePath(CustomerRoutePath configuration) async {
     switch (configuration) {
-      case BookingRoutePath(:final slug, :final branchId):
+      case BookingRoutePath(:final slug):
         _selectedSlug = slug;
-        _bookingBranchId = branchId;
+        _booking = true;
         await organizationDetailController.load(slug);
       case OrganizationRoutePath(:final slug):
         _selectedSlug = slug;
-        _bookingBranchId = null;
+        _booking = false;
         await organizationDetailController.load(slug);
       case DiscoveryRoutePath():
         _selectedSlug = null;
-        _bookingBranchId = null;
+        _booking = false;
     }
   }
 

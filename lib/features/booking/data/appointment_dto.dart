@@ -2,6 +2,7 @@ import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 
 /// `GET /appointments`-ийн rich list payload-ийг domain model-оос тусгаарлана.
 /// Backend-ийн nested `tenant`, `branch`, `category`, `accountVehicle`-г энд
@@ -18,6 +19,7 @@ class AppointmentDto {
     this.categoryName,
     this.vehiclePlate,
     this.payment,
+    this.serviceProgress,
   });
 
   /// Published API shape-ийг defensive байдлаар шалгана.
@@ -34,6 +36,7 @@ class AppointmentDto {
     final branch = _requiredMap(json, 'branch');
     final category = _optionalMap(json['category']);
     final accountVehicle = _optionalMap(json['accountVehicle']);
+    final serviceOrder = _optionalMap(json['serviceOrder']);
     return AppointmentDto(
       id: id,
       status: status,
@@ -47,6 +50,7 @@ class AppointmentDto {
           ? null
           : _optionalString(accountVehicle['plate']),
       payment: appointmentPaymentFromJson(json['payment']),
+      serviceProgress: serviceProgressFromJson(serviceOrder),
     );
   }
 
@@ -60,6 +64,7 @@ class AppointmentDto {
   final String? categoryName;
   final String? vehiclePlate;
   final AppointmentPayment? payment;
+  final AppointmentServiceProgress? serviceProgress;
 
   Appointment toDomain() => Appointment(
     id: id,
@@ -72,6 +77,48 @@ class AppointmentDto {
     categoryName: categoryName,
     vehiclePlate: vehiclePlate,
     payment: payment,
+    serviceProgress: serviceProgress,
+  );
+}
+
+/// Parses the optional linked ServiceOrder included in appointment list
+/// responses. A booking can exist for some time before staff creates its order,
+/// so malformed/absent progress must not invalidate the appointment itself.
+AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
+  final json = _optionalMap(value);
+  if (json == null) return null;
+  final id = _optionalString(json['id']);
+  final status = _optionalString(json['status']);
+  if (id == null || status == null) return null;
+
+  final items = <AppointmentServiceItemProgress>[];
+  final rawItems = json['items'];
+  if (rawItems is List) {
+    for (final rawItem in rawItems) {
+      final item = _optionalMap(rawItem);
+      final itemId = item == null ? null : _optionalString(item['id']);
+      final name = item == null ? null : _optionalString(item['description']);
+      final itemStatus = item == null
+          ? null
+          : _optionalString(item['status']);
+      if (itemId == null || name == null || itemStatus == null) continue;
+      items.add(
+        AppointmentServiceItemProgress(
+          id: itemId,
+          name: name,
+          status: serviceProgressStatusFromApi(itemStatus),
+        ),
+      );
+    }
+  }
+
+  return AppointmentServiceProgress(
+    id: id,
+    number: _optionalString(json['number']) ?? '',
+    status: serviceProgressStatusFromApi(status),
+    startedAt: _optionalDateTime(json['startedAt']),
+    completedAt: _optionalDateTime(json['completedAt']),
+    items: List.unmodifiable(items),
   );
 }
 
@@ -158,3 +205,6 @@ String? _optionalString(Object? value) {
   if (value is! String || value.trim().isEmpty) return null;
   return value.trim();
 }
+
+DateTime? _optionalDateTime(Object? value) =>
+    value is String ? DateTime.tryParse(value) : null;

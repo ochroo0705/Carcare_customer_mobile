@@ -27,8 +27,7 @@ class OrganizationDetailScreen extends StatelessWidget {
   final String? errorMessage;
   final VoidCallback onRetry;
   final VoidCallback onBack;
-  final void Function(OrganizationDetail organization, BranchDetail branch)
-  onBook;
+  final void Function(OrganizationDetail organization) onBook;
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
 
@@ -63,7 +62,11 @@ class OrganizationDetailScreen extends StatelessWidget {
   );
 }
 
-class _OrganizationDetails extends StatefulWidget {
+/// Байгууллагын профайл — салбар сонголт/захиалгын алхмуудыг ЭНД биш,
+/// `BookingRequestScreen` дотор явуулна (category-first, дан цэгээс).
+/// Энд зөвхөн танилцах мэдээлэл: ерөнхий үйлчилгээ, салбаруудын мэдээлэл
+/// (хаяг/цаг), нэг л "Цаг захиалах" товч — тодорхой салбар сонгохгүйгээр.
+class _OrganizationDetails extends StatelessWidget {
   const _OrganizationDetails({
     required this.organization,
     required this.onBook,
@@ -72,49 +75,22 @@ class _OrganizationDetails extends StatefulWidget {
   });
 
   final OrganizationDetail organization;
-  final void Function(OrganizationDetail organization, BranchDetail branch)
-  onBook;
+  final void Function(OrganizationDetail organization) onBook;
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
 
-  @override
-  State<_OrganizationDetails> createState() => _OrganizationDetailsState();
-}
-
-class _OrganizationDetailsState extends State<_OrganizationDetails> {
-  late String _selectedBranchId;
-
-  OrganizationDetail get organization => widget.organization;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedBranchId = organization.branches.isEmpty
-        ? ''
-        : organization.branches
-              .firstWhere(
-                (branch) =>
-                    branch.openStatusAt(DateTime.now()) ==
-                    BranchOpenStatus.open,
-                orElse: () => organization.branches.first,
-              )
-              .id;
-  }
-
-  @override
-  void didUpdateWidget(covariant _OrganizationDetails oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.organization.slug == organization.slug) return;
-    _selectedBranchId = organization.branches.isEmpty
-        ? ''
-        : organization.branches.first.id;
-  }
-
-  BranchDetail? get _selectedBranch {
+  /// Байгууллагын БҮХ салбарт байгаа ангиллууд (давхардалгүй, нэрээр
+  /// эрэмбэлэгдсэн) — booking screen-ийн `_allCategories`-тай ижил логик.
+  List<BranchServiceCategory> get _allCategories {
+    final byId = <String, BranchServiceCategory>{};
     for (final branch in organization.branches) {
-      if (branch.id == _selectedBranchId) return branch;
+      for (final category in branch.categories) {
+        byId[category.id] = category;
+      }
     }
-    return null;
+    final values = byId.values.toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    return values;
   }
 
   @override
@@ -123,53 +99,45 @@ class _OrganizationDetailsState extends State<_OrganizationDetails> {
     children: [
       _OrganizationHero(
         organization: organization,
-        isFavorite: widget.isFavorite,
-        onFavoriteToggle: widget.onFavoriteToggle,
+        isFavorite: isFavorite,
+        onFavoriteToggle: onFavoriteToggle,
       ),
+      if (_allCategories.isNotEmpty) ...[
+        const SizedBox(height: 24),
+        _SectionTitle(
+          title: 'Үйлчилгээнүүд',
+          subtitle: '${_allCategories.length} төрлийн үйлчилгээ санал болгодог',
+        ),
+        const SizedBox(height: 12),
+        GlassSurface(child: _CategoryChipRow(categories: _allCategories)),
+      ],
       const SizedBox(height: 24),
       _SectionTitle(
-        title: 'Салбар сонгох',
-        subtitle:
-            '${organization.branches.length} салбар цаг захиалга авч байна',
+        title: 'Салбарууд',
+        subtitle: '${organization.branches.length} салбар цаг захиалга авч байна',
       ),
       const SizedBox(height: 12),
       if (organization.branches.isEmpty)
         const _NoBranches()
-      else ...[
-        SizedBox(
-          height: 52,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: organization.branches.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final branch = organization.branches[index];
-              return ChoiceChip(
-                key: ValueKey('branch-choice-${branch.id}'),
-                selected: branch.id == _selectedBranchId,
-                onSelected: (_) {
-                  setState(() => _selectedBranchId = branch.id);
-                },
-                avatar: _StatusDot(status: branch.openStatusAt(DateTime.now())),
-                label: Text(branch.name),
-              );
-            },
-          ),
+      else
+        for (final branch in organization.branches) ...[
+          _BranchInfoCard(branch: branch),
+          const SizedBox(height: 12),
+        ],
+      const SizedBox(height: 12),
+      FilledButton.icon(
+        key: ValueKey('detail-book-${organization.slug}'),
+        onPressed:
+            AppEnvironment.bookingEnabled && organization.branches.isNotEmpty
+            ? () => onBook(organization)
+            : null,
+        icon: const Icon(Icons.calendar_month_outlined),
+        label: Text(
+          AppEnvironment.bookingEnabled
+              ? 'Цаг захиалах'
+              : 'Захиалга түр хаалттай',
         ),
-        const SizedBox(height: 14),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 220),
-          switchInCurve: Curves.easeOut,
-          child: _selectedBranch == null
-              ? const SizedBox.shrink()
-              : _SelectedBranchCard(
-                  key: ValueKey(_selectedBranch!.id),
-                  organization: organization,
-                  branch: _selectedBranch!,
-                  onBook: () => widget.onBook(organization, _selectedBranch!),
-                ),
-        ),
-      ],
+      ),
       const SizedBox(height: 24),
       if (AppEnvironment.bookingEnabled)
         const _BookingSteps()
@@ -269,12 +237,40 @@ class _OrganizationHero extends StatelessWidget {
                                 color: scheme.onSurfaceVariant,
                               ),
                               const SizedBox(width: 6),
-                              Text(
-                                organization.phone ?? 'Утас тодорхойгүй',
-                                style: TextStyle(
-                                  color: scheme.onSurfaceVariant,
+                              Expanded(
+                                child: Text(
+                                  organization.phone ?? 'Утас тодорхойгүй',
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                                 ),
                               ),
+                              if (organization.phone != null)
+                                InkWell(
+                                  key: ValueKey(
+                                    'detail-copy-phone-${organization.slug}',
+                                  ),
+                                  borderRadius: BorderRadius.circular(99),
+                                  onTap: () async {
+                                    await Clipboard.setData(
+                                      ClipboardData(text: organization.phone!),
+                                    );
+                                    if (!context.mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Утасны дугаар хууллаа'),
+                                      ),
+                                    );
+                                  },
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(4),
+                                    child: Icon(
+                                      Icons.copy_outlined,
+                                      size: 15,
+                                      color: scheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ],
@@ -371,17 +367,13 @@ class _HeroLogo extends StatelessWidget {
   }
 }
 
-class _SelectedBranchCard extends StatelessWidget {
-  const _SelectedBranchCard({
-    required this.organization,
-    required this.branch,
-    required this.onBook,
-    super.key,
-  });
+/// Нэг салбарын танилцах мэдээлэл (хаяг, цагийн хуваарь, санал болгож буй
+/// үйлчилгээ) — сонголт/захиалгын үйлдэлгүй, зөвхөн харуулна. Салбар сонгох,
+/// цаг захиалах бүгд `BookingRequestScreen` дотор явагдана.
+class _BranchInfoCard extends StatelessWidget {
+  const _BranchInfoCard({required this.branch});
 
-  final OrganizationDetail organization;
   final BranchDetail branch;
-  final VoidCallback onBook;
 
   @override
   Widget build(BuildContext context) => GlassSurface(
@@ -393,58 +385,26 @@ class _SelectedBranchCard extends StatelessWidget {
             Expanded(
               child: Text(
                 branch.name,
-                style: Theme.of(context).textTheme.titleLarge
+                style: Theme.of(context).textTheme.titleMedium
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
             _OpenBadge(status: branch.openStatusAt(DateTime.now())),
           ],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _DetailLine(icon: Icons.place_outlined, text: branch.fullAddress),
-        const SizedBox(height: 11),
+        const SizedBox(height: 9),
         _DetailLine(
           icon: Icons.location_city_outlined,
           text: branch.locationLabel,
         ),
-        const SizedBox(height: 11),
+        const SizedBox(height: 9),
         _DetailLine(icon: Icons.schedule_rounded, text: branch.hoursLabel),
-        const SizedBox(height: 20),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: organization.phone == null
-                    ? null
-                    : () async {
-                        await Clipboard.setData(
-                          ClipboardData(text: organization.phone!),
-                        );
-                        if (!context.mounted) return;
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Утасны дугаар хууллаа'),
-                          ),
-                        );
-                      },
-                icon: const Icon(Icons.phone_outlined),
-                label: const Text('Утас хуулах'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: FilledButton.icon(
-                onPressed: AppEnvironment.bookingEnabled ? onBook : null,
-                icon: const Icon(Icons.calendar_month_outlined),
-                label: Text(
-                  AppEnvironment.bookingEnabled
-                      ? 'Цаг захиалах'
-                      : 'Захиалга түр хаалттай',
-                ),
-              ),
-            ),
-          ],
-        ),
+        if (branch.categories.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _CategoryChipRow(categories: branch.categories),
+        ],
       ],
     ),
   );
@@ -469,8 +429,8 @@ class _BookingSteps extends StatelessWidget {
             Expanded(
               child: _BookingStep(
                 number: '1',
-                icon: Icons.storefront_outlined,
-                label: 'Салбар',
+                icon: Icons.build_outlined,
+                label: 'Үйлчилгээ',
                 active: true,
               ),
             ),
@@ -478,8 +438,8 @@ class _BookingSteps extends StatelessWidget {
             Expanded(
               child: _BookingStep(
                 number: '2',
-                icon: Icons.build_outlined,
-                label: 'Үйлчилгээ',
+                icon: Icons.storefront_outlined,
+                label: 'Салбар',
               ),
             ),
             _StepConnector(),
@@ -568,6 +528,58 @@ class _StepConnector extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 24),
     color: CarCareTheme.of(context).glassBorder,
   );
+}
+
+/// Ангиллын жагсаалт (booking v2) — байгууллагын ерөнхий үйлчилгээ эсвэл нэг
+/// салбарын санал болгож буй үйлчилгээг харуулахад ашиглана. Чипний тоог
+/// хязгаарлаж ("+N бусад"), хэт урт/бөглөрсөн харагдахаас сэргийлнэ.
+class _CategoryChipRow extends StatelessWidget {
+  const _CategoryChipRow({required this.categories});
+
+  final List<BranchServiceCategory> categories;
+
+  static const _maxVisible = 6;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = categories.take(_maxVisible).toList();
+    final overflow = categories.length - visible.length;
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final category in visible)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: color.withValues(alpha: 0.16)),
+            ),
+            child: Text(
+              category.name,
+              style: Theme.of(context).textTheme.labelSmall,
+            ),
+          ),
+        if (overflow > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.09),
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: color.withValues(alpha: 0.16)),
+            ),
+            child: Text(
+              '+$overflow бусад',
+              style: Theme.of(
+                context,
+              ).textTheme.labelSmall?.copyWith(color: color),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _InfoPill extends StatelessWidget {

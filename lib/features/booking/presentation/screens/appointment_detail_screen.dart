@@ -7,6 +7,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_paym
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/widgets/service_progress_section.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
@@ -71,6 +72,7 @@ class AppointmentDetailScreen extends StatelessWidget {
               appointment: appointment,
               organizationRepository: organizationRepository,
               isCancelling: controller.isCancelling(appointment.id),
+              onRefresh: controller.load,
               onCancel: appointment.status.canCancel
                   ? () => _confirmCancel(context, controller, appointment)
                   : null,
@@ -123,6 +125,7 @@ class _AppointmentDetailBody extends StatelessWidget {
     required this.appointment,
     required this.organizationRepository,
     required this.isCancelling,
+    required this.onRefresh,
     this.onCancel,
     this.onPay,
   });
@@ -130,6 +133,7 @@ class _AppointmentDetailBody extends StatelessWidget {
   final Appointment appointment;
   final OrganizationRepository organizationRepository;
   final bool isCancelling;
+  final Future<void> Function() onRefresh;
   final VoidCallback? onCancel;
   final VoidCallback? onPay;
 
@@ -137,9 +141,11 @@ class _AppointmentDetailBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
-      children: [
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+        children: [
         GlassSurface(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,7 +244,11 @@ class _AppointmentDetailBody extends StatelessWidget {
           const SizedBox(height: 14),
           _FeePaidBadge(key: ValueKey('detail-fee-paid-${appointment.id}')),
         ],
-        if (onCancel != null) ...[
+          if (appointment.serviceProgress != null) ...[
+            const SizedBox(height: 14),
+            ServiceProgressSection(progress: appointment.serviceProgress!),
+          ],
+          if (onCancel != null) ...[
           const SizedBox(height: 14),
           OutlinedButton.icon(
             key: ValueKey('detail-cancel-${appointment.id}'),
@@ -252,7 +262,8 @@ class _AppointmentDetailBody extends StatelessWidget {
             label: const Text('Захиалга цуцлах'),
           ),
         ],
-      ],
+        ],
+      ),
     );
   }
 }

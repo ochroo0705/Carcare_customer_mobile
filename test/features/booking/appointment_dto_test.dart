@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/features/booking/data/appointment_dto.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -105,6 +106,38 @@ void main() {
     expect(appointment.status, AppointmentStatus.confirmed);
     expect(appointment.categoryName, isNull);
     expect(appointment.vehiclePlate, isNull);
+  });
+
+  test('parses the linked service-order progress for an appointment', () {
+    final appointment = AppointmentDto.fromJson({
+      'id': 'apt-progress',
+      'status': 'CONFIRMED',
+      'requestedAt': '2026-09-02T09:00:00.000Z',
+      'tenant': {'name': 'Инфосистемс', 'slug': 'infosystems'},
+      'branch': {'name': 'Үндсэн салбар'},
+      'serviceOrder': {
+        'id': 'order-1',
+        'number': 'A-100',
+        'status': 'IN_PROGRESS',
+        'startedAt': '2026-09-02T09:05:00.000Z',
+        'completedAt': null,
+        'items': [
+          {'id': 'item-1', 'description': 'Тос солих', 'status': 'COMPLETED'},
+          {
+            'id': 'item-2',
+            'description': 'Тоормос шалгах',
+            'status': 'IN_PROGRESS',
+          },
+        ],
+      },
+    }).toDomain();
+
+    expect(appointment.serviceProgress, isNotNull);
+    expect(appointment.serviceProgress!.number, 'A-100');
+    expect(appointment.serviceProgress!.status.localizedLabel, 'Хийгдэж байна');
+    expect(appointment.serviceProgress!.items, hasLength(2));
+    expect(appointment.serviceProgress!.completedItemCount, 1);
+    expect(appointment.serviceProgress!.items.last.name, 'Тоормос шалгах');
   });
 
   test('maps an unrecognized status to unknown rather than throwing', () {

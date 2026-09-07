@@ -14,7 +14,6 @@ import 'package:provider/provider.dart';
 class BookingRequestScreen extends StatefulWidget {
   const BookingRequestScreen({
     required this.organization,
-    required this.branch,
     required this.repository,
     required this.onAddVehicle,
     required this.onBack,
@@ -24,7 +23,6 @@ class BookingRequestScreen extends StatefulWidget {
   });
 
   final OrganizationDetail organization;
-  final BranchDetail branch;
   final AppointmentRepository repository;
   final VoidCallback onAddVehicle;
   final VoidCallback onBack;
@@ -181,11 +179,13 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
   @override
   void initState() {
     super.initState();
-    // Аль замаар ирсэн ч (branch-first дарж орсон) энэ салбар ШУУД идэвхтэй —
-    // ангилал сонгоогүй үед `_compatibleBranches` бүх салбарыг хамарна (`every`
-    // хоосон жагсаалт дээр үнэн тул). Ангилал сонгох нь БУСАД салбарыг
-    // харьцуулах/шүүх зорилготой, анхны сонголтыг блоклохгүй.
-    _selectedBranch = widget.branch;
+    // Category-first, ямар ч урьдчилан сонгосон салбаргүйгээр эхэлнэ (тухайн
+    // байгууллагын профайл хуудас endээс энд зөвхөн нэг л "Цаг захиалах"
+    // товч байдаг тул). Ганц салбартай байгууллагад л шууд сонгогдоно —
+    // сонголт ямар ч утгагүй тохиолдолд шаардлагагүй алхам нэмэхгүй.
+    _selectedBranch = widget.organization.branches.length == 1
+        ? widget.organization.branches.single
+        : null;
     final now = DateTime.now();
     _displayedMonth = DateTime(now.year, now.month);
     _vehiclesController = context.read<VehiclesController>();
@@ -293,11 +293,13 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
               ),
             ],
             // Дэвийн шийдвэрээр: ангилал сонгогдоогүй бол салбар сонгох
-            // хэсгийг НУУНА (grey/disable биш) — эхлээд орж ирсэн салбар
-            // (`widget.branch`) хэвээрээ идэвхтэй хэрэглэгдэнэ, зөвхөн
-            // сольж болох сонголтыг категори сонгосны дараа л харуулна.
+            // хэсгийг НУУНА (grey/disable биш) — ганц салбартай байгууллагад
+            // аль хэдийн автоматаар сонгогдсон байх тул харах шаардлагагүй.
+            // Харин байгууллагад ангилал огт байхгүй бол (сонгох зүйл алга)
+            // энэ дүрэм хэрэглэгдэхгүй — эс бөгөөс салбар сонгох боломж
+            // мөнхөд алга болно (сонгох ганц ч категори байхгүй тул).
             if (widget.organization.branches.length > 1 &&
-                _selectedCategoryIds.isNotEmpty) ...[
+                (_allCategories.isEmpty || _selectedCategoryIds.isNotEmpty)) ...[
               const SizedBox(height: 16),
               GlassSurface(
                 child: Column(

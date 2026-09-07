@@ -190,19 +190,18 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(organizationCard);
     await tester.pumpAndSettle();
-    expect(find.text('Баянзүрх салбар'), findsNWidgets(2));
-    expect(find.text('Цаг захиалах'), findsOneWidget);
-
-    await tester.tap(
-      find.byKey(const ValueKey('branch-choice-auto-doctor-sbd')),
-    );
-    await tester.pumpAndSettle();
+    // Tenant profile page: both branches' info render at once (no chip
+    // selector/pre-selection any more — that now lives inside booking only).
+    expect(find.text('Баянзүрх салбар'), findsOneWidget);
+    expect(find.text('Сүхбаатар салбар'), findsOneWidget);
     expect(find.text('1-р хороо, Олимпын гудамж 9'), findsOneWidget);
     expect(find.text('09:00–18:00'), findsOneWidget);
-
-    await tester.ensureVisible(find.text('Цаг захиалах'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Цаг захиалах'));
+    // Both branches' full info now renders above the button, pushing it past
+    // the widget-test viewport's default cache extent — scroll to reach it.
+    final bookButton = find.text('Цаг захиалах');
+    await _scrollUntilVisible(tester, bookButton, 300);
+    expect(bookButton, findsOneWidget);
+    await tester.tap(bookButton);
     await tester.pumpAndSettle();
     expect(find.text('Нэвтрэх / Бүртгүүлэх'), findsOneWidget);
     expect(
@@ -221,9 +220,12 @@ void main() {
     await tester.tap(find.text('Нэвтрэх →'));
     await tester.pumpAndSettle();
     expect(find.text('Цаг хүсэх'), findsOneWidget);
-    // Header shows the branch name; the branch-switch dropdown itself stays
-    // hidden until a category is selected (dev decision — category-first).
-    expect(find.text('Сүхбаатар салбар'), findsOneWidget);
+    // No branch is preselected any more (booking starts from the org's
+    // single "Цаг захиалах" button, not a specific branch) — the fake org has
+    // no categories configured, so the branch dropdown is reachable right
+    // away rather than gated behind a category pick.
+    expect(find.text('Эхлээд үйлчилгээгээ сонгоно уу'), findsOneWidget);
+    expect(find.byKey(const ValueKey('booking-branch-dropdown-null')), findsOneWidget);
   });
 
   testWidgets('shows an explicit empty state', (tester) async {

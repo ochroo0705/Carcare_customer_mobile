@@ -5,6 +5,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_paym
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
@@ -96,6 +97,48 @@ void main() {
     await _pump(tester, controller, 'seed-2');
 
     expect(find.byKey(const ValueKey('detail-pay-seed-2')), findsOneWidget);
+    controller.dispose();
+  });
+
+  testWidgets('shows linked service progress and individual service statuses', (
+    tester,
+  ) async {
+    final appointment = Appointment(
+      id: 'apt-progress',
+      status: AppointmentStatus.confirmed,
+      requestedAt: DateTime(2026, 10, 1, 10),
+      tenantName: 'Auto Doctor Service',
+      tenantSlug: 'auto-doctor',
+      branchName: 'Баянзүрх салбар',
+      serviceProgress: const AppointmentServiceProgress(
+        id: 'order-1',
+        number: 'A-100',
+        status: ServiceProgressStatus.inProgress,
+        items: [
+          AppointmentServiceItemProgress(
+            id: 'item-1',
+            name: 'Тос солих',
+            status: ServiceProgressStatus.completed,
+          ),
+          AppointmentServiceItemProgress(
+            id: 'item-2',
+            name: 'Тоормос шалгах',
+            status: ServiceProgressStatus.inProgress,
+          ),
+        ],
+      ),
+    );
+    final controller = AppointmentsController(_OneAppointmentRepo(appointment));
+    await controller.load();
+
+    await _pump(tester, controller, 'apt-progress');
+
+    expect(find.byKey(const ValueKey('appointment-progress')), findsOneWidget);
+    expect(find.text('Үйлчилгээний явц'), findsOneWidget);
+    expect(find.text('Засварын хуудас №A-100'), findsOneWidget);
+    expect(find.text('Тос солих'), findsOneWidget);
+    expect(find.text('Тоормос шалгах'), findsOneWidget);
+    expect(find.text('1/2 үйлчилгээ дууссан'), findsOneWidget);
     controller.dispose();
   });
 
