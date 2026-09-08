@@ -4,9 +4,11 @@ import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/screens/reschedule_appointment_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/widgets/service_progress_section.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
@@ -28,6 +30,7 @@ class AppointmentDetailScreen extends StatelessWidget {
   const AppointmentDetailScreen({
     required this.appointmentId,
     required this.organizationRepository,
+    required this.appointmentRepository,
     required this.onBack,
     required this.onPay,
     super.key,
@@ -38,6 +41,9 @@ class AppointmentDetailScreen extends StatelessWidget {
   /// Used to fetch the branch's location/hours/contact — none of which the
   /// appointment payload carries (it has only the branch *name*).
   final OrganizationRepository organizationRepository;
+
+  /// Used by the reschedule flow to fetch the branch's available slots.
+  final AppointmentRepository appointmentRepository;
   final VoidCallback onBack;
 
   /// Opens the fee-payment screen for [appointment]. Wired by the router, the
@@ -72,9 +78,13 @@ class AppointmentDetailScreen extends StatelessWidget {
               appointment: appointment,
               organizationRepository: organizationRepository,
               isCancelling: controller.isCancelling(appointment.id),
+              isRescheduling: controller.isRescheduling(appointment.id),
               onRefresh: controller.load,
               onCancel: appointment.status.canCancel
                   ? () => _confirmCancel(context, controller, appointment)
+                  : null,
+              onReschedule: appointment.canReschedule
+                  ? () => _openReschedule(context, controller, appointment)
                   : null,
               onPay: appointment.canPayFee
                   ? () => onPay(appointment)
@@ -118,6 +128,24 @@ class AppointmentDetailScreen extends StatelessWidget {
       ).showSnackBar(SnackBar(content: Text(error)));
     }
   }
+
+  void _openReschedule(
+    BuildContext context,
+    AppointmentsController controller,
+    Appointment appointment,
+  ) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => RescheduleAppointmentScreen(
+          appointment: appointment,
+          repository: appointmentRepository,
+          onBack: () => Navigator.of(context).pop(),
+          onRescheduled: (requestedAt) =>
+              controller.reschedule(appointment.id, requestedAt),
+        ),
+      ),
+    );
+  }
 }
 
 class _AppointmentDetailBody extends StatelessWidget {
@@ -125,16 +153,20 @@ class _AppointmentDetailBody extends StatelessWidget {
     required this.appointment,
     required this.organizationRepository,
     required this.isCancelling,
+    required this.isRescheduling,
     required this.onRefresh,
     this.onCancel,
+    this.onReschedule,
     this.onPay,
   });
 
   final Appointment appointment;
   final OrganizationRepository organizationRepository;
   final bool isCancelling;
+  final bool isRescheduling;
   final Future<void> Function() onRefresh;
   final VoidCallback? onCancel;
+  final VoidCallback? onReschedule;
   final VoidCallback? onPay;
 
   @override
@@ -248,6 +280,20 @@ class _AppointmentDetailBody extends StatelessWidget {
             const SizedBox(height: 14),
             ServiceProgressSection(progress: appointment.serviceProgress!),
           ],
+          if (onReschedule != null) ...[
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            key: ValueKey('detail-reschedule-${appointment.id}'),
+            onPressed: isRescheduling ? null : onReschedule,
+            icon: isRescheduling
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.event_repeat_rounded),
+            label: const Text('Цагаа шилжүүлэх'),
+          ),
+        ],
           if (onCancel != null) ...[
           const SizedBox(height: 14),
           OutlinedButton.icon(

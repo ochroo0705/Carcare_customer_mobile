@@ -30,6 +30,7 @@ void main() {
             onLoginRequested: () {},
             onAppointmentSelected: (_) {},
             onPaymentRequested: (_) {},
+            onWalkInOrderSelected: (_) {},
           ),
         ),
       ),

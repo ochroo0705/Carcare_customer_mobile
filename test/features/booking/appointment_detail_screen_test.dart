@@ -6,6 +6,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_repo
 import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
@@ -29,7 +30,11 @@ class _OneAppointmentRepo implements AppointmentRepository {
   Future<List<Appointment>> getAppointments() async => [_appointment];
 
   @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+  @override
   Future<void> cancelAppointment(String id) async {}
+  @override
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
   @override
   Future<AppointmentPayment?> getPayment(String id) async => null;
   @override
@@ -68,6 +73,7 @@ Future<void> _pump(
         home: AppointmentDetailScreen(
           appointmentId: appointmentId,
           organizationRepository: FakeOrganizationRepository(),
+          appointmentRepository: FakeAppointmentRepository(),
           onBack: () {},
           onPay: onPay ?? (_) {},
         ),

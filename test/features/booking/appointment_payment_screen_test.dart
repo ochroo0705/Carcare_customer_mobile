@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_payment_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -37,7 +38,11 @@ class _RetryRepository implements AppointmentRepository {
   @override
   Future<List<Appointment>> getAppointments() async => const [];
   @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+  @override
   Future<void> cancelAppointment(String id) async {}
+  @override
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
   @override
   Future<DayAvailability> getAvailability({
     required String branchId,
@@ -75,7 +80,11 @@ class _PaysAfterRepository implements AppointmentRepository {
   @override
   Future<List<Appointment>> getAppointments() async => const [];
   @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+  @override
   Future<void> cancelAppointment(String id) async {}
+  @override
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
   @override
   Future<DayAvailability> getAvailability({
     required String branchId,

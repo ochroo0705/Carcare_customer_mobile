@@ -18,6 +18,7 @@ import 'package:carcare_customer_mobile/features/booking/presentation/screens/ap
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_payment_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/screens/walk_in_order_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
@@ -185,6 +186,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   bool _booking = false;
   String? _selectedOrderId;
   String? _selectedAppointmentId;
+  String? _selectedWalkInOrderId;
   String? _paymentAppointmentId;
   AppointmentPayment? _paymentInitial;
   bool _showLogin = false;
@@ -227,6 +229,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 onAppointmentSelected: _openAppointmentDetail,
                 onPaymentRequested: (appointment) =>
                     _openPayment(appointment.id, appointment.payment),
+                onWalkInOrderSelected: _openWalkInOrderDetail,
               ),
               HistoryScreen(
                 onLoginRequested: _requestLogin,
@@ -327,9 +330,18 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             child: AppointmentDetailScreen(
               appointmentId: _selectedAppointmentId!,
               organizationRepository: organizationRepository,
+              appointmentRepository: appointmentRepository,
               onBack: _closeAppointmentDetail,
               onPay: (appointment) =>
                   _openPayment(appointment.id, appointment.payment),
+            ),
+          ),
+        if (_selectedWalkInOrderId != null)
+          MaterialPage<void>(
+            key: ValueKey('walk-in-order-detail-$_selectedWalkInOrderId'),
+            child: WalkInOrderDetailScreen(
+              orderId: _selectedWalkInOrderId!,
+              onBack: _closeWalkInOrderDetail,
             ),
           ),
         if (_paymentAppointmentId != null)
@@ -388,6 +400,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           _closeAddVehicle();
         } else if (_selectedAppointmentId != null) {
           _closeAppointmentDetail();
+        } else if (_selectedWalkInOrderId != null) {
+          _closeWalkInOrderDetail();
         } else if (_showLogin) {
           _cancelLogin();
         } else if (_booking) {
@@ -506,6 +520,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _booking = false;
     _selectedOrderId = null;
     _selectedAppointmentId = null;
+    _selectedWalkInOrderId = null;
     _paymentAppointmentId = null;
     _paymentInitial = null;
     _showLogin = false;
@@ -516,6 +531,19 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeAppointmentDetail() {
     _selectedAppointmentId = null;
+    notifyListeners();
+  }
+
+  /// `_openAppointmentDetail`-тэй адил зарчим, гэхдээ walk-in захиалгад —
+  /// дэлгэрэнгүй нь бүхэлдээ list payload-д аль хэдийн ирсэн тул дахин
+  /// ачаалах шаардлагагүй (харах: `WalkInOrderDetailScreen`-ийн тайлбар).
+  void _openWalkInOrderDetail(String id) {
+    _selectedWalkInOrderId = id;
+    notifyListeners();
+  }
+
+  void _closeWalkInOrderDetail() {
+    _selectedWalkInOrderId = null;
     notifyListeners();
   }
 

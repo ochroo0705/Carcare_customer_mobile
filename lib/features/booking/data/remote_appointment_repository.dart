@@ -5,6 +5,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 
 /// Customer appointment API adapter.
 ///
@@ -112,6 +113,18 @@ class RemoteAppointmentRepository implements AppointmentRepository {
   }
 
   @override
+  /// `getAppointments()`-ийн ЯГ адил endpoint дуудна, зөвхөн `walkInOrders`
+  /// талбарыг унших — payload хөнгөн тул хоёр дахин дуудахад бага өртөгтэй,
+  /// харин `Appointment`-ийн одоогийн `List<Appointment>` гэрээг хэвээр
+  /// хадгална (бусад бүх дуудагч/тест кодыг өөрчлөхгүй).
+  Future<List<WalkInOrder>> getWalkInOrders() async {
+    final json = await _client.getJson('/appointments');
+    return parseWalkInOrderListJson(json['walkInOrders'])
+        .map((dto) => dto.toDomain())
+        .toList(growable: false);
+  }
+
+  @override
   /// Зөвхөн PENDING/CONFIRMED төлөвийг server цуцлуулахыг зөвшөөрнө.
   /// Client талын canCancel нь UX-д зориулсан урьдчилсан шалгалт; эрхийн
   /// эцсийн шийдвэр server дээр үлдэнэ.
@@ -119,6 +132,16 @@ class RemoteAppointmentRepository implements AppointmentRepository {
     final json = await _client.postJson('/appointments/$id/cancel', const {});
     if (json['ok'] != true) {
       throw const UnexpectedFailure('Захиалга цуцлагдсангүй.');
+    }
+  }
+
+  @override
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {
+    final json = await _client.postJson('/appointments/$id/reschedule', {
+      'requestedAt': requestedAt.toUtc().toIso8601String(),
+    });
+    if (json['ok'] != true) {
+      throw const UnexpectedFailure('Цаг шилжүүлэгдсэнгүй.');
     }
   }
 

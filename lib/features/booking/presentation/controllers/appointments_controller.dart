@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:flutter/foundation.dart';
 
@@ -14,10 +15,20 @@ class AppointmentsController extends ChangeNotifier {
   final CacheStore _cache;
   AppointmentsState _state = const AppointmentsState();
   final Set<String> _cancellingIds = {};
+  final Set<String> _reschedulingIds = {};
 
   AppointmentsState get state => _state;
 
   bool isCancelling(String id) => _cancellingIds.contains(id);
+
+  bool isRescheduling(String id) => _reschedulingIds.contains(id);
+
+  /// `sortedAppointments`-той ижил "бүрэн дуусаад бүрэн төлөгдсөн" хамгаалалт
+  /// (харах: тэдгээрийн доод коммент) — walk-in захиалгад ч мөн адил
+  /// хэрэглэнэ.
+  List<WalkInOrder> get visibleWalkInOrders => _state.walkInOrders
+      .where((order) => !order.progress.isSettled)
+      .toList(growable: false);
 
   /// Active хүсэлтүүдийг ойрын цагаар нь, эцсийн төлөвүүдийг сүүлийн өөрчлөлт
   /// гэж үзэн шинэ огноогоор нь харуулна. Бүрэн дуусаад бүрэн төлөгдсөн
@@ -46,13 +57,22 @@ class AppointmentsController extends ChangeNotifier {
     notifyListeners();
     try {
       // Network амжилттай үед cache-г бүхэлд нь солих нь өмнөх Account-ийн
-      // үлдэгдэл болон шинэ response холилдохоос сэргийлнэ.
-      final appointments = await _repository.getAppointments();
+      // үлдэгдэл болон шинэ response холилдохоос сэргийлнэ. walkInOrders
+      // тусдаа дуудлага (харах: `RemoteAppointmentRepository.getWalkInOrders`)
+      // тул зэрэгцүүлж дуудна — аль нэг нь амжилтгүй болвол бүгд амжилтгүй
+      // (эс бөгөөс хагас бүрдсэн, зөрчилтэй төлөв харагдана).
+      final results = await Future.wait([
+        _repository.getAppointments(),
+        _repository.getWalkInOrders(),
+      ]);
+      final appointments = results[0] as List<Appointment>;
+      final walkInOrders = results[1] as List<WalkInOrder>;
       _state = AppointmentsState(
-        status: appointments.isEmpty
+        status: appointments.isEmpty && walkInOrders.isEmpty
             ? AppointmentsStatus.empty
             : AppointmentsStatus.data,
         appointments: appointments,
+        walkInOrders: walkInOrders,
       );
       await _cache.writeAppointments(appointments);
     } on AppFailure catch (failure) {
@@ -71,6 +91,7 @@ class AppointmentsController extends ChangeNotifier {
   Future<void> reset() async {
     _state = const AppointmentsState();
     _cancellingIds.clear();
+    _reschedulingIds.clear();
     notifyListeners();
     await _cache.clearAppointments();
   }
@@ -107,6 +128,26 @@ class AppointmentsController extends ChangeNotifier {
       return 'Тодорхойгүй алдаа гарлаа.';
     } finally {
       _cancellingIds.remove(id);
+      notifyListeners();
+    }
+  }
+
+  /// Reschedules an appointment and reloads the list. Returns an error
+  /// message on failure, or `null` on success (mirrors [cancel]).
+  Future<String?> reschedule(String id, DateTime requestedAt) async {
+    if (_reschedulingIds.contains(id)) return null;
+    _reschedulingIds.add(id);
+    notifyListeners();
+    try {
+      await _repository.rescheduleAppointment(id, requestedAt);
+      await load();
+      return null;
+    } on AppFailure catch (failure) {
+      return failure.message;
+    } catch (_) {
+      return 'Тодорхойгүй алдаа гарлаа.';
+    } finally {
+      _reschedulingIds.remove(id);
       notifyListeners();
     }
   }

@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart'
     show ServiceOrderItemKind, serviceOrderItemKindFromApi;
 
@@ -17,6 +18,7 @@ class AppointmentDto {
     required this.tenantName,
     required this.tenantSlug,
     required this.branchName,
+    this.branchId,
     this.note,
     this.categoryName,
     this.vehiclePlate,
@@ -46,6 +48,7 @@ class AppointmentDto {
       tenantName: _requiredString(tenant, 'name'),
       tenantSlug: _requiredString(tenant, 'slug'),
       branchName: _requiredString(branch, 'name'),
+      branchId: _optionalString(branch['id']),
       note: _optionalString(json['note']),
       categoryName: category == null ? null : _optionalString(category['name']),
       vehiclePlate: accountVehicle == null
@@ -62,6 +65,7 @@ class AppointmentDto {
   final String tenantName;
   final String tenantSlug;
   final String branchName;
+  final String? branchId;
   final String? note;
   final String? categoryName;
   final String? vehiclePlate;
@@ -75,12 +79,71 @@ class AppointmentDto {
     tenantName: tenantName,
     tenantSlug: tenantSlug,
     branchName: branchName,
+    branchId: branchId,
     note: note,
     categoryName: categoryName,
     vehiclePlate: vehiclePlate,
     payment: payment,
     serviceProgress: serviceProgress,
   );
+}
+
+/// `walkInOrders`-ийн нэг мөр — `serviceProgressFromJson`-той ИЖИЛ талбарын
+/// нэрсийг ашигладаг тул тухайн функцийг шууд (nested биш, root object дээр)
+/// дуудна.
+class WalkInOrderDto {
+  WalkInOrderDto({
+    required this.tenantName,
+    required this.tenantSlug,
+    required this.branchName,
+    required this.progress,
+  });
+
+  factory WalkInOrderDto.fromJson(Map<String, dynamic> json) {
+    final tenant = _requiredMap(json, 'tenant');
+    final branch = _requiredMap(json, 'branch');
+    final progress = serviceProgressFromJson(json);
+    if (progress == null) {
+      throw const UnexpectedFailure('Захиалгын мэдээлэл буруу байна.');
+    }
+    return WalkInOrderDto(
+      tenantName: _requiredString(tenant, 'name'),
+      tenantSlug: _requiredString(tenant, 'slug'),
+      branchName: _requiredString(branch, 'name'),
+      progress: progress,
+    );
+  }
+
+  final String tenantName;
+  final String tenantSlug;
+  final String branchName;
+  final AppointmentServiceProgress progress;
+
+  WalkInOrder toDomain() => WalkInOrder(
+    tenantName: tenantName,
+    tenantSlug: tenantSlug,
+    branchName: branchName,
+    progress: progress,
+  );
+}
+
+/// Хуучин server (`walkInOrders`-гүй) хариулж болзошгүй тул түлхүүр байхгүй
+/// эсвэл буруу бол хоосон жагсаалт буцаана — `parseAppointmentListJson`-аас
+/// ялгаатай (тэр нь заавал шаардлагатай, шидэнэ), учир нь энэ хоёрдогч
+/// жагсаалт байхгүй байх нь хэвийн нөхцөл (walk-in захиалгагүй харилцагч).
+/// Нэг мөр буруу бол зөвхөн тэрхүү мөрийг алгасна, бусдыг харуулна.
+List<WalkInOrderDto> parseWalkInOrderListJson(Object? value) {
+  if (value is! List) return const [];
+  final result = <WalkInOrderDto>[];
+  for (final item in value) {
+    if (item is! Map) continue;
+    try {
+      result.add(WalkInOrderDto.fromJson(Map<String, dynamic>.from(item)));
+    } on AppFailure {
+      continue;
+    }
+  }
+  return List.unmodifiable(result);
 }
 
 /// Parses the optional linked ServiceOrder included in appointment list

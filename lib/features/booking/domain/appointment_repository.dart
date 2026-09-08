@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 
 class CreatedAppointment {
   const CreatedAppointment({
@@ -36,7 +37,17 @@ abstract interface class AppointmentRepository {
 
   Future<List<Appointment>> getAppointments();
 
+  /// `getAppointments()`-тэй ижил `/appointments` endpoint-ийн `walkInOrders`
+  /// талбарыг уншина — Appointment-гүй (ажилтан шууд үүсгэсэн) захиалгууд.
+  /// Тусад нь дуудна (payload хөнгөн, endpoint нэг л).
+  Future<List<WalkInOrder>> getWalkInOrders();
+
   Future<void> cancelAppointment(String id);
+
+  /// PENDING/CONFIRMED, захиалгагүй (ServiceOrder үүсээгүй) цагийг өөр
+  /// хугацаанд шилжүүлнэ. Client талын `Appointment.canReschedule` нь UX-д
+  /// зориулсан урьдчилсан шалгалт; эрхийн эцсийн шийдвэр server дээр үлдэнэ.
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt);
 
   /// Current fee/payment status for one appointment — call whenever a
   /// payment screen opens (`CUSTOMER_API_CONTRACT.md`'s

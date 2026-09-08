@@ -6,6 +6,8 @@ import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
@@ -17,12 +19,18 @@ class AppointmentsScreen extends StatelessWidget {
     required this.onLoginRequested,
     required this.onAppointmentSelected,
     required this.onPaymentRequested,
+    required this.onWalkInOrderSelected,
     super.key,
   });
 
   final VoidCallback onLoginRequested;
   final ValueChanged<String> onAppointmentSelected;
   final ValueChanged<Appointment> onPaymentRequested;
+
+  /// Захиалгагүй (walk-in) захиалгын дэлгэрэнгүй рүү шилжих — аргумент нь
+  /// [WalkInOrder.progress.id] (Appointment.id-той адил нэр зайд, гэхдээ
+  /// огт өөр entity).
+  final ValueChanged<String> onWalkInOrderSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +45,7 @@ class AppointmentsScreen extends StatelessWidget {
                 controller: controller,
                 onAppointmentSelected: onAppointmentSelected,
                 onPaymentRequested: onPaymentRequested,
+                onWalkInOrderSelected: onWalkInOrderSelected,
               )
             : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
       ),
@@ -94,11 +103,13 @@ class _AppointmentsBody extends StatelessWidget {
     required this.controller,
     required this.onAppointmentSelected,
     required this.onPaymentRequested,
+    required this.onWalkInOrderSelected,
   });
 
   final AppointmentsController controller;
   final ValueChanged<String> onAppointmentSelected;
   final ValueChanged<Appointment> onPaymentRequested;
+  final ValueChanged<String> onWalkInOrderSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -119,6 +130,7 @@ class _AppointmentsBody extends StatelessWidget {
         controller: controller,
         onAppointmentSelected: onAppointmentSelected,
         onPaymentRequested: onPaymentRequested,
+        onWalkInOrderSelected: onWalkInOrderSelected,
       ),
     };
   }
@@ -201,23 +213,32 @@ class _AppointmentsList extends StatelessWidget {
     required this.controller,
     required this.onAppointmentSelected,
     required this.onPaymentRequested,
+    required this.onWalkInOrderSelected,
   });
 
   final AppointmentsController controller;
   final ValueChanged<String> onAppointmentSelected;
   final ValueChanged<Appointment> onPaymentRequested;
+  final ValueChanged<String> onWalkInOrderSelected;
 
   @override
   Widget build(BuildContext context) {
     final appointments = controller.sortedAppointments;
+    final walkInOrders = controller.visibleWalkInOrders;
     final isFromCache = controller.state.isFromCache;
     final offset = isFromCache ? 2 : 1;
+    // Захиалгагүй (walk-in) захиалгууд Appointment жагсаалтын дараа, тусдаа
+    // гарчигтай хэсэгт харагдана — веб талын account/page.tsx-ийн "Захиалгууд"
+    // хэсэгтэй ижил зарчим.
+    final walkInHeaderIndex = offset + appointments.length;
+    final itemCount =
+        walkInHeaderIndex + (walkInOrders.isNotEmpty ? 1 + walkInOrders.length : 0);
     return RefreshIndicator(
       onRefresh: controller.load,
       child: ListView.separated(
         key: const PageStorageKey('appointments-list'),
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        itemCount: appointments.length + offset,
+        itemCount: itemCount,
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -232,19 +253,32 @@ class _AppointmentsList extends StatelessWidget {
               onRetry: controller.load,
             );
           }
-          final appointment = appointments[index - offset];
+          if (index < walkInHeaderIndex) {
+            final appointment = appointments[index - offset];
+            return RiseIn(
+              index: index - offset,
+              child: _AppointmentCard(
+                appointment: appointment,
+                isCancelling: controller.isCancelling(appointment.id),
+                onTap: () => onAppointmentSelected(appointment.id),
+                onCancel: appointment.status.canCancel
+                    ? () => _confirmCancel(context, appointment)
+                    : null,
+                onPaymentTap: appointment.canPayFee
+                    ? () => onPaymentRequested(appointment)
+                    : null,
+              ),
+            );
+          }
+          if (index == walkInHeaderIndex) {
+            return const _WalkInOrdersHeader();
+          }
+          final order = walkInOrders[index - walkInHeaderIndex - 1];
           return RiseIn(
             index: index - offset,
-            child: _AppointmentCard(
-              appointment: appointment,
-              isCancelling: controller.isCancelling(appointment.id),
-              onTap: () => onAppointmentSelected(appointment.id),
-              onCancel: appointment.status.canCancel
-                  ? () => _confirmCancel(context, appointment)
-                  : null,
-              onPaymentTap: appointment.canPayFee
-                  ? () => onPaymentRequested(appointment)
-                  : null,
+            child: _WalkInOrderCard(
+              order: order,
+              onTap: () => onWalkInOrderSelected(order.progress.id),
             ),
           );
         },
@@ -291,6 +325,100 @@ class _AppointmentsHeader extends StatelessWidget {
     style: Theme.of(context).textTheme.headlineSmall
         ?.copyWith(fontWeight: FontWeight.w900),
   );
+}
+
+class _WalkInOrdersHeader extends StatelessWidget {
+  const _WalkInOrdersHeader();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Text(
+      'Захиалгууд',
+      style: Theme.of(
+        context,
+      ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+    ),
+  );
+}
+
+/// Appointment-гүй (ажилтан шууд үүсгэсэн) захиалгын карт — цуцлах/хураамж
+/// гэсэн ойлголт байхгүй, зөвхөн дэлгэрэнгүй рүү шилжинэ (харах:
+/// `WalkInOrderDetailScreen`).
+class _WalkInOrderCard extends StatelessWidget {
+  const _WalkInOrderCard({required this.order, this.onTap});
+
+  final WalkInOrder order;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) => GlassSurface(
+    key: ValueKey('walk-in-order-card-${order.progress.id}'),
+    onTap: onTap,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                order.tenantName,
+                style: Theme.of(context).textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(width: 8),
+            _ProgressStatusChip(status: order.progress.status),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          order.branchName,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '№${order.progress.number}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    ),
+  );
+}
+
+class _ProgressStatusChip extends StatelessWidget {
+  const _ProgressStatusChip({required this.status});
+
+  final ServiceProgressStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (status) {
+      ServiceProgressStatus.completed => AppColors.green,
+      ServiceProgressStatus.cancelled => AppColors.red,
+      ServiceProgressStatus.inProgress ||
+      ServiceProgressStatus.waitingParts => AppColors.blue,
+      ServiceProgressStatus.pending ||
+      ServiceProgressStatus.scheduled ||
+      ServiceProgressStatus.unknown => Theme.of(
+        context,
+      ).colorScheme.onSurfaceVariant,
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        status.localizedLabel,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
+      ),
+    );
+  }
 }
 
 class _AppointmentCard extends StatelessWidget {

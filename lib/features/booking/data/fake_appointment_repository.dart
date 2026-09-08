@@ -4,6 +4,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_paym
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 
 /// A small checkerboard placeholder, clearly not a real QPay QR — this is
 /// fake-repository data, never scannable. Mirrors the shape of a real QPay
@@ -150,6 +151,9 @@ class FakeAppointmentRepository implements AppointmentRepository {
       List.unmodifiable(_appointments);
 
   @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+
+  @override
   Future<void> cancelAppointment(String id) async {
     final index = _appointments.indexWhere(
       (appointment) => appointment.id == id,
@@ -160,6 +164,17 @@ class FakeAppointmentRepository implements AppointmentRepository {
     _appointments[index] = appointment.copyWith(
       status: AppointmentStatus.cancelled,
     );
+  }
+
+  @override
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {
+    final index = _appointments.indexWhere(
+      (appointment) => appointment.id == id,
+    );
+    if (index == -1) throw const NotFoundFailure();
+    final appointment = _appointments[index];
+    if (!appointment.canReschedule) throw const ConflictFailure();
+    _appointments[index] = appointment.copyWith(requestedAt: requestedAt);
   }
 
   @override

@@ -5,6 +5,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
@@ -60,7 +61,13 @@ class _CapturingAppointmentRepository implements AppointmentRepository {
   Future<List<Appointment>> getAppointments() async => const [];
 
   @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+
+  @override
   Future<void> cancelAppointment(String id) async {}
+
+  @override
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
 
   @override
   Future<AppointmentPayment?> getPayment(String appointmentId) async => null;
@@ -95,7 +102,11 @@ class _ConflictAppointmentRepository implements AppointmentRepository {
   @override
   Future<List<Appointment>> getAppointments() async => const [];
   @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+  @override
   Future<void> cancelAppointment(String id) async {}
+  @override
+  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
   @override
   Future<AppointmentPayment?> getPayment(String id) async => null;
   @override
