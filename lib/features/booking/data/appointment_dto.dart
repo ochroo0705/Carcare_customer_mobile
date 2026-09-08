@@ -3,6 +3,8 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
+import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart'
+    show ServiceOrderItemKind, serviceOrderItemKindFromApi;
 
 /// `GET /appointments`-ийн rich list payload-ийг domain model-оос тусгаарлана.
 /// Backend-ийн nested `tenant`, `branch`, `category`, `accountVehicle`-г энд
@@ -102,15 +104,24 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
           ? null
           : _optionalString(item['status']);
       if (itemId == null || name == null || itemStatus == null) continue;
+      final kindRaw = item == null ? null : _optionalString(item['kind']);
       items.add(
         AppointmentServiceItemProgress(
           id: itemId,
           name: name,
           status: serviceProgressStatusFromApi(itemStatus),
+          kind: kindRaw == null
+              ? ServiceOrderItemKind.labor
+              : serviceOrderItemKindFromApi(kindRaw),
+          quantity: _optionalNum(item?['quantity']),
+          unitPrice: _optionalNum(item?['unitPrice']),
+          total: _optionalNum(item?['total']),
         ),
       );
     }
   }
+
+  final vehicle = _optionalMap(json['vehicle']);
 
   return AppointmentServiceProgress(
     id: id,
@@ -121,9 +132,21 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
     ),
     startedAt: _optionalDateTime(json['startedAt']),
     completedAt: _optionalDateTime(json['completedAt']),
+    estimatedDurationMinutes: json['estimatedDurationMinutes'] is int
+        ? json['estimatedDurationMinutes'] as int
+        : null,
+    expectedFinishAt: _optionalDateTime(json['expectedFinishAt']),
+    totalAmount: _optionalNum(json['totalAmount']),
+    paidAmount: _optionalNum(json['paidAmount']),
+    vehiclePlate: vehicle == null ? null : _optionalString(vehicle['plate']),
+    vehicleMake: vehicle == null ? null : _optionalString(vehicle['make']),
+    vehicleModel: vehicle == null ? null : _optionalString(vehicle['model']),
+    vehicleYear: vehicle?['year'] is int ? vehicle!['year'] as int : null,
     items: List.unmodifiable(items),
   );
 }
+
+num? _optionalNum(Object? value) => value is num ? value : null;
 
 /// `/appointments*` болон `/appointments/[id]/payment*` endpoint-үүдийн
 /// ижил `payment` shape-ийг задлана (`CUSTOMER_API_CONTRACT.md` §"4.1 Цаг

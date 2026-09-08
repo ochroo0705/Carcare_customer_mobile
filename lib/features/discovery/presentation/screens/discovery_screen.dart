@@ -292,7 +292,7 @@ class _DiscoveryHeader extends StatelessWidget {
                     // хоосрохгүй — гэхдээ анхны ачаалалт өмнө (өгөгдөл огт
                     // ирээгүй) хоёуланг нь шалгасаар байна.
                     if (controller.cities.isNotEmpty) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       Row(
                         children: [
                           Expanded(
@@ -321,29 +321,40 @@ class _DiscoveryHeader extends StatelessWidget {
                     // өдөр) нь одоогийн үр дүнгээс ХАРААТГҮЙ — идэвхтэй шүүлт
                     // байвал (тэр байтугай 0 илэрцтэй үед ч) харагдаж байх
                     // ёстой, эс бөгөөс хэрэглэгч буцааж унтраах товчгүй үлдэнэ.
-                    if (state.organizations.isNotEmpty ||
+                    // `state.organizations` биш `controller.hasCatalog`
+                    // ашигласан нь чухал: шүүлтийг унтраахад `load()` шинэ
+                    // хариу авах хүртэл `state.organizations` өмнөх (0
+                    // байсан) утгаараа "loading" төлөвт хадгалагдсан хэвээр
+                    // байдаг тул унтраасан даруйдаа chip мөр түр зуур бүр
+                    // алга болдог байсан (`hasActiveFilters` мөн шууд false
+                    // болчихсон учир хоёулаа false болно) — `hasCatalog` нь
+                    // сүүлийн шүүлтгүй ачаалалтаас тооцогддог тул reload-ын
+                    // үед өөрчлөгддөггүй.
+                    if (controller.hasCatalog ||
                         controller.hasActiveFilters) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 8),
                       _ServerFilterChips(controller: controller),
                     ],
-                    if (state.organizations.isNotEmpty) ...[
-                      const SizedBox(height: 18),
-                      Row(
-                        children: [
-                          _DiscoveryMetric(
-                            value: '${organizations.length}',
-                            label: 'сервис',
-                          ),
-                          _MetricDivider(
-                            color: CarCareTheme.of(context).glassBorder,
-                          ),
-                          _DiscoveryMetric(
-                            value: '$branchCount',
-                            label: 'салбар',
-                          ),
-                        ],
-                      ),
-                    ],
+                    // Тоолуур мөрийг үр дүнгээс үл хамааран үргэлж харуулна
+                    // (0 ч гэсэн) — эс бөгөөс шүүлт солиход/0 илэрцтэй болоход
+                    // мөр өөрөө алга болж, доод компонентууд байнга шилжиж
+                    // байсан (layout shift).
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        _DiscoveryMetric(
+                          value: '${organizations.length}',
+                          label: 'сервис',
+                        ),
+                        _MetricDivider(
+                          color: CarCareTheme.of(context).glassBorder,
+                        ),
+                        _DiscoveryMetric(
+                          value: '$branchCount',
+                          label: 'салбар',
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -578,43 +589,41 @@ class _ServerFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 3 chip-тэй болсноор нарийн дэлгэц дээр Row дүүрч болзошгүй тул хэвтээ
-    // гүйдэлтэй болгов (Wrap биш — нэг мөрөнд байлгах нь илүү тодорхой UX).
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          FilterChip(
-            label: const Text('Ойролцоо'),
-            avatar: _chipAvatar(
-              Icons.near_me_outlined,
-              pending: controller.nearMePending,
-            ),
-            selected: controller.nearMe,
-            onSelected: (selected) => _toggleNearMe(context, selected),
+    // 3 chip-тэй болсноор нарийн дэлгэц дээр Row дүүрч болзошгүй тул Wrap
+    // ашиглав — багтахгүй бол дараагийн chip доод мөрөнд бүрэн харагдана,
+    // хэрэглэгч анзаарахгүй өнгөрч болзошгүй хэвтээ гүйдлээс илүү.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        FilterChip(
+          label: const Text('Ойролцоо'),
+          avatar: _chipAvatar(
+            Icons.near_me_outlined,
+            pending: controller.nearMePending,
           ),
-          const SizedBox(width: 10),
-          FilterChip(
-            label: const Text('Одоо нээлттэй'),
-            avatar: _chipAvatar(
-              Icons.schedule_outlined,
-              pending: controller.openNowPending,
-            ),
-            selected: controller.openNow,
-            onSelected: controller.setOpenNow,
+          selected: controller.nearMe,
+          onSelected: (selected) => _toggleNearMe(context, selected),
+        ),
+        FilterChip(
+          label: const Text('Одоо нээлттэй'),
+          avatar: _chipAvatar(
+            Icons.schedule_outlined,
+            pending: controller.openNowPending,
           ),
-          const SizedBox(width: 10),
-          FilterChip(
-            label: const Text('Амралтын өдөр ажилладаг'),
-            avatar: _chipAvatar(
-              Icons.weekend_outlined,
-              pending: controller.weekendPending,
-            ),
-            selected: controller.weekend,
-            onSelected: controller.setWeekend,
+          selected: controller.openNow,
+          onSelected: controller.setOpenNow,
+        ),
+        FilterChip(
+          label: const Text('Амралтын өдөр ажилладаг'),
+          avatar: _chipAvatar(
+            Icons.weekend_outlined,
+            pending: controller.weekendPending,
           ),
-        ],
-      ),
+          selected: controller.weekend,
+          onSelected: controller.setWeekend,
+        ),
+      ],
     );
   }
 

@@ -47,6 +47,12 @@ class DiscoveryController extends ChangeNotifier {
   bool get nearMePending => _nearMePending;
   bool get openNowPending => _openNowPending;
   bool get weekendPending => _weekendPending;
+  // Сүүлд ямар нэг өгөгдөл (шүүлтгүй) ачаалагдсан эсэх — chip мөрийг
+  // харуулах эсэхэд ашиглана. `state.organizations`-аас ялгаатай нь энэ утга
+  // reload-ын үед (`load()`-ийн шинэ хүсэлт хараахан дуусаагүй байхад)
+  // өөрчлөгддөггүй, тул шүүлтийг унтраахад шинэ хариу ирэх хүртэл chip мөр
+  // түр зуур алга болохгүй.
+  bool get hasCatalog => _lastUnfiltered.isNotEmpty;
   bool get hasActiveFilters =>
       _query.isNotEmpty ||
       _city.isNotEmpty ||

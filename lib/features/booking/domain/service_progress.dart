@@ -1,3 +1,6 @@
+import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart'
+    show ServiceOrderItemKind;
+
 /// Захиалгын PAYMENT статус (workflow-той тусдаа). Аппойнтмент бүрэн
 /// дуусаад бүрэн төлөгдсөн эсэхийг шийдэхэд ашиглагдана — доор харах:
 /// [AppointmentServiceProgress.isSettled].
@@ -60,11 +63,19 @@ class AppointmentServiceItemProgress {
     required this.id,
     required this.name,
     required this.status,
+    this.kind = ServiceOrderItemKind.labor,
+    this.quantity,
+    this.unitPrice,
+    this.total,
   });
 
   final String id;
   final String name;
   final ServiceProgressStatus status;
+  final ServiceOrderItemKind kind;
+  final num? quantity;
+  final num? unitPrice;
+  final num? total;
 }
 
 class AppointmentServiceProgress {
@@ -76,6 +87,14 @@ class AppointmentServiceProgress {
     this.paymentStatus = OrderPaymentStatus.unknown,
     this.startedAt,
     this.completedAt,
+    this.estimatedDurationMinutes,
+    this.expectedFinishAt,
+    this.totalAmount,
+    this.paidAmount,
+    this.vehiclePlate,
+    this.vehicleMake,
+    this.vehicleModel,
+    this.vehicleYear,
   });
 
   final String id;
@@ -84,6 +103,20 @@ class AppointmentServiceProgress {
   final OrderPaymentStatus paymentStatus;
   final DateTime? startedAt;
   final DateTime? completedAt;
+  // Захиалга үүсэх үеийн анхны тооцоолол (минут) — immutable, категори
+  // дараа өөрчлөгдсөн ч энэ хуучин утга хэвээр үлдэнэ.
+  final int? estimatedDurationMinutes;
+  // Ажилтны шинэчилж болох дуусах хугацааны таамаг — completedAt-той андуурч
+  // болохгүй, ажил дуусаагүй байхад ч байж болно (эсвэл хэтэрсэн байж болно).
+  final DateTime? expectedFinishAt;
+  final num? totalAmount;
+  final num? paidAmount;
+  // Захиалга үүсэх үед snapshot хийгдсэн машин — захиалгагүй үед
+  // Appointment.accountVehicle-ээс тусад нь харагдана (AppointmentDto-д).
+  final String? vehiclePlate;
+  final String? vehicleMake;
+  final String? vehicleModel;
+  final int? vehicleYear;
   final List<AppointmentServiceItemProgress> items;
 
   int get completedItemCount =>
@@ -99,4 +132,11 @@ class AppointmentServiceProgress {
   /// давхар шалгаж, кэшлэгдсэн хуучин датаг найдваргүй харуулахаас сэргийлнэ).
   bool get isSettled =>
       status.isCompleted && paymentStatus == OrderPaymentStatus.paid;
+
+  /// Тооцоолсон дуусах хугацаанаас хэтэрсэн ч ажил хараахан дуусаагүй эсэх.
+  bool get isDelayed =>
+      !status.isCompleted &&
+      status != ServiceProgressStatus.cancelled &&
+      expectedFinishAt != null &&
+      expectedFinishAt!.isBefore(DateTime.now());
 }
