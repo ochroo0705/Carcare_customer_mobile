@@ -13,6 +13,13 @@ class DiscoveryController extends ChangeNotifier {
   final OrganizationRepository _repository;
   final CacheStore _cache;
   DiscoveryState _state = const DiscoveryState();
+  // Хамгийн сүүлд амжилттай ачаалсан ШҮҮЛТГҮЙ бүрэн каталог — cities/districts
+  // сонголтуудыг үүнээс тооцно, `_state.organizations`-оос биш. Хэрэв тэднийг
+  // (сервер) шүүлт идэвхтэй үед 0 илэрцтэй `_state.organizations`-оос тооцвол
+  // сонголтын жагсаалт хоосорч, хот/дүүрэг шүүлтүүр бүхэлдээ алга болно (харах:
+  // 2026-09-08 fix — "Амралтын өдөр ажилладаг" 0 илэрцтэй үед хот/дүүрэг мөн
+  // алга болсон анхны репорт).
+  List<Organization> _lastUnfiltered = const [];
   String _query = '';
   String _city = '';
   String _district = '';
@@ -22,11 +29,13 @@ class DiscoveryController extends ChangeNotifier {
   // серверийн шүүлт (цаг/хуваарь list payload-д байхгүй).
   bool _nearMe = false;
   bool _openNow = false;
+  bool _weekend = false;
   double? _lat;
   double? _lng;
   // Тухайн шүүлт байршил авах/дахин ачаалж буй эсэх (chip дээр spinner үзүүлэхэд).
   bool _nearMePending = false;
   bool _openNowPending = false;
+  bool _weekendPending = false;
 
   DiscoveryState get state => _state;
   String get query => _query;
@@ -34,27 +43,37 @@ class DiscoveryController extends ChangeNotifier {
   String get district => _district;
   bool get nearMe => _nearMe;
   bool get openNow => _openNow;
+  bool get weekend => _weekend;
   bool get nearMePending => _nearMePending;
   bool get openNowPending => _openNowPending;
+  bool get weekendPending => _weekendPending;
   bool get hasActiveFilters =>
       _query.isNotEmpty ||
       _city.isNotEmpty ||
       _district.isNotEmpty ||
       _nearMe ||
-      _openNow;
+      _openNow ||
+      _weekend;
 
   OrganizationFilter? get _serverFilter {
     // radius дамжуулахгүй — сервер бүх салбарт зай онооно, ойроор эрэмбэлнэ.
     if (_nearMe && _lat != null && _lng != null) {
-      return OrganizationFilter(lat: _lat, lng: _lng, openNow: _openNow);
+      return OrganizationFilter(
+        lat: _lat,
+        lng: _lng,
+        openNow: _openNow,
+        weekend: _weekend,
+      );
     }
-    if (_openNow) return const OrganizationFilter(openNow: true);
+    if (_openNow || _weekend) {
+      return OrganizationFilter(openNow: _openNow, weekend: _weekend);
+    }
     return null;
   }
 
   List<String> get cities {
     final values = <String>{};
-    for (final organization in _state.organizations) {
+    for (final organization in _lastUnfiltered) {
       for (final branch in organization.branches) {
         if (branch.city.trim().isNotEmpty) values.add(branch.city.trim());
       }
@@ -64,7 +83,7 @@ class DiscoveryController extends ChangeNotifier {
 
   List<String> get districts {
     final values = <String>{};
-    for (final organization in _state.organizations) {
+    for (final organization in _lastUnfiltered) {
       for (final branch in organization.branches) {
         if (_city.isNotEmpty && branch.city.trim() != _city) continue;
         if (branch.district.trim().isNotEmpty) {
@@ -144,6 +163,18 @@ class DiscoveryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// "Амралтын өдөр ажилладаг" серверийн шүүлтийг асаах/унтраах — жагсаалтыг
+  /// дахин ачаална.
+  Future<void> setWeekend(bool value) async {
+    if (_weekend == value) return;
+    _weekend = value;
+    _weekendPending = true;
+    notifyListeners();
+    await load();
+    _weekendPending = false;
+    notifyListeners();
+  }
+
   /// "Ойролцоо" серверийн шүүлт (координатыг backend дээр зай/эрэмбэд ашиглана).
   ///
   /// Optimistic: асаахад toggle-ийг ШУУД идэвхжүүлж (chip тэр даруй сонгогдоно),
@@ -182,12 +213,13 @@ class DiscoveryController extends ChangeNotifier {
 
   void clearFilters() {
     if (!hasActiveFilters) return;
-    final hadServerFilter = _nearMe || _openNow;
+    final hadServerFilter = _nearMe || _openNow || _weekend;
     _query = '';
     _city = '';
     _district = '';
     _nearMe = false;
     _openNow = false;
+    _weekend = false;
     _lat = null;
     _lng = null;
     notifyListeners();
@@ -211,8 +243,12 @@ class DiscoveryController extends ChangeNotifier {
         organizations: organizations,
       );
       // Зөвхөн шүүлтгүй бүрэн жагсаалтыг offline cache-д хадгална (шүүсэн дэд
-      // жагсаалт cache-ийг бохирдуулахгүй).
-      if (filter == null) await _cache.writeOrganizations(organizations);
+      // жагсаалт cache-ийг бохирдуулахгүй) — мөн cities/districts-д ашиглах
+      // сүүлийн бүрэн каталогийг шинэчилнэ.
+      if (filter == null) {
+        await _cache.writeOrganizations(organizations);
+        _lastUnfiltered = organizations;
+      }
     } on AppFailure catch (failure) {
       _state = await _fallbackToCache(failure.message);
     } catch (_) {
@@ -236,6 +272,9 @@ class DiscoveryController extends ChangeNotifier {
         message: failureMessage,
       );
     }
+    // Cache-д зөвхөн шүүлтгүй жагсаалт л бичигддэг (дээрх load()) тул үүнийг
+    // ч бас сүүлийн бүрэн каталог гэж үзнэ.
+    _lastUnfiltered = cached;
     return DiscoveryState(
       status: DiscoveryStatus.data,
       organizations: cached,

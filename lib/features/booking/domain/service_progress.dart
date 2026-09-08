@@ -1,3 +1,15 @@
+/// Захиалгын PAYMENT статус (workflow-той тусдаа). Аппойнтмент бүрэн
+/// дуусаад бүрэн төлөгдсөн эсэхийг шийдэхэд ашиглагдана — доор харах:
+/// [AppointmentServiceProgress.isSettled].
+enum OrderPaymentStatus { unpaid, partiallyPaid, paid, unknown }
+
+OrderPaymentStatus orderPaymentStatusFromApi(String? value) => switch (value) {
+  'UNPAID' => OrderPaymentStatus.unpaid,
+  'PARTIAL' => OrderPaymentStatus.partiallyPaid,
+  'PAID' => OrderPaymentStatus.paid,
+  _ => OrderPaymentStatus.unknown,
+};
+
 /// Customer-safe workflow statuses for a linked service order and its items.
 /// Payment status is deliberately separate from this model.
 enum ServiceProgressStatus {
@@ -61,6 +73,7 @@ class AppointmentServiceProgress {
     required this.number,
     required this.status,
     required this.items,
+    this.paymentStatus = OrderPaymentStatus.unknown,
     this.startedAt,
     this.completedAt,
   });
@@ -68,6 +81,7 @@ class AppointmentServiceProgress {
   final String id;
   final String number;
   final ServiceProgressStatus status;
+  final OrderPaymentStatus paymentStatus;
   final DateTime? startedAt;
   final DateTime? completedAt;
   final List<AppointmentServiceItemProgress> items;
@@ -78,4 +92,11 @@ class AppointmentServiceProgress {
   double get completionRatio => items.isEmpty
       ? (status.isCompleted ? 1 : 0)
       : completedItemCount / items.length;
+
+  /// Ажил бүрэн дуусаад бүрэн төлөгдсөн эсэх. Ийм аппойнтмент цаашид
+  /// "Миний цагууд" дээр харагдахгүй — түүхэнд шилждэг (server талд
+  /// /api/v1/app/appointments аль хэдийн шүүсэн байх ёстой ч client талд ч
+  /// давхар шалгаж, кэшлэгдсэн хуучин датаг найдваргүй харуулахаас сэргийлнэ).
+  bool get isSettled =>
+      status.isCompleted && paymentStatus == OrderPaymentStatus.paid;
 }

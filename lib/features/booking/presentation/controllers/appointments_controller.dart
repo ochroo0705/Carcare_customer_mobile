@@ -20,18 +20,20 @@ class AppointmentsController extends ChangeNotifier {
   bool isCancelling(String id) => _cancellingIds.contains(id);
 
   /// Active хүсэлтүүдийг ойрын цагаар нь, эцсийн төлөвүүдийг сүүлийн өөрчлөлт
-  /// гэж үзэн шинэ огноогоор нь харуулна. Repository-ийн буцаасан list нь
-  /// unmodifiable байж болох тул энд заавал хуулж байж sort хийнэ.
+  /// гэж үзэн шинэ огноогоор нь харуулна. Бүрэн дуусаад бүрэн төлөгдсөн
+  /// (isSettled) захиалга энд огт харагдахгүй — түүхэнд шилжсэн гэж үзнэ
+  /// (server /api/v1/app/appointments аль хэдийн шүүсэн байх ёстой; энэ нь
+  /// зөвхөн кэшлэгдсэн хуучин датаны хамгаалалт). Repository-ийн буцаасан
+  /// list нь unmodifiable байж болох тул энд заавал хуулж байж sort хийнэ.
   List<Appointment> get sortedAppointments {
+    final visible = _state.appointments.where(
+      (appointment) => appointment.serviceProgress?.isSettled != true,
+    );
     final active =
-        _state.appointments
-            .where((appointment) => appointment.status.isActive)
-            .toList()
+        visible.where((appointment) => appointment.status.isActive).toList()
           ..sort((a, b) => a.requestedAt.compareTo(b.requestedAt));
     final inactive =
-        _state.appointments
-            .where((appointment) => !appointment.status.isActive)
-            .toList()
+        visible.where((appointment) => !appointment.status.isActive).toList()
           ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
     return [...active, ...inactive];
   }

@@ -40,15 +40,18 @@ class OrganizationFilter {
     this.lng,
     this.radiusKm,
     this.openNow = false,
+    this.weekend = false,
   });
 
   final double? lat;
   final double? lng;
   final double? radiusKm;
   final bool openNow;
+  // Амралтын өдөр (Бямба/Ням) аль нэгэнд ажилладаг салбартай байгууллага.
+  final bool weekend;
 
   bool get hasNearMe => lat != null && lng != null;
-  bool get isActive => hasNearMe || openNow;
+  bool get isActive => hasNearMe || openNow || weekend;
 }
 
 /// Салбарт санал болгож буй үйлчилгээний ангилал (booking v2) — шийдэгдсэн

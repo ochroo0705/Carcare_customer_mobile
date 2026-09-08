@@ -116,6 +116,9 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
     id: id,
     number: _optionalString(json['number']) ?? '',
     status: serviceProgressStatusFromApi(status),
+    paymentStatus: orderPaymentStatusFromApi(
+      _optionalString(json['paymentStatus']),
+    ),
     startedAt: _optionalDateTime(json['startedAt']),
     completedAt: _optionalDateTime(json['completedAt']),
     items: List.unmodifiable(items),

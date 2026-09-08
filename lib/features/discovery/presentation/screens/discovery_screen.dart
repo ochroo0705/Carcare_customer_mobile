@@ -287,8 +287,11 @@ class _DiscoveryHeader extends StatelessWidget {
                             : const Icon(Icons.tune_rounded),
                       ),
                     ),
-                    if (state.organizations.isNotEmpty &&
-                        controller.cities.isNotEmpty) ...[
+                    // controller.cities/districts одоо сүүлийн ШҮҮЛТГҮЙ каталогоос
+                    // тооцогддог тул идэвхтэй сервер шүүлт 0 илэрцтэй болсон ч
+                    // хоосрохгүй — гэхдээ анхны ачаалалт өмнө (өгөгдөл огт
+                    // ирээгүй) хоёуланг нь шалгасаар байна.
+                    if (controller.cities.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -314,7 +317,12 @@ class _DiscoveryHeader extends StatelessWidget {
                         ],
                       ),
                     ],
-                    if (state.organizations.isNotEmpty) ...[
+                    // Сервер шүүлтийн chip-үүд (ойролцоо/одоо нээлттэй/амралтын
+                    // өдөр) нь одоогийн үр дүнгээс ХАРААТГҮЙ — идэвхтэй шүүлт
+                    // байвал (тэр байтугай 0 илэрцтэй үед ч) харагдаж байх
+                    // ёстой, эс бөгөөс хэрэглэгч буцааж унтраах товчгүй үлдэнэ.
+                    if (state.organizations.isNotEmpty ||
+                        controller.hasActiveFilters) ...[
                       const SizedBox(height: 12),
                       _ServerFilterChips(controller: controller),
                     ],
@@ -570,28 +578,43 @@ class _ServerFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        FilterChip(
-          label: const Text('Ойролцоо'),
-          avatar: _chipAvatar(
-            Icons.near_me_outlined,
-            pending: controller.nearMePending,
+    // 3 chip-тэй болсноор нарийн дэлгэц дээр Row дүүрч болзошгүй тул хэвтээ
+    // гүйдэлтэй болгов (Wrap биш — нэг мөрөнд байлгах нь илүү тодорхой UX).
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          FilterChip(
+            label: const Text('Ойролцоо'),
+            avatar: _chipAvatar(
+              Icons.near_me_outlined,
+              pending: controller.nearMePending,
+            ),
+            selected: controller.nearMe,
+            onSelected: (selected) => _toggleNearMe(context, selected),
           ),
-          selected: controller.nearMe,
-          onSelected: (selected) => _toggleNearMe(context, selected),
-        ),
-        const SizedBox(width: 10),
-        FilterChip(
-          label: const Text('Одоо нээлттэй'),
-          avatar: _chipAvatar(
-            Icons.schedule_outlined,
-            pending: controller.openNowPending,
+          const SizedBox(width: 10),
+          FilterChip(
+            label: const Text('Одоо нээлттэй'),
+            avatar: _chipAvatar(
+              Icons.schedule_outlined,
+              pending: controller.openNowPending,
+            ),
+            selected: controller.openNow,
+            onSelected: controller.setOpenNow,
           ),
-          selected: controller.openNow,
-          onSelected: controller.setOpenNow,
-        ),
-      ],
+          const SizedBox(width: 10),
+          FilterChip(
+            label: const Text('Амралтын өдөр ажилладаг'),
+            avatar: _chipAvatar(
+              Icons.weekend_outlined,
+              pending: controller.weekendPending,
+            ),
+            selected: controller.weekend,
+            onSelected: controller.setWeekend,
+          ),
+        ],
+      ),
     );
   }
 

@@ -30,6 +30,7 @@ class RemoteOrganizationRepository implements OrganizationRepository {
       }
     }
     if (filter != null && filter.openNow) query['openNow'] = '1';
+    if (filter != null && filter.weekend) query['weekend'] = '1';
     final path = query.isEmpty
         ? '/orgs'
         : '/orgs?${Uri(queryParameters: query).query}';
