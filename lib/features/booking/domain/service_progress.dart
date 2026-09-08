@@ -85,6 +85,7 @@ class AppointmentServiceProgress {
     required this.status,
     required this.items,
     this.paymentStatus = OrderPaymentStatus.unknown,
+    this.scheduledAt,
     this.startedAt,
     this.completedAt,
     this.estimatedDurationMinutes,
@@ -101,6 +102,10 @@ class AppointmentServiceProgress {
   final String number;
   final ServiceProgressStatus status;
   final OrderPaymentStatus paymentStatus;
+  // Ажил хараахан эхлээгүй (SCHEDULED) үед л утгатай — эхэлмэгц startedAt
+  // тэргүүлнэ, ажилтан шилжүүлбэл энэ утга шинэчлэгдэнэ (order_rescheduled
+  // мэдэгдэл, харах: carcare.mn lib/notifications.ts).
+  final DateTime? scheduledAt;
   final DateTime? startedAt;
   final DateTime? completedAt;
   // Захиалга үүсэх үеийн анхны тооцоолол (минут) — immutable, категори

@@ -61,7 +61,8 @@ class ServiceProgressSection extends StatelessWidget {
               style: textTheme.bodySmall?.copyWith(color: muted),
             ),
           ],
-          if (progress.estimatedDurationMinutes != null ||
+          if ((progress.startedAt == null && progress.scheduledAt != null) ||
+              progress.estimatedDurationMinutes != null ||
               progress.expectedFinishAt != null) ...[
             const SizedBox(height: 10),
             _TimingInfo(progress: progress),
@@ -236,6 +237,11 @@ class _TimingInfo extends StatelessWidget {
     final color = delayed ? AppColors.red : muted;
 
     final parts = <String>[];
+    // Хараахан эхлээгүй ажлын товлосон огноог л харуулна — эхэлмэгц
+    // Ойролцоо хугацаа/Дуусах хугацаа хамааралтай болно.
+    if (progress.startedAt == null && progress.scheduledAt != null) {
+      parts.add('Товлосон огноо: ${_formatDateTime(progress.scheduledAt!)}');
+    }
     if (progress.estimatedDurationMinutes != null) {
       parts.add('Ойролцоо хугацаа: ${_formatEstimatedMinutes(progress.estimatedDurationMinutes!)}');
     }

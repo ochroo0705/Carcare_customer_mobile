@@ -130,6 +130,7 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
     paymentStatus: orderPaymentStatusFromApi(
       _optionalString(json['paymentStatus']),
     ),
+    scheduledAt: _optionalDateTime(json['scheduledAt']),
     startedAt: _optionalDateTime(json['startedAt']),
     completedAt: _optionalDateTime(json['completedAt']),
     estimatedDurationMinutes: json['estimatedDurationMinutes'] is int
