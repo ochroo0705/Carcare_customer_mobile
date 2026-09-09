@@ -118,6 +118,9 @@ class BranchDetailDto {
     this.longitude,
     this.openTime,
     this.closeTime,
+    this.schedules = const [],
+    this.scheduleExceptions = const [],
+    this.scheduleSeasons = const [],
   });
 
   factory BranchDetailDto.fromJson(Map<String, dynamic> json) =>
@@ -132,6 +135,15 @@ class BranchDetailDto {
         longitude: _optionalDouble(json['longitude']),
         openTime: _optionalString(json['openTime']),
         closeTime: _optionalString(json['closeTime']),
+        schedules: json['schedules'] is List
+            ? _mapList(json['schedules'], _scheduleFromJson)
+            : const <BranchScheduleRule>[],
+        scheduleExceptions: json['scheduleExceptions'] is List
+            ? _mapList(json['scheduleExceptions'], _exceptionFromJson)
+            : const <BranchScheduleException>[],
+        scheduleSeasons: json['scheduleSeasons'] is List
+            ? _mapList(json['scheduleSeasons'], _seasonFromJson)
+            : const <BranchScheduleSeason>[],
         // Booking v2: салбарын санал болгож буй ангилалууд (ЗААВАЛ БИШ; хуучин
         // API-д байхгүй бол хоосон — _mapList null дээр шидэх тул List үед л дуудна).
         categories: json['categories'] is List
@@ -149,6 +161,9 @@ class BranchDetailDto {
   final double? longitude;
   final String? openTime;
   final String? closeTime;
+  final List<BranchScheduleRule> schedules;
+  final List<BranchScheduleException> scheduleExceptions;
+  final List<BranchScheduleSeason> scheduleSeasons;
   final List<BranchServiceCategory> categories;
 
   BranchDetail toDomain() => BranchDetail(
@@ -162,9 +177,34 @@ class BranchDetailDto {
     longitude: longitude,
     openTime: openTime,
     closeTime: closeTime,
+    schedules: schedules,
+    scheduleExceptions: scheduleExceptions,
+    scheduleSeasons: scheduleSeasons,
     categories: categories,
   );
 }
+
+BranchScheduleRule _scheduleFromJson(Map<String, dynamic> json) => BranchScheduleRule(
+  weekday: _requiredString(json, 'weekday'),
+  isOpen: json['isOpen'] == true,
+  openTime: _optionalString(json['openTime']),
+  closeTime: _optionalString(json['closeTime']),
+);
+
+BranchScheduleException _exceptionFromJson(Map<String, dynamic> json) => BranchScheduleException(
+  date: _requiredString(json, 'date').substring(0, 10),
+  isOpen: json['isOpen'] == true,
+  openTime: _optionalString(json['openTime']),
+  closeTime: _optionalString(json['closeTime']),
+  label: _optionalString(json['label']),
+);
+
+BranchScheduleSeason _seasonFromJson(Map<String, dynamic> json) => BranchScheduleSeason(
+  name: _requiredString(json, 'name'),
+  startsOn: _requiredString(json, 'startsOn').substring(0, 10),
+  endsOn: _requiredString(json, 'endsOn').substring(0, 10),
+  days: json['days'] is List ? _mapList(json['days'], _scheduleFromJson) : const <BranchScheduleRule>[],
+);
 
 BranchServiceCategory _categoryFromJson(Map<String, dynamic> json) {
   final duration = json['durationMinutes'];

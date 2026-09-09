@@ -385,6 +385,30 @@ Map<String, dynamic> _organizationDetailToJson(OrganizationDetail detail) => {
           'longitude': branch.longitude,
           'openTime': branch.openTime,
           'closeTime': branch.closeTime,
+          'schedules': branch.schedules.map((schedule) => <String, dynamic>{
+                'weekday': schedule.weekday,
+                'isOpen': schedule.isOpen,
+                'openTime': schedule.openTime,
+                'closeTime': schedule.closeTime,
+              }).toList(),
+          'scheduleExceptions': branch.scheduleExceptions.map((exception) => <String, dynamic>{
+                'date': exception.date,
+                'isOpen': exception.isOpen,
+                'openTime': exception.openTime,
+                'closeTime': exception.closeTime,
+                'label': exception.label,
+              }).toList(),
+          'scheduleSeasons': branch.scheduleSeasons.map((season) => <String, dynamic>{
+                'name': season.name,
+                'startsOn': season.startsOn,
+                'endsOn': season.endsOn,
+                'days': season.days.map((schedule) => <String, dynamic>{
+                      'weekday': schedule.weekday,
+                      'isOpen': schedule.isOpen,
+                      'openTime': schedule.openTime,
+                      'closeTime': schedule.closeTime,
+                    }).toList(),
+              }).toList(),
           // Booking v2: салбарын санал болгож буй ангилалууд (offline cache-д ч
           // хадгална — эс бөгөөс cache-ээс уншихад ангилал алга болно).
           'categories': branch.categories
@@ -419,6 +443,37 @@ List<BranchServiceCategory> _branchCategoriesFromJson(Object? raw) {
     );
   }
   return categories;
+}
+
+List<BranchScheduleRule> _branchSchedulesFromJson(Object? raw) {
+  if (raw is! List) return const [];
+  return raw.whereType<Map>().map((item) => BranchScheduleRule(
+    weekday: item['weekday'] is String ? item['weekday'] as String : 'MON',
+    isOpen: item['isOpen'] == true,
+    openTime: item['openTime'] is String ? item['openTime'] as String : null,
+    closeTime: item['closeTime'] is String ? item['closeTime'] as String : null,
+  )).toList(growable: false);
+}
+
+List<BranchScheduleException> _branchExceptionsFromJson(Object? raw) {
+  if (raw is! List) return const [];
+  return raw.whereType<Map>().where((item) => item['date'] is String).map((item) => BranchScheduleException(
+    date: (item['date'] as String).substring(0, 10),
+    isOpen: item['isOpen'] == true,
+    openTime: item['openTime'] is String ? item['openTime'] as String : null,
+    closeTime: item['closeTime'] is String ? item['closeTime'] as String : null,
+    label: item['label'] is String ? item['label'] as String : null,
+  )).toList(growable: false);
+}
+
+List<BranchScheduleSeason> _branchSeasonsFromJson(Object? raw) {
+  if (raw is! List) return const [];
+  return raw.whereType<Map>().where((item) => item['name'] is String && item['startsOn'] is String && item['endsOn'] is String).map((item) => BranchScheduleSeason(
+    name: item['name'] as String,
+    startsOn: (item['startsOn'] as String).substring(0, 10),
+    endsOn: (item['endsOn'] as String).substring(0, 10),
+    days: _branchSchedulesFromJson(item['days']),
+  )).toList(growable: false);
 }
 
 OrganizationDetail? _organizationDetailFromJson(String slug, String raw) {
@@ -465,6 +520,9 @@ OrganizationDetail? _organizationDetailFromJson(String slug, String raw) {
           closeTime: entry['closeTime'] is String
               ? entry['closeTime'] as String
               : null,
+          schedules: _branchSchedulesFromJson(entry['schedules']),
+          scheduleExceptions: _branchExceptionsFromJson(entry['scheduleExceptions']),
+          scheduleSeasons: _branchSeasonsFromJson(entry['scheduleSeasons']),
           categories: _branchCategoriesFromJson(entry['categories']),
         ),
       );

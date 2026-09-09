@@ -1,19 +1,20 @@
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:flutter/material.dart';
 
 const _weekdayLabels = ['Да', 'Мя', 'Лх', 'Пү', 'Ба', 'Бя', 'Ня'];
 
 /// Monday-first month grid for picking a booking date, mirroring the web
-/// booking flow's `BookingCalendar`. Only past dates are disabled — the
-/// customer API publishes no per-weekday schedule (`CUSTOMER_API_CONTRACT.md`
-/// / COWORK.md D-007), so a branch's closed days can't be greyed out here;
-/// an unbookable day surfaces as a submit-time error instead.
+/// booking flow's `BookingCalendar`. The branch's effective schedule disables
+/// weekly closures, one-off exceptions, and seasonal closures; the server's
+/// per-date availability remains authoritative at selection/submission time.
 class BookingCalendar extends StatelessWidget {
   const BookingCalendar({
     required this.month,
     required this.selectedDate,
     required this.onDateSelected,
     required this.onMonthChanged,
+    this.branch,
     super.key,
   });
 
@@ -22,6 +23,7 @@ class BookingCalendar extends StatelessWidget {
   final DateTime? selectedDate;
   final ValueChanged<DateTime> onDateSelected;
   final ValueChanged<DateTime> onMonthChanged;
+  final BranchDetail? branch;
 
   @override
   Widget build(BuildContext context) {
@@ -97,6 +99,10 @@ class BookingCalendar extends StatelessWidget {
             }
             final date = DateTime(month.year, month.month, dayNumber);
             final isPast = date.isBefore(todayKey);
+            final effective = branch?.effectiveScheduleAt(
+              DateTime.utc(date.year, date.month, date.day, 12),
+            );
+            final isClosed = effective != null && !effective.isOpen;
             final isToday = date == todayKey;
             final isSelected =
                 selectedDate != null &&
@@ -119,7 +125,7 @@ class BookingCalendar extends StatelessWidget {
                   key: ValueKey(
                     'booking-date-${date.year}-${date.month}-${date.day}',
                   ),
-                  onTap: isPast ? null : () => onDateSelected(date),
+                  onTap: isPast || isClosed ? null : () => onDateSelected(date),
                   customBorder: const CircleBorder(),
                   child: Center(
                     child: Text(
@@ -130,7 +136,7 @@ class BookingCalendar extends StatelessWidget {
                             : FontWeight.w500,
                         color: isSelected
                             ? AppColors.onAmber
-                            : isPast
+                            : isPast || isClosed
                             ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
                             : scheme.onSurface,
                       ),

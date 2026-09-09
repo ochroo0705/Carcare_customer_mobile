@@ -68,6 +68,50 @@ class BranchServiceCategory {
   final int durationMinutes;
 }
 
+class BranchScheduleRule {
+  const BranchScheduleRule({
+    required this.weekday,
+    required this.isOpen,
+    this.openTime,
+    this.closeTime,
+  });
+
+  final String weekday;
+  final bool isOpen;
+  final String? openTime;
+  final String? closeTime;
+}
+
+class BranchScheduleException {
+  const BranchScheduleException({
+    required this.date,
+    required this.isOpen,
+    this.openTime,
+    this.closeTime,
+    this.label,
+  });
+
+  final String date;
+  final bool isOpen;
+  final String? openTime;
+  final String? closeTime;
+  final String? label;
+}
+
+class BranchScheduleSeason {
+  const BranchScheduleSeason({
+    required this.name,
+    required this.startsOn,
+    required this.endsOn,
+    required this.days,
+  });
+
+  final String name;
+  final String startsOn;
+  final String endsOn;
+  final List<BranchScheduleRule> days;
+}
+
 class BranchDetail {
   const BranchDetail({
     required this.id,
@@ -81,6 +125,9 @@ class BranchDetail {
     this.openTime,
     this.closeTime,
     this.categories = const [],
+    this.schedules = const [],
+    this.scheduleExceptions = const [],
+    this.scheduleSeasons = const [],
   });
 
   final String id;
@@ -93,6 +140,10 @@ class BranchDetail {
   final double? longitude;
   final String? openTime;
   final String? closeTime;
+
+  final List<BranchScheduleRule> schedules;
+  final List<BranchScheduleException> scheduleExceptions;
+  final List<BranchScheduleSeason> scheduleSeasons;
 
   /// Онлайн захиалгад санал болгох үйлчилгээний ангилалууд (booking v2).
   final List<BranchServiceCategory> categories;
@@ -107,12 +158,13 @@ class BranchDetail {
       [city, district].where((part) => part.trim().isNotEmpty).join(' · ');
 
   String get hoursLabel {
-    final opening = _parseClock(openTime);
-    final closing = _parseClock(closeTime);
+    final effective = effectiveScheduleAt(DateTime.now());
+    final opening = _parseClock(effective.openTime);
+    final closing = _parseClock(effective.closeTime);
     if (opening == null || closing == null || opening == closing) {
       return 'Цагийн мэдээлэл тодорхойгүй';
     }
-    return '$openTime–$closeTime';
+    return '${effective.openTime}–${effective.closeTime}';
   }
 
   // NB: booking v2 (2026-09-07) — client-side slot generation removed. Slots now
@@ -120,8 +172,10 @@ class BranchDetail {
   // summed duration, with real booked/available state). See BookingRequestScreen.
 
   BranchOpenStatus openStatusAt(DateTime now) {
-    final opening = _parseClock(openTime);
-    final closing = _parseClock(closeTime);
+    final effective = effectiveScheduleAt(now);
+    if (!effective.isOpen) return BranchOpenStatus.closed;
+    final opening = _parseClock(effective.openTime);
+    final closing = _parseClock(effective.closeTime);
     if (opening == null || closing == null || opening == closing) {
       return BranchOpenStatus.unknown;
     }
@@ -135,6 +189,31 @@ class BranchDetail {
         ? BranchOpenStatus.open
         : BranchOpenStatus.closed;
   }
+
+  BranchScheduleRule effectiveScheduleAt(DateTime value) {
+    final business = value.toUtc().add(const Duration(hours: 8));
+    final date = '${business.year.toString().padLeft(4, '0')}-${business.month.toString().padLeft(2, '0')}-${business.day.toString().padLeft(2, '0')}';
+    final weekday = <String>['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][business.weekday % 7];
+    final exception = _firstOrNull(scheduleExceptions.where((item) => item.date == date));
+    if (exception != null) {
+      return BranchScheduleRule(weekday: weekday, isOpen: exception.isOpen, openTime: exception.openTime, closeTime: exception.closeTime);
+    }
+    final base = _firstOrNull(schedules.where((item) => item.weekday == weekday));
+    final season = _firstOrNull(scheduleSeasons.where((item) => item.startsOn <= date && date < item.endsOn));
+    final seasonal = season == null ? null : _firstOrNull(season.days.where((item) => item.weekday == weekday));
+    if (seasonal != null) {
+      return BranchScheduleRule(weekday: weekday, isOpen: seasonal.isOpen, openTime: seasonal.openTime ?? base?.openTime ?? openTime, closeTime: seasonal.closeTime ?? base?.closeTime ?? closeTime);
+    }
+    if (base != null) {
+      return BranchScheduleRule(weekday: weekday, isOpen: base.isOpen, openTime: base.openTime ?? openTime, closeTime: base.closeTime ?? closeTime);
+    }
+    return BranchScheduleRule(weekday: weekday, isOpen: openTime != null && closeTime != null, openTime: openTime, closeTime: closeTime);
+  }
+}
+
+T? _firstOrNull<T>(Iterable<T> values) {
+  for (final value in values) return value;
+  return null;
 }
 
 int? _parseClock(String? value) {

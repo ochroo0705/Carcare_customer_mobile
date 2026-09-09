@@ -356,6 +356,7 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
                 child: BookingCalendar(
                   month: _displayedMonth,
                   selectedDate: _selectedDate,
+                  branch: _selectedBranch,
                   onMonthChanged: (month) =>
                       setState(() => _displayedMonth = month),
                   onDateSelected: (date) {
