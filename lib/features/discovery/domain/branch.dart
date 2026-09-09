@@ -199,7 +199,13 @@ class BranchDetail {
       return BranchScheduleRule(weekday: weekday, isOpen: exception.isOpen, openTime: exception.openTime, closeTime: exception.closeTime);
     }
     final base = _firstOrNull(schedules.where((item) => item.weekday == weekday));
-    final season = _firstOrNull(scheduleSeasons.where((item) => item.startsOn <= date && date < item.endsOn));
+    final season = _firstOrNull(
+      scheduleSeasons.where(
+        (item) =>
+            item.startsOn.compareTo(date) <= 0 &&
+            date.compareTo(item.endsOn) < 0,
+      ),
+    );
     final seasonal = season == null ? null : _firstOrNull(season.days.where((item) => item.weekday == weekday));
     if (seasonal != null) {
       return BranchScheduleRule(weekday: weekday, isOpen: seasonal.isOpen, openTime: seasonal.openTime ?? base?.openTime ?? openTime, closeTime: seasonal.closeTime ?? base?.closeTime ?? closeTime);
