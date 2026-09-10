@@ -66,8 +66,8 @@ class _SlotChip extends StatelessWidget {
     final Color background;
     final Color foreground;
     if (selected) {
-      background = AppColors.amber;
-      foreground = AppColors.onAmber;
+      background = AppColors.accent;
+      foreground = AppColors.onAccent;
     } else if (!enabled) {
       background = scheme.surface;
       foreground = scheme.onSurfaceVariant.withValues(alpha: 0.5);

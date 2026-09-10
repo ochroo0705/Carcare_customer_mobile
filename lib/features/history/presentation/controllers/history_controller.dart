@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
+import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:flutter/foundation.dart';
@@ -23,9 +24,18 @@ class HistoryController extends ChangeNotifier {
       // controller-ийн эрэмбэ болон cache fallback-ийг өөрчлөх шаардлагагүй.
       final orders = (await _repository.getServiceHistory()).toList()
         ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
+      // D-085: a separate, best-effort fetch — its own failure must not
+      // block orders from showing, so it's not part of the try above's
+      // success path gating; a failure here just leaves the list empty.
+      final cancelledAppointments = await _repository
+          .getCancelledAppointments()
+          .catchError((_) => const <CancelledAppointmentSummary>[]);
       _state = HistoryState(
-        status: orders.isEmpty ? HistoryStatus.empty : HistoryStatus.data,
+        status: orders.isEmpty && cancelledAppointments.isEmpty
+            ? HistoryStatus.empty
+            : HistoryStatus.data,
         orders: orders,
+        cancelledAppointments: cancelledAppointments,
       );
       await _cache.writeServiceOrders(orders);
     } on FeatureUnavailableFailure {

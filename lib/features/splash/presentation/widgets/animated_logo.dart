@@ -107,8 +107,8 @@ class _GearHeartPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final u = size.width / 200; // design in a 200-unit box
-    final amber = Paint()
-      ..color = AppColors.amber
+    final accentPaint = Paint()
+      ..color = AppColors.accent
       ..isAntiAlias = true;
 
     // --- gear (rotates about the centre) ---
@@ -128,11 +128,11 @@ class _GearHeartPainter extends CustomPainter {
           ),
           Radius.circular(toothR * u),
         ),
-        amber,
+        accentPaint,
       );
       canvas.restore();
     }
-    canvas.drawCircle(Offset.zero, 59 * u, amber); // gear body
+    canvas.drawCircle(Offset.zero, 59 * u, accentPaint); // gear body
     canvas.restore();
 
     // --- white centre hole (static; a circle, so rotation would be invisible) ---
@@ -142,7 +142,7 @@ class _GearHeartPainter extends CustomPainter {
     canvas.drawPath(
       _heartPath(center.translate(0, 1 * u), 34 * u * heartScale),
       Paint()
-        ..color = AppColors.amberHover
+        ..color = AppColors.accentHover
         ..isAntiAlias = true,
     );
   }

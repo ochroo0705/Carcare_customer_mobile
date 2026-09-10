@@ -259,7 +259,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
     final icons = await Future.wait([
       _createPinIcon(logo, AppColors.green, selected: false),
       _createPinIcon(logo, const Color(0xFF9CA3AF), selected: false),
-      _createPinIcon(logo, AppColors.amber, selected: true),
+      _createPinIcon(logo, AppColors.accent, selected: true),
     ]);
     logo.dispose();
     codec.dispose();

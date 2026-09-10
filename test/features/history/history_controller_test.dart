@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
+import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
@@ -15,6 +16,9 @@ class _ThrowingHistoryRepo implements ServiceHistoryRepository {
   Future<List<ServiceOrder>> getServiceHistory() async => throw failure;
   @override
   Future<ServiceOrderDetail> getServiceOrderDetail(String id) async =>
+      throw failure;
+  @override
+  Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async =>
       throw failure;
 }
 

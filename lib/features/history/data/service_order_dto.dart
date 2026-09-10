@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
+import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
@@ -70,6 +71,7 @@ ServiceOrder serviceOrderFromJson(Map order) {
     totalAmount: _toInt(order['totalAmount']),
     paidAmount: _toInt(order['paidAmount']),
     vehiclePlate: vehicle is Map ? _optionalString(vehicle['plate']) : null,
+    isCancelled: _optionalString(order['status']) == 'CANCELLED',
   );
 }
 
@@ -101,6 +103,37 @@ DiagnosticReportSummary _reportFromJson(Map report) => DiagnosticReportSummary(
   createdAt: _dateFrom(report['createdAt']),
   mileageAtReport: _toIntOrNull(report['mileageAtReport']),
 );
+
+CancelledAppointmentSummary? _cancelledAppointmentFromJson(Map appt) {
+  final id = _optionalString(appt['id']);
+  final status = cancelledAppointmentStatusFromApi(
+    _optionalString(appt['status']),
+  );
+  final requestedAt = _dateFromOrNull(appt['requestedAt']);
+  final tenant = appt['tenant'];
+  final branch = appt['branch'];
+  final category = appt['category'];
+  if (id == null || status == null || requestedAt == null) return null;
+  return CancelledAppointmentSummary(
+    id: id,
+    status: status,
+    requestedAt: requestedAt,
+    tenantName: tenant is Map ? _optionalString(tenant['name']) ?? '' : '',
+    branchName: branch is Map ? _optionalString(branch['name']) ?? '' : '',
+    categoryName: category is Map ? _optionalString(category['name']) : null,
+  );
+}
+
+List<CancelledAppointmentSummary> parseCancelledAppointmentListJson(
+  Object? value,
+) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map(_cancelledAppointmentFromJson)
+      .whereType<CancelledAppointmentSummary>()
+      .toList(growable: false);
+}
 
 ServiceOrderDetail serviceOrderDetailFromJson(Map order) {
   final itemsRaw = order['items'];

@@ -406,8 +406,8 @@ class _ProgressStatusChip extends StatelessWidget {
     final color = switch (status) {
       ServiceProgressStatus.completed => AppColors.green,
       ServiceProgressStatus.cancelled => AppColors.red,
-      ServiceProgressStatus.inProgress ||
-      ServiceProgressStatus.waitingParts => AppColors.blue,
+      ServiceProgressStatus.inProgress => AppColors.blue,
+      ServiceProgressStatus.postponed => AppColors.purple,
       ServiceProgressStatus.pending ||
       ServiceProgressStatus.scheduled ||
       ServiceProgressStatus.unknown => Theme.of(

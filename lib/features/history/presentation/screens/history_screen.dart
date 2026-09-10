@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
 import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
+import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
@@ -217,14 +218,20 @@ class _HistoryList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final orders = controller.state.orders;
+    final cancelledAppointments = controller.state.cancelledAppointments;
     final isFromCache = controller.state.isFromCache;
     final offset = isFromCache ? 2 : 1;
+    // D-085: cancelled/no-show/rejected appointments render after the order
+    // cards, behind their own section header (only when there are any).
+    final hasCancelledSection = cancelledAppointments.isNotEmpty;
+    final itemCount =
+        orders.length + offset + (hasCancelledSection ? 1 : 0) + cancelledAppointments.length;
     return RefreshIndicator(
       onRefresh: controller.load,
       child: ListView.separated(
         key: const PageStorageKey('history-list'),
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        itemCount: orders.length + offset,
+        itemCount: itemCount,
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
           if (index == 0) {
@@ -238,15 +245,88 @@ class _HistoryList extends StatelessWidget {
               onRetry: controller.load,
             );
           }
-          final order = orders[index - offset];
+          final ordersEnd = offset + orders.length;
+          if (index < ordersEnd) {
+            final order = orders[index - offset];
+            return RiseIn(
+              index: index - offset,
+              child: _OrderCard(
+                order: order,
+                onTap: () => onOrderSelected(order.id),
+              ),
+            );
+          }
+          if (hasCancelledSection && index == ordersEnd) {
+            return const _CancelledSectionHeader();
+          }
+          final appt = cancelledAppointments[index - ordersEnd - 1];
           return RiseIn(
             index: index - offset,
-            child: _OrderCard(
-              order: order,
-              onTap: () => onOrderSelected(order.id),
-            ),
+            child: _CancelledAppointmentCard(appointment: appt),
           );
         },
+      ),
+    );
+  }
+}
+
+class _CancelledSectionHeader extends StatelessWidget {
+  const _CancelledSectionHeader();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Text(
+      'Цуцлагдсан / ирээгүй цагууд',
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+    ),
+  );
+}
+
+class _CancelledAppointmentCard extends StatelessWidget {
+  const _CancelledAppointmentCard({required this.appointment});
+
+  final CancelledAppointmentSummary appointment;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return GlassSurface(
+      key: ValueKey('history-cancelled-${appointment.id}'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  appointment.tenantName,
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              const SizedBox(width: 8),
+              CancelledOrderChip(label: appointment.status.localizedLabel),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(appointment.branchName, style: TextStyle(color: muted)),
+          if (appointment.categoryName != null) ...[
+            const SizedBox(height: 4),
+            Text(appointment.categoryName!, style: TextStyle(color: muted)),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Icon(Icons.event_outlined, size: 16, color: muted),
+              const SizedBox(width: 6),
+              Text(_formatDate(appointment.requestedAt)),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -306,7 +386,9 @@ class _OrderCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              ServiceOrderStatusChip(status: order.status),
+              order.isCancelled
+                  ? const CancelledOrderChip()
+                  : ServiceOrderStatusChip(status: order.status),
             ],
           ),
           const SizedBox(height: 4),

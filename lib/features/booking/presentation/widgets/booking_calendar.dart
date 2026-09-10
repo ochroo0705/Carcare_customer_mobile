@@ -115,10 +115,10 @@ class BookingCalendar extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(2),
               child: Material(
-                color: isSelected ? AppColors.amber : Colors.transparent,
+                color: isSelected ? AppColors.accent : Colors.transparent,
                 shape: CircleBorder(
                   side: isToday && !isSelected
-                      ? BorderSide(color: AppColors.amber)
+                      ? BorderSide(color: AppColors.accent)
                       : BorderSide.none,
                 ),
                 child: InkWell(
@@ -135,7 +135,7 @@ class BookingCalendar extends StatelessWidget {
                             ? FontWeight.w800
                             : FontWeight.w500,
                         color: isSelected
-                            ? AppColors.onAmber
+                            ? AppColors.onAccent
                             : isPast || isClosed
                             ? scheme.onSurfaceVariant.withValues(alpha: 0.35)
                             : scheme.onSurface,

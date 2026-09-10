@@ -63,7 +63,9 @@ class ServiceProgressSection extends StatelessWidget {
           ],
           if ((progress.startedAt == null && progress.scheduledAt != null) ||
               progress.estimatedDurationMinutes != null ||
-              progress.expectedFinishAt != null) ...[
+              progress.expectedFinishAt != null ||
+              (progress.status == ServiceProgressStatus.postponed &&
+                  progress.scheduledReturnAt != null)) ...[
             const SizedBox(height: 10),
             _TimingInfo(progress: progress),
           ],
@@ -98,8 +100,93 @@ class ServiceProgressSection extends StatelessWidget {
             const SizedBox(height: 10),
             _TotalsBlock(progress: progress),
           ],
+          if (progress.statusHistory.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Text(
+              'Төлвийн түүх',
+              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            _StatusHistoryList(entries: progress.statusHistory),
+          ],
         ],
       ),
+    );
+  }
+}
+
+/// D-079: customer-safe status timeline — mirrors the staff web's history
+/// modal minus the free-text `reason` and staff identity, which the API
+/// never sends to this client.
+class _StatusHistoryList extends StatelessWidget {
+  const _StatusHistoryList({required this.entries});
+
+  final List<OrderStatusHistoryEntry> entries;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final entry in entries)
+          Padding(
+            key: ValueKey('status-history-${entry.id}'),
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.green,
+                      borderRadius: BorderRadius.circular(99),
+                    ),
+                    child: const SizedBox(width: 6, height: 6),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            if (entry.fromStatus != null)
+                              TextSpan(
+                                text: '${entry.fromStatus!.localizedLabel} → ',
+                                style: textTheme.bodySmall?.copyWith(color: muted),
+                              ),
+                            TextSpan(
+                              text: entry.toStatus.localizedLabel,
+                              style: textTheme.bodyMedium?.copyWith(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (entry.reasonTag != null)
+                        Text(
+                          entry.reasonTag!.localizedLabel,
+                          style: textTheme.bodySmall?.copyWith(color: muted),
+                        ),
+                      Text(
+                        _formatDateTime(entry.createdAt),
+                        style: textTheme.bodySmall?.copyWith(color: muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -165,7 +252,7 @@ class _ProgressItemRow extends StatelessWidget {
       ServiceProgressStatus.completed =>
         (Icons.check_circle_rounded, AppColors.green),
       ServiceProgressStatus.inProgress =>
-        (Icons.play_circle_fill_rounded, AppColors.amber),
+        (Icons.play_circle_fill_rounded, AppColors.accent),
       ServiceProgressStatus.cancelled => (Icons.cancel_rounded, AppColors.red),
       _ => (Icons.radio_button_unchecked_rounded, muted),
     };
@@ -233,6 +320,7 @@ class _TimingInfo extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final isPostponed = progress.status == ServiceProgressStatus.postponed;
     final delayed = progress.isDelayed;
     final color = delayed ? AppColors.red : muted;
 
@@ -245,7 +333,10 @@ class _TimingInfo extends StatelessWidget {
     if (progress.estimatedDurationMinutes != null) {
       parts.add('Ойролцоо хугацаа: ${_formatEstimatedMinutes(progress.estimatedDurationMinutes!)}');
     }
-    if (progress.expectedFinishAt != null) {
+    // Хойшлогдсон үед хуучин "дуусах хугацаа"-ны таамаг цаашид хамааралгүй —
+    // шинэ буцах цаг (доор) үүнийг орлоно, тул хожимдсон анхааруулгыг
+    // харуулахгүй (isDelayed-ийн model-level шүүлттэй давхар хамгаалалт).
+    if (!isPostponed && progress.expectedFinishAt != null) {
       parts.add(
         delayed
             ? 'Дуусах ёстой байсан: ${_formatDateTime(progress.expectedFinishAt!)}'
@@ -278,6 +369,19 @@ class _TimingInfo extends StatelessWidget {
               ),
             ),
           ),
+        // Засвар үргэлжлэх цаг — хойшлогдсон үеийн хамгийн чухал мэдээлэл тул тод, том,
+        // ялгарах өнгөөр (бусад мэдээллээс илт ялгаатай) харуулна.
+        if (isPostponed && progress.scheduledReturnAt != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Засвар үргэлжлэх цаг: ${_formatDateTime(progress.scheduledReturnAt!)}',
+              style: textTheme.bodyMedium?.copyWith(
+                color: AppColors.purple,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
       ],
     );
   }
@@ -305,8 +409,8 @@ class _ProgressStatusChip extends StatelessWidget {
     final color = switch (status) {
       ServiceProgressStatus.completed => AppColors.green,
       ServiceProgressStatus.cancelled => AppColors.red,
-      ServiceProgressStatus.inProgress || ServiceProgressStatus.waitingParts =>
-        AppColors.amber,
+      ServiceProgressStatus.inProgress => AppColors.accent,
+      ServiceProgressStatus.postponed => AppColors.purple,
       _ => Theme.of(context).colorScheme.onSurfaceVariant,
     };
     return DecoratedBox(

@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/core/network/api_client.dart';
 import 'package:carcare_customer_mobile/features/history/data/service_order_dto.dart';
+import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
@@ -21,6 +22,18 @@ class RemoteServiceHistoryRepository implements ServiceHistoryRepository {
   Future<List<ServiceOrder>> getServiceHistory() async {
     final json = await _client.getJson('/orders?pageSize=$_maxPageSize');
     return parseServiceOrderListJson(json['orders']);
+  }
+
+  // D-085: `cancelledAppointments` is a field on the SAME `/orders` response
+  // as `getServiceHistory` above, not a separate endpoint — this duplicates
+  // that network call rather than adding shared response caching, since the
+  // repository interface exposes them as two independent methods (matching
+  // the fake/unavailable implementations). Acceptable for now; revisit if
+  // this repository ever needs a real caching layer.
+  @override
+  Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async {
+    final json = await _client.getJson('/orders?pageSize=$_maxPageSize');
+    return parseCancelledAppointmentListJson(json['cancelledAppointments']);
   }
 
   @override

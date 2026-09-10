@@ -19,7 +19,7 @@ enum ServiceProgressStatus {
   pending,
   scheduled,
   inProgress,
-  waitingParts,
+  postponed,
   completed,
   cancelled,
   unknown,
@@ -33,8 +33,12 @@ ServiceProgressStatus serviceProgressStatusFromApi(String value) {
       return ServiceProgressStatus.scheduled;
     case 'IN_PROGRESS':
       return ServiceProgressStatus.inProgress;
+    // Backend renamed WAITING_PARTS -> POSTPONED (carcare.mn migration
+    // 20260910160000): postponed now covers any pause reason, not just
+    // parts. Old label kept as fallback only if a stale value ever appears.
+    case 'POSTPONED':
     case 'WAITING_PARTS':
-      return ServiceProgressStatus.waitingParts;
+      return ServiceProgressStatus.postponed;
     case 'COMPLETED':
       return ServiceProgressStatus.completed;
     case 'CANCELLED':
@@ -44,12 +48,60 @@ ServiceProgressStatus serviceProgressStatusFromApi(String value) {
   }
 }
 
+/// D-078's postpone reason tags — same fixed enum the staff web uses, safe to
+/// show to the customer (unlike the free-text `reason`, which the backend
+/// never sends to `/api/v1/app/*`; see CUSTOMER_API_CONTRACT.md, D-079).
+enum OrderPostponeReasonTag {
+  waitingParts,
+  waitingCustomer,
+  needsDiagnosis,
+  other,
+}
+
+OrderPostponeReasonTag? orderPostponeReasonTagFromApi(String? value) =>
+    switch (value) {
+      'WAITING_PARTS' => OrderPostponeReasonTag.waitingParts,
+      'WAITING_CUSTOMER' => OrderPostponeReasonTag.waitingCustomer,
+      'NEEDS_DIAGNOSIS' => OrderPostponeReasonTag.needsDiagnosis,
+      'OTHER' => OrderPostponeReasonTag.other,
+      _ => null,
+    };
+
+extension OrderPostponeReasonTagUi on OrderPostponeReasonTag {
+  String get localizedLabel => switch (this) {
+    OrderPostponeReasonTag.waitingParts => 'Сэлбэг хүлээж байна',
+    OrderPostponeReasonTag.waitingCustomer =>
+      'Үйлчлүүлэгчийн шийдвэр хүлээж байна',
+    OrderPostponeReasonTag.needsDiagnosis => 'Нэмэлт оношилгоо шаардлагатай',
+    OrderPostponeReasonTag.other => 'Бусад',
+  };
+}
+
+/// One entry of a `ServiceOrder`'s customer-safe status timeline
+/// (`statusHistory` in the API — D-079). `fromStatus` is null for the
+/// order's first transition.
+class OrderStatusHistoryEntry {
+  const OrderStatusHistoryEntry({
+    required this.id,
+    required this.toStatus,
+    required this.createdAt,
+    this.fromStatus,
+    this.reasonTag,
+  });
+
+  final String id;
+  final ServiceProgressStatus? fromStatus;
+  final ServiceProgressStatus toStatus;
+  final OrderPostponeReasonTag? reasonTag;
+  final DateTime createdAt;
+}
+
 extension ServiceProgressStatusUi on ServiceProgressStatus {
   String get localizedLabel => switch (this) {
     ServiceProgressStatus.pending => 'Хүлээгдэж буй',
     ServiceProgressStatus.scheduled => 'Товлогдсон',
     ServiceProgressStatus.inProgress => 'Хийгдэж байна',
-    ServiceProgressStatus.waitingParts => 'Сэлбэг хүлээж буй',
+    ServiceProgressStatus.postponed => 'Хойшлогдсон',
     ServiceProgressStatus.completed => 'Дууссан',
     ServiceProgressStatus.cancelled => 'Цуцлагдсан',
     ServiceProgressStatus.unknown => 'Тодорхойгүй',
@@ -96,6 +148,8 @@ class AppointmentServiceProgress {
     this.vehicleMake,
     this.vehicleModel,
     this.vehicleYear,
+    this.statusHistory = const [],
+    this.scheduledReturnAt,
   });
 
   final String id;
@@ -123,6 +177,12 @@ class AppointmentServiceProgress {
   final String? vehicleModel;
   final int? vehicleYear;
   final List<AppointmentServiceItemProgress> items;
+  // Newest first, per the API contract (D-079).
+  final List<OrderStatusHistoryEntry> statusHistory;
+  // The car's return time while `status` is `postponed` (D-080) — a separate
+  // `OrderTimeBooking` row, not `scheduledAt` (the order's original booking
+  // time). Null for every other status.
+  final DateTime? scheduledReturnAt;
 
   int get completedItemCount =>
       items.where((item) => item.status.isCompleted).length;
@@ -139,9 +199,12 @@ class AppointmentServiceProgress {
       status.isCompleted && paymentStatus == OrderPaymentStatus.paid;
 
   /// Тооцоолсон дуусах хугацаанаас хэтэрсэн ч ажил хараахан дуусаагүй эсэх.
+  /// Хойшлогдсон (postponed) захиалгад хуучин таамаг хамааралгүй болсон тул
+  /// хэзээ ч "хожимдсон" гэж тооцохгүй — шинэ буцах цаг үүнийг орлоно (D-081).
   bool get isDelayed =>
       !status.isCompleted &&
       status != ServiceProgressStatus.cancelled &&
+      status != ServiceProgressStatus.postponed &&
       expectedFinishAt != null &&
       expectedFinishAt!.isBefore(DateTime.now());
 }

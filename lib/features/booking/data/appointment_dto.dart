@@ -186,6 +186,34 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
 
   final vehicle = _optionalMap(json['vehicle']);
 
+  final statusHistory = <OrderStatusHistoryEntry>[];
+  final rawHistory = json['statusHistory'];
+  if (rawHistory is List) {
+    for (final rawEntry in rawHistory) {
+      final entry = _optionalMap(rawEntry);
+      final entryId = entry == null ? null : _optionalString(entry['id']);
+      final toStatusRaw = entry == null ? null : _optionalString(entry['toStatus']);
+      final createdAt = entry == null ? null : _optionalDateTime(entry['createdAt']);
+      if (entry == null || entryId == null || toStatusRaw == null || createdAt == null) {
+        continue;
+      }
+      final fromStatusRaw = _optionalString(entry['fromStatus']);
+      statusHistory.add(
+        OrderStatusHistoryEntry(
+          id: entryId,
+          fromStatus: fromStatusRaw == null
+              ? null
+              : serviceProgressStatusFromApi(fromStatusRaw),
+          toStatus: serviceProgressStatusFromApi(toStatusRaw),
+          reasonTag: orderPostponeReasonTagFromApi(
+            _optionalString(entry['reasonTag']),
+          ),
+          createdAt: createdAt,
+        ),
+      );
+    }
+  }
+
   return AppointmentServiceProgress(
     id: id,
     number: _optionalString(json['number']) ?? '',
@@ -207,6 +235,8 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
     vehicleModel: vehicle == null ? null : _optionalString(vehicle['model']),
     vehicleYear: vehicle?['year'] is int ? vehicle!['year'] as int : null,
     items: List.unmodifiable(items),
+    statusHistory: List.unmodifiable(statusHistory),
+    scheduledReturnAt: _optionalDateTime(json['scheduledReturnAt']),
   );
 }
 

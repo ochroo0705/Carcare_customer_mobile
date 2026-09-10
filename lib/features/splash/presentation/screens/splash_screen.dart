@@ -47,7 +47,7 @@ class _Wordmark extends StatelessWidget {
         decoration: TextDecoration.none,
       ),
       children: [
-        const TextSpan(text: 'Car', style: TextStyle(color: AppColors.amber)),
+        const TextSpan(text: 'Car', style: TextStyle(color: AppColors.accent)),
         TextSpan(
           text: 'service',
           style: TextStyle(
@@ -59,7 +59,7 @@ class _Wordmark extends StatelessWidget {
   );
 }
 
-/// Three amber dots with a staggered blink — a lightweight "loading" cue.
+/// Three accent-colored dots with a staggered blink — a lightweight "loading" cue.
 class _LoadingDots extends StatefulWidget {
   const _LoadingDots();
 
@@ -109,7 +109,7 @@ class _Dot extends StatelessWidget {
     width: 9,
     height: 9,
     decoration: const BoxDecoration(
-      color: AppColors.amber,
+      color: AppColors.accent,
       shape: BoxShape.circle,
     ),
   );

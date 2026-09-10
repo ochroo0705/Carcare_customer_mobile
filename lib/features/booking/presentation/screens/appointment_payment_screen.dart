@@ -431,7 +431,7 @@ class _PaymentPanel extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(bottom: 16),
               child: _Banner(
-                color: AppColors.amber,
+                color: AppColors.accent,
                 text:
                     'Дутуу төлбөр ирсэн: '
                     '${formatAmount((payment.underpaidAmount ?? 0).round())}${payment.currency} / '

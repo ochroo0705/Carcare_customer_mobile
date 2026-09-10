@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Mirrors the web app's `.landing-ops` amber token system
+/// Mirrors the web app's `.landing-ops` accent token system
 /// (`carcare.mn/app/globals.css`), which is what the live customer portal
 /// (sidebar + page content alike) actually renders — see COWORK.md D-021.
+/// Accent switched amber -> cyan on 2026-09-10 (web commit `f15b477`,
+/// COWORK.md D-086) — the `accent*`/`onAccent` names below are no longer
+/// amber-specific, only their old names briefly were.
 abstract final class AppColors {
   static const darkBackground = Color(0xFF0B0D10); // --oc-carbon
   static const darkSurface = Color(0xFF0E1116); // --oc-panel
@@ -22,11 +25,12 @@ abstract final class AppColors {
   static const lightInputBorder = Color(0xFFE3E0DA); // --oc-line (light)
   static const lightText = Color(0xFF16171B); // --oc-ink (light)
   static const lightTextMuted = Color(0xFF5C6067); // --oc-muted (light)
-  static const amber = Color(0xFFF5A524); // --oc-accent
-  static const amberHover = Color(0xFFFFC65C); // --oc-accent-hi
-  static const amberLightText = Color(0xFFC9820A); // --oc-accent (light)
-  static const onAmber = Color(0xFF14120C); // --oc-on-accent
+  static const accent = Color(0xFF22D3EE); // --oc-accent
+  static const accentHover = Color(0xFF67E8F9); // --oc-accent-hi
+  static const accentLightText = Color(0xFF0E7490); // --oc-accent (light)
+  static const onAccent = Color(0xFF14120C); // --oc-on-accent
   static const blue = Color(0xFF3B82F6);
+  static const purple = Color(0xFFA855F7); // matches web's POSTPONED badge (purple-500)
   static const green = Color(0xFF3DDC97); // --oc-ok
   static const red = Color(0xFFEF4444);
 }
@@ -160,19 +164,19 @@ abstract final class AppTheme {
       inputBackground: dark ? AppColors.darkInput : AppColors.lightInput,
     );
     final base = ColorScheme.fromSeed(
-      seedColor: AppColors.amber,
+      seedColor: AppColors.accent,
       brightness: brightness,
       surface: background,
     );
     final scheme = base.copyWith(
-      primary: AppColors.amber,
-      onPrimary: AppColors.onAmber,
+      primary: AppColors.accent,
+      onPrimary: AppColors.onAccent,
       primaryContainer: dark
-          ? const Color(0x33F5A524)
-          : const Color(0xFFFBE4B8),
+          ? const Color(0x3322D3EE)
+          : const Color(0xFFCFFAFE),
       onPrimaryContainer: dark
-          ? const Color(0xFFFFC65C)
-          : AppColors.amberLightText,
+          ? const Color(0xFF67E8F9)
+          : AppColors.accentLightText,
       secondary: AppColors.blue,
       onSecondary: Colors.white,
       tertiary: AppColors.green,
@@ -241,7 +245,7 @@ abstract final class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.medium),
-          borderSide: const BorderSide(color: AppColors.amberHover),
+          borderSide: const BorderSide(color: AppColors.accentHover),
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(AppRadii.medium),
@@ -250,8 +254,8 @@ abstract final class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 48),
-          backgroundColor: AppColors.amber,
-          foregroundColor: AppColors.onAmber,
+          backgroundColor: AppColors.accent,
+          foregroundColor: AppColors.onAccent,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadii.medium),
           ),
@@ -263,7 +267,7 @@ abstract final class AppTheme {
       ),
       dividerColor: border,
       progressIndicatorTheme: const ProgressIndicatorThemeData(
-        color: AppColors.amberHover,
+        color: AppColors.accentHover,
       ),
     );
   }

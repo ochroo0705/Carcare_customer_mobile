@@ -14,6 +14,7 @@ class ServiceOrder {
     required this.totalAmount,
     required this.paidAmount,
     this.vehiclePlate,
+    this.isCancelled = false,
   });
 
   final String id;
@@ -25,4 +26,8 @@ class ServiceOrder {
   final int totalAmount;
   final int paidAmount;
   final String? vehiclePlate;
+  // History now also includes CANCELLED orders (D-085), not just COMPLETED
+  // ones — [status] above is the PAYMENT status and stays meaningless/unpaid
+  // for a cancelled order, so this is checked separately by the UI.
+  final bool isCancelled;
 }

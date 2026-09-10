@@ -18,8 +18,8 @@ class AppShellBackground extends StatelessWidget {
           center: const Alignment(-0.75, -1),
           radius: 1.35,
           colors: dark
-              ? const [Color(0x33F5A524), Color(0x000B0D10)]
-              : const [Color(0x16F5A524), Color(0x00F6F5F2)],
+              ? const [Color(0x3322D3EE), Color(0x000B0D10)]
+              : const [Color(0x1622D3EE), Color(0x00F6F5F2)],
           stops: const [0, 0.72],
         ),
       ),
@@ -154,7 +154,7 @@ class CarCareBrand extends StatelessWidget {
               TextSpan(
                 text: 'service',
                 style: TextStyle(
-                  color: dark ? AppColors.amberHover : AppColors.amberLightText,
+                  color: dark ? AppColors.accentHover : AppColors.accentLightText,
                 ),
               ),
             ],

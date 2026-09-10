@@ -8,7 +8,16 @@ void main() {
 
     final orders = await repository.getServiceHistory();
 
-    expect(orders, hasLength(4));
+    // D-085 added one seeded CANCELLED order alongside the 4 completed ones.
+    expect(orders, hasLength(5));
+  });
+
+  test('lists the seeded cancelled/no-show appointments', () async {
+    final repository = FakeServiceHistoryRepository();
+
+    final appointments = await repository.getCancelledAppointments();
+
+    expect(appointments, hasLength(1));
   });
 
   test('returns full line-item detail for a known order', () async {

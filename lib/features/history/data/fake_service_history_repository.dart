@@ -1,4 +1,5 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
+import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
@@ -54,6 +55,30 @@ class FakeServiceHistoryRepository implements ServiceHistoryRepository {
       totalAmount: 85000,
       paidAmount: 85000,
       vehiclePlate: '5678 УНӨ',
+    ),
+    ServiceOrder(
+      id: 'seed-history-5',
+      tenantName: 'Тэсо Моторс',
+      tenantSlug: 'teso-motors',
+      branchName: 'Хан-Уул салбар',
+      completedAt: _now.subtract(const Duration(days: 15)),
+      status: ServiceOrderStatus.unpaid,
+      totalAmount: 0,
+      paidAmount: 0,
+      isCancelled: true,
+    ),
+  ];
+
+  // D-085: cancelled/no-show/rejected appointments that never got a
+  // ServiceOrder — separate list from _orders above.
+  late final List<CancelledAppointmentSummary> _cancelledAppointments = [
+    CancelledAppointmentSummary(
+      id: 'seed-cancelled-appt-1',
+      status: CancelledAppointmentStatus.noShow,
+      requestedAt: _now.subtract(const Duration(days: 12)),
+      tenantName: 'Улаанбаатар Авто',
+      branchName: 'Сүхбаатар салбар',
+      categoryName: 'Дугуй солих',
     ),
   ];
 
@@ -125,6 +150,10 @@ class FakeServiceHistoryRepository implements ServiceHistoryRepository {
   @override
   Future<List<ServiceOrder>> getServiceHistory() async =>
       List.unmodifiable(_orders);
+
+  @override
+  Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async =>
+      List.unmodifiable(_cancelledAppointments);
 
   @override
   Future<ServiceOrderDetail> getServiceOrderDetail(String id) async {

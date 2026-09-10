@@ -167,7 +167,7 @@ class _InfoPage extends StatelessWidget {
             width: 132,
             height: 132,
             decoration: BoxDecoration(
-              color: AppColors.amber.withValues(alpha: 0.12),
+              color: AppColors.accent.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
             alignment: Alignment.center,
@@ -176,7 +176,7 @@ class _InfoPage extends StatelessWidget {
                     padding: const EdgeInsets.all(26),
                     child: Image.asset(image!, fit: BoxFit.contain),
                   )
-                : Icon(icon, size: 60, color: AppColors.amber),
+                : Icon(icon, size: 60, color: AppColors.accent),
           ),
           const SizedBox(height: 36),
           Text(
@@ -371,7 +371,7 @@ class _PermissionRow extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(icon, color: AppColors.amber),
+          Icon(icon, color: AppColors.accent),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -498,8 +498,8 @@ class _Dots extends StatelessWidget {
         height: 8,
         decoration: BoxDecoration(
           color: active
-              ? AppColors.amber
-              : AppColors.amber.withValues(alpha: 0.3),
+              ? AppColors.accent
+              : AppColors.accent.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(4),
         ),
       );
