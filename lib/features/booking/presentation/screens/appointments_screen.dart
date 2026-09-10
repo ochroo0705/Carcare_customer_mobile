@@ -226,11 +226,14 @@ class _AppointmentsList extends StatelessWidget {
     final appointments = controller.sortedAppointments;
     final walkInOrders = controller.visibleWalkInOrders;
     final isFromCache = controller.state.isFromCache;
-    final offset = isFromCache ? 2 : 1;
+    final offset = isFromCache ? 1 : 0;
     // Захиалгагүй (walk-in) захиалгууд Appointment жагсаалтын дараа, тусдаа
-    // гарчигтай хэсэгт харагдана — веб талын account/page.tsx-ийн "Захиалгууд"
+    // гарчигтай хэсэгт харагдана — веб талын account/page.tsx-ийн
+    // "Засварын захиалгууд"
     // хэсэгтэй ижил зарчим.
-    final walkInHeaderIndex = offset + appointments.length;
+    final appointmentHeaderIndex = offset;
+    final appointmentStartIndex = appointmentHeaderIndex + 1;
+    final walkInHeaderIndex = appointmentStartIndex + appointments.length;
     final itemCount =
         walkInHeaderIndex + (walkInOrders.isNotEmpty ? 1 + walkInOrders.length : 0);
     return RefreshIndicator(
@@ -241,10 +244,7 @@ class _AppointmentsList extends StatelessWidget {
         itemCount: itemCount,
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
-          if (index == 0) {
-            return const _AppointmentsHeader();
-          }
-          if (isFromCache && index == 1) {
+          if (isFromCache && index == 0) {
             return OfflineBanner(
               message:
                   'Сүлжээгүй байна — сүүлд ачаалсан захиалгуудыг харуулж байна',
@@ -253,10 +253,13 @@ class _AppointmentsList extends StatelessWidget {
               onRetry: controller.load,
             );
           }
+          if (index == appointmentHeaderIndex) {
+            return const _TimeAppointmentsHeader();
+          }
           if (index < walkInHeaderIndex) {
-            final appointment = appointments[index - offset];
+            final appointment = appointments[index - appointmentStartIndex];
             return RiseIn(
-              index: index - offset,
+              index: index - appointmentStartIndex,
               child: _AppointmentCard(
                 appointment: appointment,
                 isCancelling: controller.isCancelling(appointment.id),
@@ -316,14 +319,18 @@ class _AppointmentsList extends StatelessWidget {
   }
 }
 
-class _AppointmentsHeader extends StatelessWidget {
-  const _AppointmentsHeader();
+class _TimeAppointmentsHeader extends StatelessWidget {
+  const _TimeAppointmentsHeader();
 
   @override
-  Widget build(BuildContext context) => Text(
-    'Миний захиалгууд',
-    style: Theme.of(context).textTheme.headlineSmall
-        ?.copyWith(fontWeight: FontWeight.w900),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 6),
+    child: Text(
+      'Цагийн захиалгууд',
+      style: Theme.of(
+        context,
+      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+    ),
   );
 }
 
@@ -334,7 +341,7 @@ class _WalkInOrdersHeader extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(top: 6),
     child: Text(
-      'Захиалгууд',
+      'Засварын захиалгууд',
       style: Theme.of(
         context,
       ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),

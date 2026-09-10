@@ -11,6 +11,8 @@ import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dar
 import 'package:carcare_customer_mobile/features/devices/data/device_id_store.dart';
 import 'package:carcare_customer_mobile/features/devices/data/fake_device_repository.dart';
 import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/data/fake_diagnostics_repository.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
@@ -30,6 +32,7 @@ class CarCareCustomerApp extends StatefulWidget {
     AppointmentRepository? appointmentRepository,
     VehicleRepository? vehicleRepository,
     ServiceHistoryRepository? historyRepository,
+    DiagnosticsRepository? diagnosticsRepository,
     NotificationsRepository? notificationsRepository,
     DeviceRepository? deviceRepository,
     RemotePushService? remotePushService,
@@ -42,6 +45,8 @@ class CarCareCustomerApp extends StatefulWidget {
            appointmentRepository ?? FakeAppointmentRepository(),
        vehicleRepository = vehicleRepository ?? FakeVehicleRepository(),
        historyRepository = historyRepository ?? FakeServiceHistoryRepository(),
+       diagnosticsRepository =
+           diagnosticsRepository ?? FakeDiagnosticsRepository(),
        notificationsRepository =
            notificationsRepository ?? FakeNotificationsRepository(),
        deviceRepository = deviceRepository ?? FakeDeviceRepository(),
@@ -55,6 +60,7 @@ class CarCareCustomerApp extends StatefulWidget {
   final AppointmentRepository appointmentRepository;
   final VehicleRepository vehicleRepository;
   final ServiceHistoryRepository historyRepository;
+  final DiagnosticsRepository diagnosticsRepository;
   final NotificationsRepository notificationsRepository;
   final DeviceRepository deviceRepository;
   final RemotePushService remotePushService;
@@ -83,6 +89,7 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
       widget.appointmentRepository,
       widget.vehicleRepository,
       widget.historyRepository,
+      widget.diagnosticsRepository,
       widget.notificationsRepository,
       widget.deviceRepository,
       widget.remotePushService,

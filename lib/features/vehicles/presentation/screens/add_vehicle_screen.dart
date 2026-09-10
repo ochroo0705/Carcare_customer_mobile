@@ -32,6 +32,11 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
   final _modelController = TextEditingController();
   final _yearController = TextEditingController();
   final _vinController = TextEditingController();
+  String? _fuelType;
+  String? _wheelPosition;
+  String? _colorName;
+  int? _capacity;
+  String? _purpose;
   Timer? _lookupTimer;
   String? _lastLookedUpPlate;
 
@@ -190,6 +195,11 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
         _modelController.text = result.model;
         _yearController.text = result.year?.toString() ?? '';
         _vinController.text = result.vin ?? '';
+        _fuelType = result.fuelType;
+        _wheelPosition = result.wheelPosition;
+        _colorName = result.colorName;
+        _capacity = result.capacity;
+        _purpose = result.purpose;
         _lookupMessage = result.source == VehicleLookupSource.hur
             ? 'ХУР-аас олдлоо. Мэдээллээ шалгаад засварлаж болно.'
             : 'Системээс олдлоо. Мэдээллээ шалгаад засварлаж болно.';
@@ -224,6 +234,11 @@ class _AddVehicleScreenState extends State<AddVehicleScreen> {
         vin: _vinController.text.trim().isEmpty
             ? null
             : _vinController.text.trim(),
+        fuelType: _fuelType,
+        wheelPosition: _wheelPosition,
+        colorName: _colorName,
+        capacity: _capacity,
+        purpose: _purpose,
       );
       if (mounted) widget.onAdded(vehicle);
     } on AppFailure catch (failure) {

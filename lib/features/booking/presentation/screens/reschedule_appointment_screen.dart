@@ -102,6 +102,26 @@ class _RescheduleAppointmentScreenState
   Future<void> _submit() async {
     final requestedAt = _requestedAt;
     if (requestedAt == null || _submitting) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Цагаа шилжүүлэх үү?'),
+        content: const Text(
+          'Сонгосон шинэ огноо, цаг руу энэ захиалгыг шилжүүлэх үү?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Болих'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Шилжүүлэх'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
     setState(() {
       _submitting = true;
       _error = null;

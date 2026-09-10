@@ -495,6 +495,83 @@ class $CachedVehiclesTable extends CachedVehicles
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _fuelTypeMeta = const VerificationMeta(
+    'fuelType',
+  );
+  @override
+  late final GeneratedColumn<String> fuelType = GeneratedColumn<String>(
+    'fuel_type',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _wheelPositionMeta = const VerificationMeta(
+    'wheelPosition',
+  );
+  @override
+  late final GeneratedColumn<String> wheelPosition = GeneratedColumn<String>(
+    'wheel_position',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _colorNameMeta = const VerificationMeta(
+    'colorName',
+  );
+  @override
+  late final GeneratedColumn<String> colorName = GeneratedColumn<String>(
+    'color_name',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _capacityMeta = const VerificationMeta(
+    'capacity',
+  );
+  @override
+  late final GeneratedColumn<int> capacity = GeneratedColumn<int>(
+    'capacity',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _purposeMeta = const VerificationMeta(
+    'purpose',
+  );
+  @override
+  late final GeneratedColumn<String> purpose = GeneratedColumn<String>(
+    'purpose',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serviceCountMeta = const VerificationMeta(
+    'serviceCount',
+  );
+  @override
+  late final GeneratedColumn<int> serviceCount = GeneratedColumn<int>(
+    'service_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _diagnosisCountMeta = const VerificationMeta(
+    'diagnosisCount',
+  );
+  @override
+  late final GeneratedColumn<int> diagnosisCount = GeneratedColumn<int>(
+    'diagnosis_count',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _cachedAtMeta = const VerificationMeta(
     'cachedAt',
   );
@@ -515,6 +592,13 @@ class $CachedVehiclesTable extends CachedVehicles
     model,
     year,
     vin,
+    fuelType,
+    wheelPosition,
+    colorName,
+    capacity,
+    purpose,
+    serviceCount,
+    diagnosisCount,
     cachedAt,
   ];
   @override
@@ -578,6 +662,57 @@ class $CachedVehiclesTable extends CachedVehicles
         vin.isAcceptableOrUnknown(data['vin']!, _vinMeta),
       );
     }
+    if (data.containsKey('fuel_type')) {
+      context.handle(
+        _fuelTypeMeta,
+        fuelType.isAcceptableOrUnknown(data['fuel_type']!, _fuelTypeMeta),
+      );
+    }
+    if (data.containsKey('wheel_position')) {
+      context.handle(
+        _wheelPositionMeta,
+        wheelPosition.isAcceptableOrUnknown(
+          data['wheel_position']!,
+          _wheelPositionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('color_name')) {
+      context.handle(
+        _colorNameMeta,
+        colorName.isAcceptableOrUnknown(data['color_name']!, _colorNameMeta),
+      );
+    }
+    if (data.containsKey('capacity')) {
+      context.handle(
+        _capacityMeta,
+        capacity.isAcceptableOrUnknown(data['capacity']!, _capacityMeta),
+      );
+    }
+    if (data.containsKey('purpose')) {
+      context.handle(
+        _purposeMeta,
+        purpose.isAcceptableOrUnknown(data['purpose']!, _purposeMeta),
+      );
+    }
+    if (data.containsKey('service_count')) {
+      context.handle(
+        _serviceCountMeta,
+        serviceCount.isAcceptableOrUnknown(
+          data['service_count']!,
+          _serviceCountMeta,
+        ),
+      );
+    }
+    if (data.containsKey('diagnosis_count')) {
+      context.handle(
+        _diagnosisCountMeta,
+        diagnosisCount.isAcceptableOrUnknown(
+          data['diagnosis_count']!,
+          _diagnosisCountMeta,
+        ),
+      );
+    }
     if (data.containsKey('cached_at')) {
       context.handle(
         _cachedAtMeta,
@@ -623,6 +758,34 @@ class $CachedVehiclesTable extends CachedVehicles
         DriftSqlType.string,
         data['${effectivePrefix}vin'],
       ),
+      fuelType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fuel_type'],
+      ),
+      wheelPosition: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}wheel_position'],
+      ),
+      colorName: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}color_name'],
+      ),
+      capacity: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}capacity'],
+      ),
+      purpose: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}purpose'],
+      ),
+      serviceCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}service_count'],
+      ),
+      diagnosisCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}diagnosis_count'],
+      ),
       cachedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}cached_at'],
@@ -645,6 +808,13 @@ class CachedVehicleRow extends DataClass
   final String model;
   final int? year;
   final String? vin;
+  final String? fuelType;
+  final String? wheelPosition;
+  final String? colorName;
+  final int? capacity;
+  final String? purpose;
+  final int? serviceCount;
+  final int? diagnosisCount;
   final DateTime cachedAt;
   const CachedVehicleRow({
     required this.position,
@@ -654,6 +824,13 @@ class CachedVehicleRow extends DataClass
     required this.model,
     this.year,
     this.vin,
+    this.fuelType,
+    this.wheelPosition,
+    this.colorName,
+    this.capacity,
+    this.purpose,
+    this.serviceCount,
+    this.diagnosisCount,
     required this.cachedAt,
   });
   @override
@@ -670,6 +847,27 @@ class CachedVehicleRow extends DataClass
     if (!nullToAbsent || vin != null) {
       map['vin'] = Variable<String>(vin);
     }
+    if (!nullToAbsent || fuelType != null) {
+      map['fuel_type'] = Variable<String>(fuelType);
+    }
+    if (!nullToAbsent || wheelPosition != null) {
+      map['wheel_position'] = Variable<String>(wheelPosition);
+    }
+    if (!nullToAbsent || colorName != null) {
+      map['color_name'] = Variable<String>(colorName);
+    }
+    if (!nullToAbsent || capacity != null) {
+      map['capacity'] = Variable<int>(capacity);
+    }
+    if (!nullToAbsent || purpose != null) {
+      map['purpose'] = Variable<String>(purpose);
+    }
+    if (!nullToAbsent || serviceCount != null) {
+      map['service_count'] = Variable<int>(serviceCount);
+    }
+    if (!nullToAbsent || diagnosisCount != null) {
+      map['diagnosis_count'] = Variable<int>(diagnosisCount);
+    }
     map['cached_at'] = Variable<DateTime>(cachedAt);
     return map;
   }
@@ -683,6 +881,27 @@ class CachedVehicleRow extends DataClass
       model: Value(model),
       year: year == null && nullToAbsent ? const Value.absent() : Value(year),
       vin: vin == null && nullToAbsent ? const Value.absent() : Value(vin),
+      fuelType: fuelType == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fuelType),
+      wheelPosition: wheelPosition == null && nullToAbsent
+          ? const Value.absent()
+          : Value(wheelPosition),
+      colorName: colorName == null && nullToAbsent
+          ? const Value.absent()
+          : Value(colorName),
+      capacity: capacity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(capacity),
+      purpose: purpose == null && nullToAbsent
+          ? const Value.absent()
+          : Value(purpose),
+      serviceCount: serviceCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serviceCount),
+      diagnosisCount: diagnosisCount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(diagnosisCount),
       cachedAt: Value(cachedAt),
     );
   }
@@ -700,6 +919,13 @@ class CachedVehicleRow extends DataClass
       model: serializer.fromJson<String>(json['model']),
       year: serializer.fromJson<int?>(json['year']),
       vin: serializer.fromJson<String?>(json['vin']),
+      fuelType: serializer.fromJson<String?>(json['fuelType']),
+      wheelPosition: serializer.fromJson<String?>(json['wheelPosition']),
+      colorName: serializer.fromJson<String?>(json['colorName']),
+      capacity: serializer.fromJson<int?>(json['capacity']),
+      purpose: serializer.fromJson<String?>(json['purpose']),
+      serviceCount: serializer.fromJson<int?>(json['serviceCount']),
+      diagnosisCount: serializer.fromJson<int?>(json['diagnosisCount']),
       cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
     );
   }
@@ -714,6 +940,13 @@ class CachedVehicleRow extends DataClass
       'model': serializer.toJson<String>(model),
       'year': serializer.toJson<int?>(year),
       'vin': serializer.toJson<String?>(vin),
+      'fuelType': serializer.toJson<String?>(fuelType),
+      'wheelPosition': serializer.toJson<String?>(wheelPosition),
+      'colorName': serializer.toJson<String?>(colorName),
+      'capacity': serializer.toJson<int?>(capacity),
+      'purpose': serializer.toJson<String?>(purpose),
+      'serviceCount': serializer.toJson<int?>(serviceCount),
+      'diagnosisCount': serializer.toJson<int?>(diagnosisCount),
       'cachedAt': serializer.toJson<DateTime>(cachedAt),
     };
   }
@@ -726,6 +959,13 @@ class CachedVehicleRow extends DataClass
     String? model,
     Value<int?> year = const Value.absent(),
     Value<String?> vin = const Value.absent(),
+    Value<String?> fuelType = const Value.absent(),
+    Value<String?> wheelPosition = const Value.absent(),
+    Value<String?> colorName = const Value.absent(),
+    Value<int?> capacity = const Value.absent(),
+    Value<String?> purpose = const Value.absent(),
+    Value<int?> serviceCount = const Value.absent(),
+    Value<int?> diagnosisCount = const Value.absent(),
     DateTime? cachedAt,
   }) => CachedVehicleRow(
     position: position ?? this.position,
@@ -735,6 +975,16 @@ class CachedVehicleRow extends DataClass
     model: model ?? this.model,
     year: year.present ? year.value : this.year,
     vin: vin.present ? vin.value : this.vin,
+    fuelType: fuelType.present ? fuelType.value : this.fuelType,
+    wheelPosition: wheelPosition.present
+        ? wheelPosition.value
+        : this.wheelPosition,
+    colorName: colorName.present ? colorName.value : this.colorName,
+    capacity: capacity.present ? capacity.value : this.capacity,
+    purpose: purpose.present ? purpose.value : this.purpose,
+    serviceCount: serviceCount.present ? serviceCount.value : this.serviceCount,
+    diagnosisCount:
+        diagnosisCount.present ? diagnosisCount.value : this.diagnosisCount,
     cachedAt: cachedAt ?? this.cachedAt,
   );
   CachedVehicleRow copyWithCompanion(CachedVehiclesCompanion data) {
@@ -746,6 +996,21 @@ class CachedVehicleRow extends DataClass
       model: data.model.present ? data.model.value : this.model,
       year: data.year.present ? data.year.value : this.year,
       vin: data.vin.present ? data.vin.value : this.vin,
+      fuelType: data.fuelType.present ? data.fuelType.value : this.fuelType,
+      wheelPosition: data.wheelPosition.present
+          ? data.wheelPosition.value
+          : this.wheelPosition,
+      colorName: data.colorName.present
+          ? data.colorName.value
+          : this.colorName,
+      capacity: data.capacity.present ? data.capacity.value : this.capacity,
+      purpose: data.purpose.present ? data.purpose.value : this.purpose,
+      serviceCount: data.serviceCount.present
+          ? data.serviceCount.value
+          : this.serviceCount,
+      diagnosisCount: data.diagnosisCount.present
+          ? data.diagnosisCount.value
+          : this.diagnosisCount,
       cachedAt: data.cachedAt.present ? data.cachedAt.value : this.cachedAt,
     );
   }
@@ -760,6 +1025,13 @@ class CachedVehicleRow extends DataClass
           ..write('model: $model, ')
           ..write('year: $year, ')
           ..write('vin: $vin, ')
+          ..write('fuelType: $fuelType, ')
+          ..write('wheelPosition: $wheelPosition, ')
+          ..write('colorName: $colorName, ')
+          ..write('capacity: $capacity, ')
+          ..write('purpose: $purpose, ')
+          ..write('serviceCount: $serviceCount, ')
+          ..write('diagnosisCount: $diagnosisCount, ')
           ..write('cachedAt: $cachedAt')
           ..write(')'))
         .toString();
@@ -767,7 +1039,23 @@ class CachedVehicleRow extends DataClass
 
   @override
   int get hashCode =>
-      Object.hash(position, id, plate, make, model, year, vin, cachedAt);
+      Object.hash(
+        position,
+        id,
+        plate,
+        make,
+        model,
+        year,
+        vin,
+        fuelType,
+        wheelPosition,
+        colorName,
+        capacity,
+        purpose,
+        serviceCount,
+        diagnosisCount,
+        cachedAt,
+      );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -779,6 +1067,13 @@ class CachedVehicleRow extends DataClass
           other.model == this.model &&
           other.year == this.year &&
           other.vin == this.vin &&
+          other.fuelType == this.fuelType &&
+          other.wheelPosition == this.wheelPosition &&
+          other.colorName == this.colorName &&
+          other.capacity == this.capacity &&
+          other.purpose == this.purpose &&
+          other.serviceCount == this.serviceCount &&
+          other.diagnosisCount == this.diagnosisCount &&
           other.cachedAt == this.cachedAt);
 }
 
@@ -790,6 +1085,13 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
   final Value<String> model;
   final Value<int?> year;
   final Value<String?> vin;
+  final Value<String?> fuelType;
+  final Value<String?> wheelPosition;
+  final Value<String?> colorName;
+  final Value<int?> capacity;
+  final Value<String?> purpose;
+  final Value<int?> serviceCount;
+  final Value<int?> diagnosisCount;
   final Value<DateTime> cachedAt;
   final Value<int> rowid;
   const CachedVehiclesCompanion({
@@ -800,6 +1102,13 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
     this.model = const Value.absent(),
     this.year = const Value.absent(),
     this.vin = const Value.absent(),
+    this.fuelType = const Value.absent(),
+    this.wheelPosition = const Value.absent(),
+    this.colorName = const Value.absent(),
+    this.capacity = const Value.absent(),
+    this.purpose = const Value.absent(),
+    this.serviceCount = const Value.absent(),
+    this.diagnosisCount = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -811,14 +1120,21 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
     required String model,
     this.year = const Value.absent(),
     this.vin = const Value.absent(),
+    this.fuelType = const Value.absent(),
+    this.wheelPosition = const Value.absent(),
+    this.colorName = const Value.absent(),
+    this.capacity = const Value.absent(),
+    this.purpose = const Value.absent(),
+    this.serviceCount = const Value.absent(),
+    this.diagnosisCount = const Value.absent(),
     required DateTime cachedAt,
     this.rowid = const Value.absent(),
   }) : position = Value(position),
        id = Value(id),
        plate = Value(plate),
        make = Value(make),
-       model = Value(model),
-       cachedAt = Value(cachedAt);
+    model = Value(model),
+    cachedAt = Value(cachedAt);
   static Insertable<CachedVehicleRow> custom({
     Expression<int>? position,
     Expression<String>? id,
@@ -827,6 +1143,13 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
     Expression<String>? model,
     Expression<int>? year,
     Expression<String>? vin,
+    Expression<String>? fuelType,
+    Expression<String>? wheelPosition,
+    Expression<String>? colorName,
+    Expression<int>? capacity,
+    Expression<String>? purpose,
+    Expression<int>? serviceCount,
+    Expression<int>? diagnosisCount,
     Expression<DateTime>? cachedAt,
     Expression<int>? rowid,
   }) {
@@ -838,6 +1161,13 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
       if (model != null) 'model': model,
       if (year != null) 'year': year,
       if (vin != null) 'vin': vin,
+      if (fuelType != null) 'fuel_type': fuelType,
+      if (wheelPosition != null) 'wheel_position': wheelPosition,
+      if (colorName != null) 'color_name': colorName,
+      if (capacity != null) 'capacity': capacity,
+      if (purpose != null) 'purpose': purpose,
+      if (serviceCount != null) 'service_count': serviceCount,
+      if (diagnosisCount != null) 'diagnosis_count': diagnosisCount,
       if (cachedAt != null) 'cached_at': cachedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -851,6 +1181,13 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
     Value<String>? model,
     Value<int?>? year,
     Value<String?>? vin,
+    Value<String?>? fuelType,
+    Value<String?>? wheelPosition,
+    Value<String?>? colorName,
+    Value<int?>? capacity,
+    Value<String?>? purpose,
+    Value<int?>? serviceCount,
+    Value<int?>? diagnosisCount,
     Value<DateTime>? cachedAt,
     Value<int>? rowid,
   }) {
@@ -862,6 +1199,13 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
       model: model ?? this.model,
       year: year ?? this.year,
       vin: vin ?? this.vin,
+      fuelType: fuelType ?? this.fuelType,
+      wheelPosition: wheelPosition ?? this.wheelPosition,
+      colorName: colorName ?? this.colorName,
+      capacity: capacity ?? this.capacity,
+      purpose: purpose ?? this.purpose,
+      serviceCount: serviceCount ?? this.serviceCount,
+      diagnosisCount: diagnosisCount ?? this.diagnosisCount,
       cachedAt: cachedAt ?? this.cachedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -891,6 +1235,27 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
     if (vin.present) {
       map['vin'] = Variable<String>(vin.value);
     }
+    if (fuelType.present) {
+      map['fuel_type'] = Variable<String>(fuelType.value);
+    }
+    if (wheelPosition.present) {
+      map['wheel_position'] = Variable<String>(wheelPosition.value);
+    }
+    if (colorName.present) {
+      map['color_name'] = Variable<String>(colorName.value);
+    }
+    if (capacity.present) {
+      map['capacity'] = Variable<int>(capacity.value);
+    }
+    if (purpose.present) {
+      map['purpose'] = Variable<String>(purpose.value);
+    }
+    if (serviceCount.present) {
+      map['service_count'] = Variable<int>(serviceCount.value);
+    }
+    if (diagnosisCount.present) {
+      map['diagnosis_count'] = Variable<int>(diagnosisCount.value);
+    }
     if (cachedAt.present) {
       map['cached_at'] = Variable<DateTime>(cachedAt.value);
     }
@@ -910,6 +1275,13 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
           ..write('model: $model, ')
           ..write('year: $year, ')
           ..write('vin: $vin, ')
+          ..write('fuelType: $fuelType, ')
+          ..write('wheelPosition: $wheelPosition, ')
+          ..write('colorName: $colorName, ')
+          ..write('capacity: $capacity, ')
+          ..write('purpose: $purpose, ')
+          ..write('serviceCount: $serviceCount, ')
+          ..write('diagnosisCount: $diagnosisCount, ')
           ..write('cachedAt: $cachedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))

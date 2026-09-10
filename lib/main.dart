@@ -15,6 +15,8 @@ import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_r
 import 'package:carcare_customer_mobile/features/booking/data/remote_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/devices/data/fake_device_repository.dart';
 import 'package:carcare_customer_mobile/features/devices/data/remote_device_repository.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/data/fake_diagnostics_repository.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/data/remote_diagnostics_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/caching_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/remote_organization_repository.dart';
@@ -123,6 +125,15 @@ void main() async {
             onUnauthorized: sessionStore.clear,
           ),
         );
+  final diagnosticsRepository = AppEnvironment.useFakeApi
+      ? FakeDiagnosticsRepository()
+      : RemoteDiagnosticsRepository(
+          ApiClient(
+            baseUrl: AppEnvironment.apiBaseUrl,
+            accessTokenProvider: sessionStore.readToken,
+            onUnauthorized: sessionStore.clear,
+          ),
+        );
   final notificationsRepository = AppEnvironment.useFakeApi
       ? FakeNotificationsRepository()
       : const UnavailableNotificationsRepository();
@@ -133,6 +144,7 @@ void main() async {
       appointmentRepository: appointmentRepository,
       vehicleRepository: vehicleRepository,
       historyRepository: historyRepository,
+      diagnosticsRepository: diagnosticsRepository,
       notificationsRepository: notificationsRepository,
       deviceRepository: deviceRepository,
       remotePushService: remotePushService,

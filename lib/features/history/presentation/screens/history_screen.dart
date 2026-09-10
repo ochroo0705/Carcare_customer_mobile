@@ -16,11 +16,15 @@ class HistoryScreen extends StatelessWidget {
   const HistoryScreen({
     required this.onLoginRequested,
     required this.onOrderSelected,
+    this.onDiagnosticsRequested,
     super.key,
   });
 
   final VoidCallback onLoginRequested;
   final ValueChanged<String> onOrderSelected;
+
+  /// "Оношилгооны түүх"-рүү орох товч дарахад дуудагдана.
+  final VoidCallback? onDiagnosticsRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -34,6 +38,7 @@ class HistoryScreen extends StatelessWidget {
             ? _HistoryBody(
                 controller: controller,
                 onOrderSelected: onOrderSelected,
+                onDiagnosticsRequested: onDiagnosticsRequested,
               )
             : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
       ),
@@ -87,10 +92,15 @@ class _UnauthenticatedPrompt extends StatelessWidget {
 }
 
 class _HistoryBody extends StatelessWidget {
-  const _HistoryBody({required this.controller, required this.onOrderSelected});
+  const _HistoryBody({
+    required this.controller,
+    required this.onOrderSelected,
+    this.onDiagnosticsRequested,
+  });
 
   final HistoryController controller;
   final ValueChanged<String> onOrderSelected;
+  final VoidCallback? onDiagnosticsRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -115,6 +125,7 @@ class _HistoryBody extends StatelessWidget {
       HistoryStatus.data => _HistoryList(
         controller: controller,
         onOrderSelected: onOrderSelected,
+        onDiagnosticsRequested: onDiagnosticsRequested,
       ),
     };
   }
@@ -193,10 +204,15 @@ class _EmptyHistory extends StatelessWidget {
 }
 
 class _HistoryList extends StatelessWidget {
-  const _HistoryList({required this.controller, required this.onOrderSelected});
+  const _HistoryList({
+    required this.controller,
+    required this.onOrderSelected,
+    this.onDiagnosticsRequested,
+  });
 
   final HistoryController controller;
   final ValueChanged<String> onOrderSelected;
+  final VoidCallback? onDiagnosticsRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -212,7 +228,7 @@ class _HistoryList extends StatelessWidget {
         separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
         itemBuilder: (context, index) {
           if (index == 0) {
-            return const _HistoryHeader();
+            return _HistoryHeader(onDiagnosticsRequested: onDiagnosticsRequested);
           }
           if (isFromCache && index == 1) {
             return OfflineBanner(
@@ -237,13 +253,30 @@ class _HistoryList extends StatelessWidget {
 }
 
 class _HistoryHeader extends StatelessWidget {
-  const _HistoryHeader();
+  const _HistoryHeader({this.onDiagnosticsRequested});
+
+  final VoidCallback? onDiagnosticsRequested;
 
   @override
-  Widget build(BuildContext context) => Text(
-    'Миний түүх',
-    style: Theme.of(context).textTheme.headlineSmall
-        ?.copyWith(fontWeight: FontWeight.w900),
+  Widget build(BuildContext context) => Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Expanded(
+        child: Text(
+          'Миний түүх',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+      ),
+      if (onDiagnosticsRequested != null)
+        TextButton.icon(
+          key: const ValueKey('history-diagnostics-link'),
+          onPressed: onDiagnosticsRequested,
+          icon: const Icon(Icons.fact_check_outlined, size: 18),
+          label: const Text('Оношилгоо'),
+        ),
+    ],
   );
 }
 

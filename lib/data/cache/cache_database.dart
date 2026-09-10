@@ -37,6 +37,13 @@ class CachedVehicles extends Table {
   TextColumn get model => text()();
   IntColumn get year => integer().nullable()();
   TextColumn get vin => text().nullable()();
+  TextColumn get fuelType => text().nullable()();
+  TextColumn get wheelPosition => text().nullable()();
+  TextColumn get colorName => text().nullable()();
+  IntColumn get capacity => integer().nullable()();
+  TextColumn get purpose => text().nullable()();
+  IntColumn get serviceCount => integer().nullable()();
+  IntColumn get diagnosisCount => integer().nullable()();
   DateTimeColumn get cachedAt => dateTime()();
 
   @override
@@ -119,7 +126,7 @@ class CacheDatabase extends _$CacheDatabase {
   CacheDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -131,6 +138,19 @@ class CacheDatabase extends _$CacheDatabase {
       // хадгалагдсан. Тэдгээрийг нэг удаа цэвэрлэж, дараагийн ачаалалд шинээр
       // (ангилалтай) татуулна. Table бүтэц өөрчлөгдөөгүй — зөвхөн хуучин мөр арилгана.
       if (from < 3) await delete(cachedOrganizationDetails).go();
+      // v4 stores the HUR technical fields needed by the vehicle detail view.
+      if (from < 4) {
+        await m.addColumn(cachedVehicles, cachedVehicles.fuelType);
+        await m.addColumn(cachedVehicles, cachedVehicles.wheelPosition);
+        await m.addColumn(cachedVehicles, cachedVehicles.colorName);
+        await m.addColumn(cachedVehicles, cachedVehicles.capacity);
+        await m.addColumn(cachedVehicles, cachedVehicles.purpose);
+      }
+      // v5 stores the compact service-history counts shown on vehicle cards.
+      if (from < 5) {
+        await m.addColumn(cachedVehicles, cachedVehicles.serviceCount);
+        await m.addColumn(cachedVehicles, cachedVehicles.diagnosisCount);
+      }
     },
   );
 }

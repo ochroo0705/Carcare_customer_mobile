@@ -11,6 +11,13 @@ class FakeVehicleRepository implements VehicleRepository {
       make: 'Hyundai',
       model: 'Sonata',
       year: 2019,
+      fuelType: 'Бензин',
+      wheelPosition: 'Зүүн',
+      colorName: 'Хар',
+      capacity: 1999,
+      purpose: 'Суудал',
+      serviceCount: 7,
+      diagnosisCount: 2,
     ),
   ];
   var _sequence = 0;
@@ -27,6 +34,9 @@ class FakeVehicleRepository implements VehicleRepository {
     String? vin,
     String? fuelType,
     String? wheelPosition,
+    String? colorName,
+    int? capacity,
+    String? purpose,
   }) async {
     final normalizedPlate = plate.trim().toUpperCase();
     if (_vehicles.any(
@@ -44,6 +54,11 @@ class FakeVehicleRepository implements VehicleRepository {
       model: model.trim(),
       year: year,
       vin: vin,
+      fuelType: fuelType,
+      wheelPosition: wheelPosition,
+      colorName: colorName,
+      capacity: capacity,
+      purpose: purpose,
     );
     _vehicles.add(vehicle);
     return vehicle;

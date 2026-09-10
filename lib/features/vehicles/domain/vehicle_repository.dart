@@ -12,6 +12,9 @@ abstract interface class VehicleRepository {
     String? vin,
     String? fuelType,
     String? wheelPosition,
+    String? colorName,
+    int? capacity,
+    String? purpose,
   });
 
   Future<void> deleteVehicle(String id);

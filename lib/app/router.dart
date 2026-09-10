@@ -8,10 +8,14 @@ import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dar
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/login_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
 import 'package:carcare_customer_mobile/features/devices/data/device_id_store.dart';
 import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_repository.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/presentation/screens/diagnostic_detail_screen.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/presentation/screens/diagnostics_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_detail_screen.dart';
@@ -20,6 +24,7 @@ import 'package:carcare_customer_mobile/features/booking/presentation/screens/ap
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/walk_in_order_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
@@ -27,6 +32,7 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/screens/
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
+import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/screens/history_screen.dart';
@@ -36,9 +42,11 @@ import 'package:carcare_customer_mobile/features/notifications/presentation/cont
 import 'package:carcare_customer_mobile/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
+import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/add_vehicle_screen.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/vehicle_detail_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -104,6 +112,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     this.appointmentRepository,
     this.vehicleRepository,
     this.historyRepository,
+    this.diagnosticsRepository,
     this.notificationsRepository,
     this.deviceRepository,
     this.remotePushService,
@@ -171,6 +180,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   final AppointmentRepository appointmentRepository;
   final VehicleRepository vehicleRepository;
   final ServiceHistoryRepository historyRepository;
+  final DiagnosticsRepository diagnosticsRepository;
   final NotificationsRepository notificationsRepository;
   final DeviceRepository deviceRepository;
   final RemotePushService remotePushService;
@@ -183,14 +193,19 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   late final StreamSubscription<bool> _connectivitySubscription;
   late final StreamSubscription<dynamic> _notificationTapSubscription;
   String? _selectedSlug;
+  ({double lat, double lng})? _detailLocation;
+  String? _preferredBranchId;
   bool _booking = false;
   String? _selectedOrderId;
   String? _selectedAppointmentId;
   String? _selectedWalkInOrderId;
+  bool _showDiagnostics = false;
+  String? _selectedDiagnosticId;
   String? _paymentAppointmentId;
   AppointmentPayment? _paymentInitial;
   bool _showLogin = false;
   bool _showAddVehicle = false;
+  Vehicle? _selectedVehicle;
   bool _showNotifications = false;
   bool _wasAuthenticated = false;
   bool _disposed = false;
@@ -199,7 +214,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   final navigatorKey = GlobalKey<NavigatorState>();
   final _shellKey = GlobalKey<CustomerShellState>();
 
-  /// Matches `CustomerShell`'s `destinations` order (Хайх · Цаг · Түүх ·
+  /// Matches `CustomerShell`'s `destinations` order (Хайх · Захиалгууд · Түүх ·
   /// Профайл).
   static const _appointmentsTabIndex = 1;
 
@@ -234,10 +249,12 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               HistoryScreen(
                 onLoginRequested: _requestLogin,
                 onOrderSelected: _openOrderDetail,
+                onDiagnosticsRequested: _openDiagnostics,
               ),
               ProfileScreen(
                 onLoginRequested: _requestLogin,
                 onAddVehicle: _openAddVehicle,
+                onVehicleSelected: _openVehicleDetail,
               ),
             ],
           ),
@@ -247,6 +264,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             key: ValueKey('organization-$_selectedSlug'),
             child: OrganizationDetailScreen(
               organization: organization,
+              distanceLocation: _detailLocation,
+              preferredBranchId: _preferredBranchId,
               status: organizationDetailController.status,
               errorMessage: organizationDetailController.message,
               onRetry: () => organizationDetailController.load(_selectedSlug!),
@@ -280,6 +299,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             key: ValueKey('booking-${organization.slug}'),
             child: BookingRequestScreen(
               organization: organization,
+              initialBranchId: _preferredBranchId,
               repository: appointmentRepository,
               onAddVehicle: _openAddVehicle,
               onBack: _closeBooking,
@@ -322,6 +342,20 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                   _openPayment(appointment.id, appointment.payment);
                 }
               },
+            ),
+          ),
+        if (_selectedVehicle != null)
+          MaterialPage<void>(
+            key: ValueKey('vehicle-detail-${_selectedVehicle!.id}'),
+            child: VehicleDetailScreen(
+              vehicle: _selectedVehicle!,
+              appointments: _appointmentsForVehicle(_selectedVehicle!),
+              appointmentsLoading: appointmentsController.state.isLoading,
+              onAppointmentSelected: _openAppointmentDetail,
+              orders: _ordersForVehicle(_selectedVehicle!),
+              ordersLoading: historyController.state.isLoading,
+              onOrderSelected: _openOrderDetail,
+              onBack: _closeVehicleDetail,
             ),
           ),
         if (_selectedAppointmentId != null)
@@ -381,6 +415,25 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               repository: historyRepository,
               orderId: _selectedOrderId!,
               onBack: _closeOrderDetail,
+              onReportSelected: _openDiagnosticDetail,
+            ),
+          ),
+        if (_showDiagnostics)
+          MaterialPage<void>(
+            key: const ValueKey('diagnostics'),
+            child: DiagnosticsScreen(
+              repository: diagnosticsRepository,
+              onBack: _closeDiagnostics,
+              onReportSelected: _openDiagnosticDetail,
+            ),
+          ),
+        if (_selectedDiagnosticId != null)
+          MaterialPage<void>(
+            key: ValueKey('diagnostic-detail-$_selectedDiagnosticId'),
+            child: DiagnosticDetailScreen(
+              repository: diagnosticsRepository,
+              reportId: _selectedDiagnosticId!,
+              onBack: _closeDiagnosticDetail,
             ),
           ),
         if (_showNotifications)
@@ -394,12 +447,18 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           _closeNotifications();
         } else if (_paymentAppointmentId != null) {
           _closePayment();
+        } else if (_selectedDiagnosticId != null) {
+          _closeDiagnosticDetail();
+        } else if (_showDiagnostics) {
+          _closeDiagnostics();
         } else if (_selectedOrderId != null) {
           _closeOrderDetail();
         } else if (_showAddVehicle) {
           _closeAddVehicle();
         } else if (_selectedAppointmentId != null) {
           _closeAppointmentDetail();
+        } else if (_selectedVehicle != null) {
+          _closeVehicleDetail();
         } else if (_selectedWalkInOrderId != null) {
           _closeWalkInOrderDetail();
         } else if (_showLogin) {
@@ -415,13 +474,26 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeDetails() {
     _selectedSlug = null;
+    _detailLocation = null;
+    _preferredBranchId = null;
     _booking = false;
     notifyListeners();
   }
 
-  void _selectOrganization(String slug) {
-    _selectedSlug = slug;
-    organizationDetailController.load(slug);
+  void _selectOrganization(Organization summary) {
+    _selectedSlug = summary.slug;
+    _detailLocation = discoveryController.nearMeLocation;
+    // The API returns branches after applying the active branch-level filters
+    // (near-me/open-now), and near-me sorts them by distance. Preserve that
+    // exact result while loading the richer detail payload. Weekend remains an
+    // organization-level eligibility filter by product decision, so it does
+    // not by itself identify one branch to pin.
+    _preferredBranchId =
+        (discoveryController.nearMe || discoveryController.openNow) &&
+            summary.branches.isNotEmpty
+        ? summary.branches.first.id
+        : null;
+    organizationDetailController.load(summary.slug);
     notifyListeners();
   }
 
@@ -432,6 +504,32 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _startBooking(String slug) {
     _selectedSlug = slug;
+    final location = _detailLocation;
+    final detail = organizationDetailController.organization;
+    if (_preferredBranchId != null &&
+        detail != null &&
+        detail.branches.any((branch) => branch.id == _preferredBranchId)) {
+      // Keep the branch that actually satisfied the discovery filters. The
+      // detail payload may contain other branches that are closer but closed.
+    } else if (location != null && detail != null) {
+      final branches = detail.branches.toList()
+        ..sort((a, b) {
+          final aDistance = a.distanceKmFrom(
+            userLatitude: location.lat,
+            userLongitude: location.lng,
+          );
+          final bDistance = b.distanceKmFrom(
+            userLatitude: location.lat,
+            userLongitude: location.lng,
+          );
+          return (aDistance ?? double.infinity).compareTo(
+            bDistance ?? double.infinity,
+          );
+        });
+      _preferredBranchId = branches.isEmpty ? null : branches.first.id;
+    } else {
+      _preferredBranchId = null;
+    }
     _booking = true;
     _showLogin = !authController.isAuthenticated;
     notifyListeners();
@@ -465,6 +563,35 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeAddVehicle() {
     _showAddVehicle = false;
+    notifyListeners();
+  }
+
+  void _openVehicleDetail(Vehicle vehicle) {
+    _selectedVehicle = vehicle;
+    notifyListeners();
+  }
+
+  List<Appointment> _appointmentsForVehicle(Vehicle vehicle) {
+    final plate = vehicle.plate.trim().toUpperCase();
+    return appointmentsController.state.appointments
+        .where(
+          (appointment) =>
+              appointment.vehiclePlate?.trim().toUpperCase() == plate,
+        )
+        .toList(growable: false);
+  }
+
+  List<ServiceOrder> _ordersForVehicle(Vehicle vehicle) {
+    final plate = vehicle.plate.trim().toUpperCase();
+    return historyController.state.orders
+        .where(
+          (order) => order.vehiclePlate?.trim().toUpperCase() == plate,
+        )
+        .toList(growable: false);
+  }
+
+  void _closeVehicleDetail() {
+    _selectedVehicle = null;
     notifyListeners();
   }
 
@@ -521,10 +648,13 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _selectedOrderId = null;
     _selectedAppointmentId = null;
     _selectedWalkInOrderId = null;
+    _showDiagnostics = false;
+    _selectedDiagnosticId = null;
     _paymentAppointmentId = null;
     _paymentInitial = null;
     _showLogin = false;
     _showAddVehicle = false;
+    _selectedVehicle = null;
     _showNotifications = false;
     notifyListeners();
   }
@@ -544,6 +674,26 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeWalkInOrderDetail() {
     _selectedWalkInOrderId = null;
+    notifyListeners();
+  }
+
+  void _openDiagnostics() {
+    _showDiagnostics = true;
+    notifyListeners();
+  }
+
+  void _closeDiagnostics() {
+    _showDiagnostics = false;
+    notifyListeners();
+  }
+
+  void _openDiagnosticDetail(String id) {
+    _selectedDiagnosticId = id;
+    notifyListeners();
+  }
+
+  void _closeDiagnosticDetail() {
+    _selectedDiagnosticId = null;
     notifyListeners();
   }
 
@@ -677,10 +827,14 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     switch (configuration) {
       case BookingRoutePath(:final slug):
         _selectedSlug = slug;
+        _detailLocation = null;
+        _preferredBranchId = null;
         _booking = true;
         await organizationDetailController.load(slug);
       case OrganizationRoutePath(:final slug):
         _selectedSlug = slug;
+        _detailLocation = null;
+        _preferredBranchId = null;
         _booking = false;
         await organizationDetailController.load(slug);
       case DiscoveryRoutePath():

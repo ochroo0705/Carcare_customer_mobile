@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 enum BranchOpenStatus { open, closed, unknown }
 
 class Branch {
@@ -165,6 +167,32 @@ class BranchDetail {
       return 'Цагийн мэдээлэл тодорхойгүй';
     }
     return '${effective.openTime}–${effective.closeTime}';
+  }
+
+  /// Approximate straight-line distance from a user location, in kilometres.
+  /// Returns null when this branch has no usable coordinates.
+  double? distanceKmFrom({required double userLatitude, required double userLongitude}) {
+    final branchLatitude = latitude;
+    final branchLongitude = longitude;
+    if (branchLatitude == null || branchLongitude == null) return null;
+    const earthRadiusKm = 6371.0;
+    final latDelta = (branchLatitude - userLatitude) * math.pi / 180;
+    final longitudeDelta = (branchLongitude - userLongitude) * math.pi / 180;
+    final userLatitudeRadians = userLatitude * math.pi / 180;
+    final branchLatitudeRadians = branchLatitude * math.pi / 180;
+    final haversine = math.pow(math.sin(latDelta / 2), 2) +
+        math.cos(userLatitudeRadians) *
+            math.cos(branchLatitudeRadians) *
+            math.pow(math.sin(longitudeDelta / 2), 2);
+    return 2 * earthRadiusKm * math.asin(math.min(1, math.sqrt(haversine)));
+  }
+
+  String? distanceLabelFrom({required double userLatitude, required double userLongitude}) {
+    final distance = distanceKmFrom(
+      userLatitude: userLatitude,
+      userLongitude: userLongitude,
+    );
+    return distance == null ? null : 'Ойролцоогоор ${distance.toStringAsFixed(1)} км';
   }
 
   // NB: booking v2 (2026-09-07) — client-side slot generation removed. Slots now

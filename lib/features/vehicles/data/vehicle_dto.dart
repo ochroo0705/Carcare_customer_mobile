@@ -10,6 +10,13 @@ class VehicleDto {
     required this.model,
     this.year,
     this.vin,
+    this.fuelType,
+    this.wheelPosition,
+    this.colorName,
+    this.capacity,
+    this.purpose,
+    this.serviceCount = 0,
+    this.diagnosisCount = 0,
   });
 
   factory VehicleDto.fromJson(Map<String, dynamic> json) {
@@ -29,6 +36,13 @@ class VehicleDto {
       model: model,
       year: _optionalInt(json['year']),
       vin: _optionalString(json['vin']),
+      fuelType: _optionalString(json['fuelType']),
+      wheelPosition: _optionalString(json['wheelPosition']),
+      colorName: _optionalString(json['colorName']),
+      capacity: _optionalInt(json['capacity']),
+      purpose: _optionalString(json['purpose']),
+      serviceCount: _optionalInt(json['serviceCount']) ?? 0,
+      diagnosisCount: _optionalInt(json['diagnosisCount']) ?? 0,
     );
   }
 
@@ -38,6 +52,13 @@ class VehicleDto {
   final String model;
   final int? year;
   final String? vin;
+  final String? fuelType;
+  final String? wheelPosition;
+  final String? colorName;
+  final int? capacity;
+  final String? purpose;
+  final int serviceCount;
+  final int diagnosisCount;
 
   Vehicle toDomain() => Vehicle(
     id: id,
@@ -46,6 +67,13 @@ class VehicleDto {
     model: model,
     year: year,
     vin: vin,
+    fuelType: fuelType,
+    wheelPosition: wheelPosition,
+    colorName: colorName,
+    capacity: capacity,
+    purpose: purpose,
+    serviceCount: serviceCount,
+    diagnosisCount: diagnosisCount,
   );
 }
 

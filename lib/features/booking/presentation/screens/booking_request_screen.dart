@@ -17,6 +17,7 @@ import 'package:provider/provider.dart';
 class BookingRequestScreen extends StatefulWidget {
   const BookingRequestScreen({
     required this.organization,
+    this.initialBranchId,
     required this.repository,
     required this.onAddVehicle,
     required this.onBack,
@@ -26,6 +27,7 @@ class BookingRequestScreen extends StatefulWidget {
   });
 
   final OrganizationDetail organization;
+  final String? initialBranchId;
   final AppointmentRepository repository;
   final VoidCallback onAddVehicle;
   final VoidCallback onBack;
@@ -186,9 +188,16 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
     // байгууллагын профайл хуудас endээс энд зөвхөн нэг л "Цаг захиалах"
     // товч байдаг тул). Ганц салбартай байгууллагад л шууд сонгогдоно —
     // сонголт ямар ч утгагүй тохиолдолд шаардлагагүй алхам нэмэхгүй.
-    _selectedBranch = widget.organization.branches.length == 1
-        ? widget.organization.branches.single
-        : null;
+    final preferredMatches = widget.organization.branches
+        .where((branch) => branch.id == widget.initialBranchId)
+        .toList(growable: false);
+    final preferredBranch = preferredMatches.isEmpty
+        ? null
+        : preferredMatches.first;
+    _selectedBranch = preferredBranch ??
+        (widget.organization.branches.length == 1
+            ? widget.organization.branches.single
+            : null);
     final now = DateTime.now();
     _displayedMonth = DateTime(now.year, now.month);
     _vehiclesController = context.read<VehiclesController>();

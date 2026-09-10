@@ -115,7 +115,7 @@ class CustomerShellState extends State<CustomerShell>
                         NavigationRailDestination(
                           icon: Icon(Icons.event_note_outlined),
                           selectedIcon: Icon(Icons.event_note_rounded),
-                          label: Text('Цаг'),
+                          label: Text('Захиалгууд'),
                         ),
                         NavigationRailDestination(
                           icon: Icon(Icons.receipt_long_outlined),
@@ -148,7 +148,7 @@ class CustomerShellState extends State<CustomerShell>
                     NavigationDestination(
                       icon: Icon(Icons.event_note_outlined),
                       selectedIcon: Icon(Icons.event_note_rounded),
-                      label: 'Цаг',
+                      label: 'Захиалгууд',
                     ),
                     NavigationDestination(
                       icon: Icon(Icons.receipt_long_outlined),

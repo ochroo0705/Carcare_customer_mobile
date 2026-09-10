@@ -13,11 +13,13 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen({
     required this.onLoginRequested,
     required this.onAddVehicle,
+    this.onVehicleSelected,
     super.key,
   });
 
   final VoidCallback onLoginRequested;
   final VoidCallback onAddVehicle;
+  final ValueChanged<Vehicle>? onVehicleSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +42,7 @@ class ProfileScreen extends StatelessWidget {
                   controller: controller,
                   account: authController.account,
                   onSignOut: authController.signOut,
+                  onVehicleSelected: onVehicleSelected,
                 )
               : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
         ),
@@ -98,11 +101,13 @@ class _ProfileBody extends StatelessWidget {
     required this.controller,
     required this.account,
     required this.onSignOut,
+    this.onVehicleSelected,
   });
 
   final VehiclesController controller;
   final Account? account;
   final VoidCallback onSignOut;
+  final ValueChanged<Vehicle>? onVehicleSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -144,6 +149,9 @@ class _ProfileBody extends StatelessWidget {
               vehicle: vehicle,
               isDeleting: controller.isDeleting(vehicle.id),
               onDelete: () => _confirmDelete(context, controller, vehicle),
+              onTap: onVehicleSelected == null
+                  ? null
+                  : () => onVehicleSelected!(vehicle),
             ),
         ],
       },
@@ -343,14 +351,17 @@ class _VehicleCard extends StatelessWidget {
     required this.vehicle,
     required this.isDeleting,
     required this.onDelete,
+    this.onTap,
   });
 
   final Vehicle vehicle;
   final bool isDeleting;
   final VoidCallback onDelete;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) => GlassSurface(
+    onTap: onTap,
     child: Row(
       children: [
         Container(
@@ -368,24 +379,64 @@ class _VehicleCard extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${vehicle.make} ${vehicle.model}',
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w800),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                vehicle.year == null
-                    ? vehicle.plate
-                    : '${vehicle.plate} · ${vehicle.year}',
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${vehicle.make} ${vehicle.model}',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w800),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right_rounded,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  vehicle.year == null
+                      ? vehicle.plate
+                      : '${vehicle.plate} · ${vehicle.year}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (_vehicleFacts(vehicle).isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    children: [
+                      for (final fact in _vehicleFacts(vehicle))
+                        Text(
+                          fact,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant,
+                              ),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  '${vehicle.serviceCount} үйлчилгээ · ${vehicle.diagnosisCount} оношилгоо',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         IconButton(
@@ -406,3 +457,11 @@ class _VehicleCard extends StatelessWidget {
     ),
   );
 }
+
+List<String> _vehicleFacts(Vehicle vehicle) => [
+  if (vehicle.colorName != null) vehicle.colorName!,
+  if (vehicle.fuelType != null) vehicle.fuelType!,
+  if (vehicle.capacity != null) '${vehicle.capacity} см³',
+  if (vehicle.wheelPosition != null) 'Хүрд: ${vehicle.wheelPosition}',
+  if (vehicle.purpose != null) vehicle.purpose!,
+];

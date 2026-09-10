@@ -16,12 +16,17 @@ class ServiceOrderDetailScreen extends StatefulWidget {
     required this.repository,
     required this.orderId,
     required this.onBack,
+    this.onReportSelected,
     super.key,
   });
 
   final ServiceHistoryRepository repository;
   final String orderId;
   final VoidCallback onBack;
+
+  /// Хавсаргасан оношилгооны тайлангийн товч мөрөнд дарахад дуудагдана —
+  /// `null` бол мөр дарах боломжгүй хэвээр үлдэнэ.
+  final ValueChanged<String>? onReportSelected;
 
   @override
   State<ServiceOrderDetailScreen> createState() =>
@@ -101,14 +106,18 @@ class _ServiceOrderDetailScreenState extends State<ServiceOrderDetailScreen> {
         ),
       ),
     ),
-    _DetailStatus.data => _DetailBody(detail: _detail!),
+    _DetailStatus.data => _DetailBody(
+      detail: _detail!,
+      onReportSelected: widget.onReportSelected,
+    ),
   };
 }
 
 class _DetailBody extends StatelessWidget {
-  const _DetailBody({required this.detail});
+  const _DetailBody({required this.detail, this.onReportSelected});
 
   final ServiceOrderDetail detail;
+  final ValueChanged<String>? onReportSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -193,7 +202,12 @@ class _DetailBody extends StatelessWidget {
             child: Column(
               children: [
                 for (final report in detail.reports)
-                  _ReportRow(report: report),
+                  _ReportRow(
+                    report: report,
+                    onTap: onReportSelected == null
+                        ? null
+                        : () => onReportSelected!(report.id),
+                  ),
               ],
             ),
           ),
@@ -204,9 +218,10 @@ class _DetailBody extends StatelessWidget {
 }
 
 class _ReportRow extends StatelessWidget {
-  const _ReportRow({required this.report});
+  const _ReportRow({required this.report, this.onTap});
 
   final DiagnosticReportSummary report;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -216,30 +231,36 @@ class _ReportRow extends StatelessWidget {
     final subtitle = report.mileageAtReport != null
         ? '$date · ${report.mileageAtReport} км'
         : date;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Icon(Icons.assignment_outlined, size: 18, color: scheme.primary),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  report.templateName,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: Theme.of(context).textTheme.bodySmall
-                      ?.copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          children: [
+            Icon(Icons.assignment_outlined, size: 18, color: scheme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    report.templateName,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
+          ],
+        ),
       ),
     );
   }

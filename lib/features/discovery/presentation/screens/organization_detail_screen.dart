@@ -12,6 +12,8 @@ import 'package:flutter/services.dart';
 class OrganizationDetailScreen extends StatelessWidget {
   const OrganizationDetailScreen({
     required this.organization,
+    this.distanceLocation,
+    this.preferredBranchId,
     required this.status,
     required this.errorMessage,
     required this.onRetry,
@@ -23,6 +25,8 @@ class OrganizationDetailScreen extends StatelessWidget {
   });
 
   final OrganizationDetail? organization;
+  final ({double lat, double lng})? distanceLocation;
+  final String? preferredBranchId;
   final OrganizationDetailStatus status;
   final String? errorMessage;
   final VoidCallback onRetry;
@@ -53,6 +57,8 @@ class OrganizationDetailScreen extends StatelessWidget {
             ? _NotFound(onBack: onBack)
             : _OrganizationDetails(
                 organization: organization!,
+                distanceLocation: distanceLocation,
+                preferredBranchId: preferredBranchId,
                 onBook: onBook,
                 isFavorite: isFavorite,
                 onFavoriteToggle: onFavoriteToggle,
@@ -69,12 +75,16 @@ class OrganizationDetailScreen extends StatelessWidget {
 class _OrganizationDetails extends StatelessWidget {
   const _OrganizationDetails({
     required this.organization,
+    this.distanceLocation,
+    this.preferredBranchId,
     required this.onBook,
     required this.isFavorite,
     required this.onFavoriteToggle,
   });
 
   final OrganizationDetail organization;
+  final ({double lat, double lng})? distanceLocation;
+  final String? preferredBranchId;
   final void Function(OrganizationDetail organization) onBook;
   final bool isFavorite;
   final VoidCallback onFavoriteToggle;
@@ -92,6 +102,46 @@ class _OrganizationDetails extends StatelessWidget {
       ..sort((a, b) => a.name.compareTo(b.name));
     return values;
   }
+
+  List<BranchDetail> get _displayBranches {
+    final branches = organization.branches.toList();
+    final location = distanceLocation;
+    if (location != null) {
+      branches.sort((a, b) {
+        final aDistance = a.distanceKmFrom(
+          userLatitude: location.lat,
+          userLongitude: location.lng,
+        );
+        final bDistance = b.distanceKmFrom(
+          userLatitude: location.lat,
+          userLongitude: location.lng,
+        );
+        return (aDistance ?? double.infinity).compareTo(
+          bDistance ?? double.infinity,
+        );
+      });
+    }
+    // A discovery result can be narrowed by open-now. In that case the
+    // globally nearest branch in the detail payload may be closed, so pin the
+    // branch that survived the original filter first.
+    final preferredId = preferredBranchId;
+    if (preferredId != null) {
+      final preferredIndex = branches.indexWhere(
+        (branch) => branch.id == preferredId,
+      );
+      if (preferredIndex > 0) {
+        final preferred = branches.removeAt(preferredIndex);
+        branches.insert(0, preferred);
+      }
+    }
+    return branches;
+  }
+
+  String? get _nearestBranchId =>
+      _displayBranches.isNotEmpty &&
+          (preferredBranchId != null || distanceLocation != null)
+          ? _displayBranches.first.id
+          : null;
 
   @override
   Widget build(BuildContext context) => ListView(
@@ -136,8 +186,16 @@ class _OrganizationDetails extends StatelessWidget {
       if (organization.branches.isEmpty)
         const _NoBranches()
       else
-        for (final branch in organization.branches) ...[
-          _BranchInfoCard(branch: branch),
+        for (final branch in _displayBranches) ...[
+          _BranchInfoCard(
+            branch: branch,
+            distanceLocation: distanceLocation,
+            highlightLabel: branch.id == _nearestBranchId
+                ? (preferredBranchId != null && distanceLocation == null
+                      ? 'Шүүлтүүрт тохирсон салбар'
+                      : 'Хамгийн ойр салбар')
+                : null,
+          ),
           const SizedBox(height: 12),
         ],
       if (AppEnvironment.bookingEnabled)
@@ -372,9 +430,15 @@ class _HeroLogo extends StatelessWidget {
 /// үйлчилгээ) — сонголт/захиалгын үйлдэлгүй, зөвхөн харуулна. Салбар сонгох,
 /// цаг захиалах бүгд `BookingRequestScreen` дотор явагдана.
 class _BranchInfoCard extends StatelessWidget {
-  const _BranchInfoCard({required this.branch});
+  const _BranchInfoCard({
+    required this.branch,
+    required this.distanceLocation,
+    required this.highlightLabel,
+  });
 
   final BranchDetail branch;
+  final ({double lat, double lng})? distanceLocation;
+  final String? highlightLabel;
 
   @override
   Widget build(BuildContext context) => GlassSurface(
@@ -384,10 +448,23 @@ class _BranchInfoCard extends StatelessWidget {
         Row(
           children: [
             Expanded(
-              child: Text(
-                branch.name,
-                style: Theme.of(context).textTheme.titleMedium
-                    ?.copyWith(fontWeight: FontWeight.w800),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    branch.name,
+                    style: Theme.of(context).textTheme.titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  if (highlightLabel != null) ...[
+                    const SizedBox(height: 5),
+                    _InfoPill(
+                      icon: Icons.near_me_outlined,
+                      label: highlightLabel!,
+                      positive: true,
+                    ),
+                  ],
+                ],
               ),
             ),
             _OpenBadge(status: branch.openStatusAt(DateTime.now())),
@@ -400,6 +477,21 @@ class _BranchInfoCard extends StatelessWidget {
           icon: Icons.location_city_outlined,
           text: branch.locationLabel,
         ),
+        if (distanceLocation != null &&
+            branch.distanceLabelFrom(
+                  userLatitude: distanceLocation!.lat,
+                  userLongitude: distanceLocation!.lng,
+                ) !=
+                null) ...[
+          const SizedBox(height: 9),
+          _DetailLine(
+            icon: Icons.near_me_outlined,
+            text: branch.distanceLabelFrom(
+              userLatitude: distanceLocation!.lat,
+              userLongitude: distanceLocation!.lng,
+            )!,
+          ),
+        ],
         const SizedBox(height: 9),
         _DetailLine(icon: Icons.schedule_rounded, text: branch.hoursLabel),
         if (branch.categories.isNotEmpty) ...[

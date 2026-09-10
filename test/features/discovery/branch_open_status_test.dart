@@ -57,4 +57,32 @@ void main() {
       BranchOpenStatus.unknown,
     );
   });
+
+  test('formats approximate distance from the user location', () {
+    final subject = BranchDetail(
+      id: 'branch',
+      name: 'Branch',
+      city: 'Улаанбаатар',
+      district: 'Баянзүрх',
+      khoroo: '',
+      address: '',
+      latitude: 47.9189,
+      longitude: 106.9177,
+    );
+
+    expect(
+      subject.distanceLabelFrom(
+        userLatitude: 47.9189,
+        userLongitude: 106.9177,
+      ),
+      'Ойролцоогоор 0.0 км',
+    );
+    expect(
+      subject.distanceKmFrom(
+        userLatitude: 47.9189,
+        userLongitude: 106.9177,
+      ),
+      0,
+    );
+  });
 }

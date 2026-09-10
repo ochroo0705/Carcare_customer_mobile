@@ -47,6 +47,12 @@ class DiscoveryController extends ChangeNotifier {
   bool get nearMePending => _nearMePending;
   bool get openNowPending => _openNowPending;
   bool get weekendPending => _weekendPending;
+  /// Location snapshot used for the active near-me result. This is kept out of
+  /// organization models because it belongs to the current discovery session.
+  ({double lat, double lng})? get nearMeLocation =>
+      _nearMe && _lat != null && _lng != null
+          ? (lat: _lat!, lng: _lng!)
+          : null;
   // Сүүлд ямар нэг өгөгдөл (шүүлтгүй) ачаалагдсан эсэх — chip мөрийг
   // харуулах эсэхэд ашиглана. `state.organizations`-аас ялгаатай нь энэ утга
   // reload-ын үед (`load()`-ийн шинэ хүсэлт хараахан дуусаагүй байхад)

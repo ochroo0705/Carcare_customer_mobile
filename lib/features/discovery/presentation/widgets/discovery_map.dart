@@ -29,7 +29,7 @@ class DiscoveryMap extends StatefulWidget {
 
   final List<Organization> organizations;
   final bool hasActiveFilters;
-  final ValueChanged<String> onOrganizationSelected;
+  final ValueChanged<Organization> onOrganizationSelected;
   final VoidCallback onShowList;
   final LocationPermissionService locationPermissionService;
   final MapConfigurationService mapConfigurationService;
@@ -472,7 +472,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
                   branch: visibleSelection.branch,
                   onClose: () => setState(() => _selected = null),
                   onDetails: () => widget.onOrganizationSelected(
-                    visibleSelection!.organization.slug,
+                    visibleSelection!.organization,
                   ),
                 ),
               ),

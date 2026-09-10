@@ -297,6 +297,13 @@ CachedVehiclesCompanion _vehicleToCompanion(
   model: vehicle.model,
   year: Value(vehicle.year),
   vin: Value(vehicle.vin),
+  fuelType: Value(vehicle.fuelType),
+  wheelPosition: Value(vehicle.wheelPosition),
+  colorName: Value(vehicle.colorName),
+  capacity: Value(vehicle.capacity),
+  purpose: Value(vehicle.purpose),
+  serviceCount: Value(vehicle.serviceCount),
+  diagnosisCount: Value(vehicle.diagnosisCount),
   cachedAt: cachedAt,
 );
 
@@ -307,6 +314,13 @@ Vehicle _vehicleFromRow(CachedVehicleRow row) => Vehicle(
   model: row.model,
   year: row.year,
   vin: row.vin,
+  fuelType: row.fuelType,
+  wheelPosition: row.wheelPosition,
+  colorName: row.colorName,
+  capacity: row.capacity,
+  purpose: row.purpose,
+  serviceCount: row.serviceCount ?? 0,
+  diagnosisCount: row.diagnosisCount ?? 0,
 );
 
 // --- Appointment <-> row ----------------------------------------------------

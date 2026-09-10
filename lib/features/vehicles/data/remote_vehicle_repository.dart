@@ -34,6 +34,9 @@ class RemoteVehicleRepository implements VehicleRepository {
     String? vin,
     String? fuelType,
     String? wheelPosition,
+    String? colorName,
+    int? capacity,
+    String? purpose,
   }) async {
     final json = await _client.postJson('/vehicles', {
       'plate': plate,
@@ -45,6 +48,11 @@ class RemoteVehicleRepository implements VehicleRepository {
         'fuelType': fuelType.trim(),
       if (wheelPosition != null && wheelPosition.trim().isNotEmpty)
         'wheelPosition': wheelPosition.trim(),
+      if (colorName != null && colorName.trim().isNotEmpty)
+        'colorName': colorName.trim(),
+      if (capacity != null) 'capacity': capacity,
+      if (purpose != null && purpose.trim().isNotEmpty)
+        'purpose': purpose.trim(),
     });
     final value = json['vehicle'];
     if (value is! Map) {

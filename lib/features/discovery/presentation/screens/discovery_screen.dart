@@ -19,7 +19,7 @@ enum _FavoritesFilter { all, saved }
 
 class DiscoveryScreen extends StatefulWidget {
   const DiscoveryScreen({required this.onOrganizationSelected, super.key});
-  final ValueChanged<String> onOrganizationSelected;
+  final ValueChanged<Organization> onOrganizationSelected;
 
   @override
   State<DiscoveryScreen> createState() => _DiscoveryScreenState();
@@ -206,7 +206,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   isFavorite: favoritesController.contains(organization.slug),
                   onFavoriteToggle: () =>
                       favoritesController.toggle(organization.slug),
-                  onTap: () => widget.onOrganizationSelected(organization.slug),
+                  onTap: () => widget.onOrganizationSelected(organization),
                 ),
               );
             },
