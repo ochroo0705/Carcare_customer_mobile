@@ -32,7 +32,7 @@ class AppointmentDto {
   factory AppointmentDto.fromJson(Map<String, dynamic> json) {
     final id = json['id'];
     final status = json['status'];
-    final requestedAt = DateTime.tryParse('${json['requestedAt']}');
+    final requestedAt = DateTime.tryParse('${json['requestedAt']}')?.toLocal();
     if (id is! String || status is! String || requestedAt == null) {
       throw const UnexpectedFailure('Захиалгын мэдээлэл буруу байна.');
     }
@@ -327,4 +327,4 @@ String? _optionalString(Object? value) {
 }
 
 DateTime? _optionalDateTime(Object? value) =>
-    value is String ? DateTime.tryParse(value) : null;
+    value is String ? DateTime.tryParse(value)?.toLocal() : null;

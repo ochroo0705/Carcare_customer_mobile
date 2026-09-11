@@ -90,7 +90,7 @@ class RemoteAppointmentRepository implements AppointmentRepository {
     final appointment = Map<String, dynamic>.from(value);
     final id = appointment['id'];
     final status = appointment['status'];
-    final parsedAt = DateTime.tryParse('${appointment['requestedAt']}');
+    final parsedAt = DateTime.tryParse('${appointment['requestedAt']}')?.toLocal();
     if (id is! String || status is! String || parsedAt == null) {
       throw const UnexpectedFailure('Захиалгын мэдээлэл буруу байна.');
     }

@@ -41,13 +41,13 @@ String? _optionalString(Object? value) => value is String ? value : null;
 DateTime _dateFrom(Object? value) {
   if (value is String) {
     final parsed = DateTime.tryParse(value);
-    if (parsed != null) return parsed;
+    if (parsed != null) return parsed.toLocal();
   }
   throw const UnexpectedFailure('Захиалгын огноо буруу байна.');
 }
 
 DateTime? _dateFromOrNull(Object? value) =>
-    value is String ? DateTime.tryParse(value) : null;
+    value is String ? DateTime.tryParse(value)?.toLocal() : null;
 
 /// Захиалгын "огноо" — дууссан бол дуусах, эс бол товлосон, эс бол үүсгэсэн.
 DateTime _effectiveDate(Map order) =>

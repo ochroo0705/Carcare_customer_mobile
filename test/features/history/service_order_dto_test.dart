@@ -33,7 +33,9 @@ void main() {
       expect(o.totalAmount, 150000); // string parsed to int
       expect(o.paidAmount, 150000);
       expect(o.vehiclePlate, '1234УБА');
-      expect(o.completedAt, DateTime.utc(2026, 9, 1, 10));
+      // Server sends UTC instants; the app must display device-local time,
+      // not the raw UTC clock reading (see the return-time timezone fix).
+      expect(o.completedAt, DateTime.utc(2026, 9, 1, 10).toLocal());
     });
 
     test('maps PARTIAL/UNPAID payment status', () {
@@ -61,7 +63,7 @@ void main() {
           'branch': {'name': 'B'},
         },
       ]);
-      expect(orders.single.completedAt, DateTime.utc(2026, 8, 30, 8));
+      expect(orders.single.completedAt, DateTime.utc(2026, 8, 30, 8).toLocal());
     });
 
     test('tolerates a null vehicle', () {

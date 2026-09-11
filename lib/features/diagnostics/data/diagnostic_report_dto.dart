@@ -28,7 +28,7 @@ String _optionalString(Object? value, [String fallback = '']) =>
 DateTime _dateFrom(Object? value) {
   if (value is String) {
     final parsed = DateTime.tryParse(value);
-    if (parsed != null) return parsed;
+    if (parsed != null) return parsed.toLocal();
   }
   throw const UnexpectedFailure('Оношилгооны огноо буруу байна.');
 }
