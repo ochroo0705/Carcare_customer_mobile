@@ -143,9 +143,9 @@ class _CountingHistoryRepository implements ServiceHistoryRepository {
   int getServiceHistoryCallCount = 0;
 
   @override
-  Future<List<ServiceOrder>> getServiceHistory() {
+  Future<ServiceHistoryPage> getServiceHistory({HistoryFilter filter = const HistoryFilter()}) {
     getServiceHistoryCallCount++;
-    return _inner.getServiceHistory();
+    return _inner.getServiceHistory(filter: filter);
   }
 
   @override

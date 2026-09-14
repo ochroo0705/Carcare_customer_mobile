@@ -13,13 +13,64 @@ class _ThrowingHistoryRepo implements ServiceHistoryRepository {
   const _ThrowingHistoryRepo(this.failure);
   final AppFailure failure;
   @override
-  Future<List<ServiceOrder>> getServiceHistory() async => throw failure;
+  Future<ServiceHistoryPage> getServiceHistory({HistoryFilter filter = const HistoryFilter()}) async => throw failure;
   @override
   Future<ServiceOrderDetail> getServiceOrderDetail(String id) async =>
       throw failure;
   @override
   Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async =>
       throw failure;
+}
+
+class _CancelledPagingRepo implements ServiceHistoryRepository {
+  final pages = <int>[];
+  bool failPageTwo = false;
+
+  CancelledAppointmentSummary _appointment(int page) =>
+      CancelledAppointmentSummary(
+        id: 'cancelled-$page',
+        status: CancelledAppointmentStatus.cancelled,
+        requestedAt: DateTime(2026, 1, page),
+        tenantName: 'Tenant',
+        branchName: 'Branch',
+      );
+
+  @override
+  Future<ServiceHistoryPage> getServiceHistory({
+    HistoryFilter filter = const HistoryFilter(),
+  }) async {
+    pages.add(filter.page);
+    if (failPageTwo && filter.page == 2) throw const NetworkFailure();
+    final item = _appointment(filter.page);
+    return ServiceHistoryPage(
+      orders: const [],
+      cancelledAppointments: [item],
+      pagination: const HistoryPagination(
+        page: 1,
+        pageSize: 20,
+        total: 0,
+        totalPages: 1,
+        hasPrev: false,
+        hasNext: false,
+      ),
+      cancelledPagination: HistoryPagination(
+        page: filter.page,
+        pageSize: 1,
+        total: 3,
+        totalPages: 3,
+        hasPrev: filter.page > 1,
+        hasNext: filter.page < 3,
+      ),
+    );
+  }
+
+  @override
+  Future<ServiceOrderDetail> getServiceOrderDetail(String id) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async =>
+      const [];
 }
 
 void main() {
@@ -71,5 +122,31 @@ void main() {
 
     expect(controller.state.status, HistoryStatus.error);
     expect(controller.state.message, 'boom');
+  });
+
+  test('advances pages from cancelled metadata when orders have no next page', () async {
+    final repository = _CancelledPagingRepo();
+    final controller = HistoryController(repository);
+    addTearDown(controller.dispose);
+
+    await controller.load();
+    await controller.loadMore();
+    await controller.loadMore();
+
+    expect(repository.pages, [1, 2, 3]);
+    expect(controller.state.cancelledAppointments, hasLength(3));
+    expect(controller.state.page, 3);
+  });
+
+  test('keeps history data and exposes append retry failures', () async {
+    final repository = _CancelledPagingRepo()..failPageTwo = true;
+    final controller = HistoryController(repository);
+    addTearDown(controller.dispose);
+
+    await controller.load();
+    await controller.loadMore();
+
+    expect(controller.state.cancelledAppointments, hasLength(1));
+    expect(controller.state.loadMoreMessage, isNotNull);
   });
 }

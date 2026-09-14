@@ -42,14 +42,31 @@ OrganizationPage _page({
 
 class _ScriptedRepository implements OrganizationRepository {
   final requests = <OrganizationFilter>[];
+  final mapRequests = <MapViewport>[];
   Future<OrganizationPage> Function(OrganizationFilter) handler =
       (_) async => _page(page: 1, items: const []);
+  Future<OrganizationMapPage> Function(MapViewport) mapHandler =
+      (_) async => const OrganizationMapPage(
+        markers: [],
+        count: 0,
+        truncated: false,
+        max: 500,
+      );
 
   @override
   Future<OrganizationPage> getOrganizations({OrganizationFilter? filter}) {
     final request = filter ?? const OrganizationFilter();
     requests.add(request);
     return handler(request);
+  }
+
+  @override
+  Future<OrganizationMapPage> getMapMarkers({
+    required MapViewport viewport,
+    OrganizationFilter? filter,
+  }) {
+    mapRequests.add(viewport);
+    return mapHandler(viewport);
   }
 
   @override
@@ -132,4 +149,149 @@ void main() {
       expect(failingController.state.loadMoreMessage, isNotNull);
     },
   );
+
+  test('uses buffered coverage and refetches after a filter change',
+      () async {
+    final repository = _ScriptedRepository();
+    final controller = DiscoveryController(repository);
+    addTearDown(controller.dispose);
+    const viewport = MapViewport(
+      north: 48,
+      south: 47,
+      east: 107,
+      west: 106,
+    );
+
+    controller.requestMapMarkers(viewport);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests.single.north, closeTo(48.3, 0.0001));
+    expect(repository.mapRequests.single.south, closeTo(46.7, 0.0001));
+    expect(repository.mapRequests.single.east, closeTo(107.15, 0.0001));
+    expect(repository.mapRequests.single.west, closeTo(105.85, 0.0001));
+    controller.requestMapMarkers(const MapViewport(
+      north: 48.1,
+      south: 47.1,
+      east: 107.1,
+      west: 106.1,
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests, hasLength(1));
+
+    controller.requestMapMarkers(const MapViewport(
+      north: 48.5,
+      south: 47.5,
+      east: 107.5,
+      west: 106.5,
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests, hasLength(2));
+
+    controller.setCity('Улаанбаатар');
+    await Future<void>.delayed(Duration.zero);
+    controller.requestMapMarkers(viewport);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests, hasLength(3));
+  });
+
+  test('map retry bypasses the failed viewport dedupe key', () async {
+    final repository = _ScriptedRepository()
+      ..mapHandler = (_) async => throw const NetworkFailure();
+    final controller = DiscoveryController(repository);
+    addTearDown(controller.dispose);
+    const viewport = MapViewport(
+      north: 48,
+      south: 47,
+      east: 107,
+      west: 106,
+    );
+
+    controller.requestMapMarkers(viewport);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    controller.requestMapMarkers(viewport);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests, hasLength(1));
+    expect(controller.mapError, isNotNull);
+
+    controller.requestMapMarkers(viewport, force: true);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests, hasLength(2));
+  });
+
+  test('buffers antimeridian coverage without losing the crossing bounds',
+      () async {
+    final repository = _ScriptedRepository();
+    final controller = DiscoveryController(repository);
+    addTearDown(controller.dispose);
+    const viewport = MapViewport(
+      north: 10,
+      south: 0,
+      east: -179,
+      west: 179,
+    );
+
+    controller.requestMapMarkers(viewport);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests.single.east, closeTo(-178.7, 0.0001));
+    expect(repository.mapRequests.single.west, closeTo(178.7, 0.0001));
+
+    controller.requestMapMarkers(const MapViewport(
+      north: 9.5,
+      south: 0.5,
+      east: -179.5,
+      west: 179.5,
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests, hasLength(1));
+  });
+
+  test('clears a stale refresh error when cached coverage serves movement',
+      () async {
+    const marker = OrganizationMapMarker(
+      id: 'branch',
+      orgSlug: 'org',
+      orgName: 'Org',
+      branchName: 'Branch',
+      latitude: 47.5,
+      longitude: 106.5,
+    );
+    final repository = _ScriptedRepository()
+      ..mapHandler = (_) async => const OrganizationMapPage(
+        markers: [marker],
+        count: 1,
+        truncated: false,
+        max: 500,
+      );
+    final controller = DiscoveryController(repository);
+    addTearDown(controller.dispose);
+    const viewport = MapViewport(
+      north: 48,
+      south: 47,
+      east: 107,
+      west: 106,
+    );
+
+    controller.requestMapMarkers(viewport);
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    repository.mapHandler = (_) async => throw const NetworkFailure();
+    controller.requestMapMarkers(const MapViewport(
+      north: 48.5,
+      south: 47.5,
+      east: 107.5,
+      west: 106.5,
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.mapRequests, hasLength(2));
+    expect(controller.mapError, isNotNull);
+    expect(controller.mapMarkers, hasLength(1));
+
+    controller.requestMapMarkers(const MapViewport(
+      north: 48.1,
+      south: 47.1,
+      east: 107.1,
+      west: 106.1,
+    ));
+    expect(repository.mapRequests, hasLength(2));
+    expect(controller.mapError, isNull);
+    expect(controller.mapMarkers, hasLength(1));
+  });
 }

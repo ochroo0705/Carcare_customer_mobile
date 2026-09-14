@@ -28,6 +28,12 @@ class CachingOrganizationRepository implements OrganizationRepository {
       _delegate.getOrganizations(filter: filter);
 
   @override
+  Future<OrganizationMapPage> getMapMarkers({
+    required MapViewport viewport,
+    OrganizationFilter? filter,
+  }) => _delegate.getMapMarkers(viewport: viewport, filter: filter);
+
+  @override
   Future<OrganizationDetail> getOrganization(String slug) async {
     final cached = await _cache.readOrganizationDetail(slug);
     if (cached != null && DateTime.now().difference(cached.cachedAt) < ttl) {

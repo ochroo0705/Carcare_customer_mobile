@@ -33,6 +33,17 @@ class _CountingDelegate implements OrganizationRepository {
   );
 
   @override
+  Future<OrganizationMapPage> getMapMarkers({
+    required MapViewport viewport,
+    OrganizationFilter? filter,
+  }) async => const OrganizationMapPage(
+    markers: [],
+    count: 0,
+    truncated: false,
+    max: 500,
+  );
+
+  @override
   Future<OrganizationDetail> getOrganization(String slug) async {
     calls++;
     if (fail) throw const NetworkFailure();

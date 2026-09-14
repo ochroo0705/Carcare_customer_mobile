@@ -221,34 +221,25 @@ class _HistoryList extends StatefulWidget {
 
 class _HistoryListState extends State<_HistoryList> {
   final _searchController = TextEditingController();
-  String _query = '';
-  int? _year;
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(() {
+      if (_scrollController.position.extentAfter < 400 &&
+          widget.controller.hasNextPage &&
+          widget.controller.state.loadMoreMessage == null) {
+        widget.controller.loadMore();
+      }
+    });
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
-  }
-
-  bool _matchesQuery(String haystack) =>
-      _query.isEmpty || haystack.toLowerCase().contains(_query.toLowerCase());
-
-  bool _matchesYear(DateTime date) => _year == null || date.year == _year;
-
-  bool _orderMatches(ServiceOrder order) {
-    if (!_matchesYear(order.completedAt)) return false;
-    if (_query.isEmpty) return true;
-    return _matchesQuery(order.tenantName) ||
-        _matchesQuery(order.branchName) ||
-        (order.vehiclePlate != null && _matchesQuery(order.vehiclePlate!));
-  }
-
-  bool _cancelledMatches(CancelledAppointmentSummary appt) {
-    if (!_matchesYear(appt.requestedAt)) return false;
-    if (_query.isEmpty) return true;
-    return _matchesQuery(appt.tenantName) ||
-        _matchesQuery(appt.branchName) ||
-        (appt.categoryName != null && _matchesQuery(appt.categoryName!));
   }
 
   @override
@@ -257,25 +248,23 @@ class _HistoryListState extends State<_HistoryList> {
     final allCancelled = widget.controller.state.cancelledAppointments;
     // Зөвхөн бодит өгөгдөлд байгаа он жилүүдийг санал болгоно — хоосон/
     // хамааралгүй жил гарч ирэхгүй.
-    final years =
-        {
-          for (final order in allOrders) order.completedAt.year,
-          for (final appt in allCancelled) appt.requestedAt.year,
-        }.toList()..sort((a, b) => b.compareTo(a));
-    final orders = allOrders.where(_orderMatches).toList(growable: false);
-    final cancelledAppointments = allCancelled
-        .where(_cancelledMatches)
-        .toList(growable: false);
+    final years = widget.controller.state.availableYears;
+    final orders = allOrders;
+    final cancelledAppointments = allCancelled;
     final isFromCache = widget.controller.state.isFromCache;
-    final hasFilter = _query.isNotEmpty || _year != null;
+    final hasFilter = widget.controller.query.isNotEmpty ||
+        widget.controller.year != null;
     final noResults =
         hasFilter && orders.isEmpty && cancelledAppointments.isEmpty;
     final offset = isFromCache ? 1 : 0;
     // D-085: cancelled/no-show/rejected appointments render after the order
     // cards, behind their own section header (only when there are any).
     final hasCancelledSection = cancelledAppointments.isNotEmpty;
-    final itemCount =
-        orders.length + offset + (hasCancelledSection ? 1 : 0) + cancelledAppointments.length;
+    final itemCount = orders.length +
+        offset +
+        (hasCancelledSection ? 1 : 0) +
+        cancelledAppointments.length +
+        (widget.controller.hasNextPage ? 1 : 0);
     return Column(
       children: [
         Padding(
@@ -289,10 +278,10 @@ class _HistoryListState extends State<_HistoryList> {
               const SizedBox(height: 14),
               _HistorySearchBar(
                 controller: _searchController,
-                onChanged: (value) => setState(() => _query = value),
+                onChanged: widget.controller.setQuery,
                 years: years,
-                selectedYear: _year,
-                onYearChanged: (year) => setState(() => _year = year),
+                selectedYear: widget.controller.year,
+                onYearChanged: widget.controller.setYear,
               ),
             ],
           ),
@@ -314,11 +303,30 @@ class _HistoryListState extends State<_HistoryList> {
               : RefreshIndicator(
                   onRefresh: widget.controller.load,
                   child: ListView.separated(
+                    controller: _scrollController,
                     key: const PageStorageKey('history-list'),
                     padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
                     itemCount: itemCount,
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
+                      final contentCount =
+                          orders.length +
+                          offset +
+                          (hasCancelledSection ? 1 : 0) +
+                          cancelledAppointments.length;
+                      if (index >= contentCount) {
+                        return Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Center(
+                            child: widget.controller.state.loadMoreMessage == null
+                                ? const CircularProgressIndicator()
+                                : OutlinedButton(
+                                    onPressed: widget.controller.loadMore,
+                                    child: const Text('Дахин ачаалах'),
+                                  ),
+                          ),
+                        );
+                      }
                       if (isFromCache && index == 0) {
                         return OfflineBanner(
                           message:

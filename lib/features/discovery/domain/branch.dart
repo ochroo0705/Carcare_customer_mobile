@@ -111,6 +111,27 @@ class BranchScheduleException {
   final String? label;
 }
 
+enum BranchScheduleSource { exception, season, weekday, fallback }
+
+/// A resolved day's hours plus *why* — mirrors the server's
+/// `resolveEffectiveSchedule` precedence (exception > active season > base
+/// weekday > branch-level fallback) so the mobile UI can show the same
+/// answer, and explain it, for any date.
+class BranchEffectiveSchedule {
+  const BranchEffectiveSchedule({
+    required this.rule,
+    required this.source,
+    this.label,
+  });
+
+  final BranchScheduleRule rule;
+  final BranchScheduleSource source;
+
+  /// Exception label (e.g. "Наадам") or season name (e.g. "Өвлийн цагийн
+  /// хуваарь") — null for the ordinary weekday/fallback sources.
+  final String? label;
+}
+
 class BranchScheduleSeason {
   const BranchScheduleSeason({
     required this.name,
@@ -229,13 +250,20 @@ class BranchDetail {
         : BranchOpenStatus.closed;
   }
 
-  BranchScheduleRule effectiveScheduleAt(DateTime value) {
+  BranchScheduleRule effectiveScheduleAt(DateTime value) =>
+      effectiveScheduleDetailAt(value).rule;
+
+  BranchEffectiveSchedule effectiveScheduleDetailAt(DateTime value) {
     final business = value.toUtc().add(const Duration(hours: 8));
     final date = '${business.year.toString().padLeft(4, '0')}-${business.month.toString().padLeft(2, '0')}-${business.day.toString().padLeft(2, '0')}';
     final weekday = <String>['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][business.weekday % 7];
     final exception = _firstOrNull(scheduleExceptions.where((item) => item.date == date));
     if (exception != null) {
-      return BranchScheduleRule(weekday: weekday, isOpen: exception.isOpen, openTime: exception.openTime, closeTime: exception.closeTime);
+      return BranchEffectiveSchedule(
+        rule: BranchScheduleRule(weekday: weekday, isOpen: exception.isOpen, openTime: exception.openTime, closeTime: exception.closeTime),
+        source: BranchScheduleSource.exception,
+        label: exception.label,
+      );
     }
     final base = _firstOrNull(schedules.where((item) => item.weekday == weekday));
     final season = _firstOrNull(
@@ -246,13 +274,23 @@ class BranchDetail {
       ),
     );
     final seasonal = season == null ? null : _firstOrNull(season.days.where((item) => item.weekday == weekday));
-    if (seasonal != null) {
-      return BranchScheduleRule(weekday: weekday, isOpen: seasonal.isOpen, openTime: seasonal.openTime ?? base?.openTime ?? openTime, closeTime: seasonal.closeTime ?? base?.closeTime ?? closeTime);
+    if (season != null && seasonal != null) {
+      return BranchEffectiveSchedule(
+        rule: BranchScheduleRule(weekday: weekday, isOpen: seasonal.isOpen, openTime: seasonal.openTime ?? base?.openTime ?? openTime, closeTime: seasonal.closeTime ?? base?.closeTime ?? closeTime),
+        source: BranchScheduleSource.season,
+        label: season.name,
+      );
     }
     if (base != null) {
-      return BranchScheduleRule(weekday: weekday, isOpen: base.isOpen, openTime: base.openTime ?? openTime, closeTime: base.closeTime ?? closeTime);
+      return BranchEffectiveSchedule(
+        rule: BranchScheduleRule(weekday: weekday, isOpen: base.isOpen, openTime: base.openTime ?? openTime, closeTime: base.closeTime ?? closeTime),
+        source: BranchScheduleSource.weekday,
+      );
     }
-    return BranchScheduleRule(weekday: weekday, isOpen: openTime != null && closeTime != null, openTime: openTime, closeTime: closeTime);
+    return BranchEffectiveSchedule(
+      rule: BranchScheduleRule(weekday: weekday, isOpen: openTime != null && closeTime != null, openTime: openTime, closeTime: closeTime),
+      source: BranchScheduleSource.fallback,
+    );
   }
 }
 

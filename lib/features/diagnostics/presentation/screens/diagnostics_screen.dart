@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
@@ -31,46 +33,151 @@ class DiagnosticsScreen extends StatefulWidget {
 class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   _ListStatus _status = _ListStatus.loading;
   List<DiagnosticReportListItem> _reports = const [];
+  DiagnosticPagination _pagination = const DiagnosticPagination(
+    page: 1,
+    pageSize: 20,
+    total: 0,
+    totalPages: 1,
+    hasPrev: false,
+    hasNext: false,
+  );
+  List<int> _availableYears = const [];
   String? _message;
   ReportSeverity? _severityFilter;
-
-  List<DiagnosticReportListItem> get _filteredReports {
-    final filter = _severityFilter;
-    if (filter == null) return _reports;
-    return _reports
-        .where((report) => report.severity == filter)
-        .toList(growable: false);
-  }
+  String _query = '';
+  int? _year;
+  Timer? _debounce;
+  int _generation = 0;
+  bool _loadingMore = false;
+  bool _resultsStale = false;
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(() {
+      if (_scrollController.position.extentAfter < 400 &&
+          _pagination.hasNext &&
+          !_loadingMore &&
+          _message == null) {
+        _load(append: true);
+      }
+    });
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _status = _ListStatus.loading);
+  Future<void> _load({bool append = false}) async {
+    if (append && _loadingMore) return;
+    if (append) _loadingMore = true;
+    final generation = ++_generation;
+    if (!append) setState(() => _status = _ListStatus.loading);
     try {
-      final reports = await widget.repository.getDiagnostics();
-      if (!mounted) return;
+      final result = await widget.repository.getDiagnostics(
+        filter: DiagnosticFilter(
+          query: _query,
+          severity: _severityFilter,
+          year: _year,
+          page: append ? _pagination.page + 1 : 1,
+        ),
+      );
+      if (!mounted) {
+        _loadingMore = false;
+        return;
+      }
+      if (generation != _generation) {
+        _loadingMore = false;
+        return;
+      }
       setState(() {
-        _reports = reports;
-        _status = reports.isEmpty ? _ListStatus.empty : _ListStatus.data;
+        _message = null;
+        _resultsStale = false;
+        _reports = append ? [..._reports, ...result.reports] : result.reports;
+        _pagination = result.pagination;
+        _availableYears = result.availableYears;
+        _status = _reports.isEmpty ? _ListStatus.empty : _ListStatus.data;
       });
+      _loadingMore = false;
     } on AppFailure catch (failure) {
+      _loadingMore = false;
       if (!mounted) return;
+      if (generation != _generation) return;
+      if (append) {
+        setState(() => _message = failure.message);
+        return;
+      }
       setState(() {
         _message = failure.message;
         _status = _ListStatus.error;
       });
     } catch (_) {
+      _loadingMore = false;
       if (!mounted) return;
+      if (generation != _generation) return;
+      if (append) {
+        setState(() => _message = 'Тодорхойгүй алдаа гарлаа.');
+        return;
+      }
       setState(() {
         _message = 'Тодорхойгүй алдаа гарлаа.';
         _status = _ListStatus.error;
       });
     }
   }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _queryChanged(String value) {
+    setState(() {
+      _query = value.trim();
+      _resultsStale = true;
+    });
+    _generation++;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), _load);
+  }
+
+  void _severityChanged(ReportSeverity? severity) {
+    setState(() {
+      _severityFilter = severity;
+    });
+    _generation++;
+    _load();
+  }
+
+  void _yearChanged(int? year) {
+    setState(() => _year = year);
+    _generation++;
+    _load();
+  }
+
+  Widget _filters() => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+    child: Column(
+      children: [
+        TextField(
+          key: const ValueKey('diagnostics-search'),
+          onChanged: _queryChanged,
+          decoration: const InputDecoration(hintText: 'Тайлан, машин, салбараар хайх'),
+        ),
+        const SizedBox(height: 10),
+        _SeverityFilterRow(selected: _severityFilter, onChanged: _severityChanged),
+        if (_availableYears.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            children: [
+              FilterChip(label: const Text('Бүгд'), selected: _year == null, onSelected: (_) => _yearChanged(null)),
+              for (final year in _availableYears)
+                FilterChip(label: Text('$year'), selected: _year == year, onSelected: (_) => _yearChanged(year)),
+            ],
+          ),
+      ],
+    ),
+  );
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -110,10 +217,13 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
         ),
       ),
     ),
-    _ListStatus.empty => Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
+    _ListStatus.empty => Column(
+      children: [
+        _filters(),
+        Expanded(child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
@@ -137,21 +247,18 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
               ),
             ),
           ],
-        ),
-      ),
+            ),
+          ),
+        )),
+      ],
     ),
     _ListStatus.data => Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
-          child: _SeverityFilterRow(
-            selected: _severityFilter,
-            onChanged: (severity) =>
-                setState(() => _severityFilter = severity),
-          ),
-        ),
+        _filters(),
         Expanded(
-          child: _filteredReports.isEmpty
+          child: _resultsStale
+              ? const Center(child: CircularProgressIndicator())
+              : _reports.isEmpty
               ? Center(
                   child: Padding(
                     padding: const EdgeInsets.all(32),
@@ -167,11 +274,25 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
               : RefreshIndicator(
                   onRefresh: _load,
                   child: ListView.separated(
+                    controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-                    itemCount: _filteredReports.length,
+                    itemCount: _reports.length + (_pagination.hasNext ? 1 : 0),
                     separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
-                      final report = _filteredReports[index];
+                      if (index >= _reports.length) {
+                        return Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Center(
+                            child: _message == null
+                                ? const CircularProgressIndicator()
+                                : OutlinedButton(
+                                    onPressed: () => _load(append: true),
+                                    child: const Text('Дахин ачаалах'),
+                                  ),
+                          ),
+                        );
+                      }
+                      final report = _reports[index];
                       return _ReportCard(
                         report: report,
                         onTap: () => widget.onReportSelected(report.id),

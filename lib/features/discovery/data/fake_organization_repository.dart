@@ -71,6 +71,62 @@ class FakeOrganizationRepository implements OrganizationRepository {
   }
 
   @override
+  Future<OrganizationMapPage> getMapMarkers({
+    required MapViewport viewport,
+    OrganizationFilter? filter,
+  }) async {
+    final current = filter ?? const OrganizationFilter();
+    // The map endpoint is independent of list pagination; use one complete
+    // in-memory catalog snapshot before applying the viewport.
+    final page = await getOrganizations(
+      filter: OrganizationFilter(
+        query: current.query,
+        city: current.city,
+        district: current.district,
+        page: 1,
+        pageSize: 10000,
+        lat: current.lat,
+        lng: current.lng,
+        radiusKm: current.radiusKm,
+        openNow: current.openNow,
+        weekend: current.weekend,
+      ),
+    );
+    final markers = <OrganizationMapMarker>[];
+    for (final organization in page.organizations) {
+      for (final branch in organization.branches) {
+        final lat = branch.latitude;
+        final lng = branch.longitude;
+        if (lat == null || lng == null || lat < viewport.south || lat > viewport.north) {
+          continue;
+        }
+        final inLongitude = viewport.west <= viewport.east
+            ? lng >= viewport.west && lng <= viewport.east
+            : lng >= viewport.west || lng <= viewport.east;
+        if (!inLongitude) continue;
+        markers.add(OrganizationMapMarker(
+          id: branch.id,
+          orgSlug: organization.slug,
+          orgName: organization.name,
+          branchName: branch.name,
+          logoUrl: organization.logoUrl,
+          city: branch.city,
+          district: branch.district,
+          latitude: lat,
+          longitude: lng,
+          distanceKm: branch.distanceKm,
+        ));
+      }
+    }
+    return OrganizationMapPage(
+      markers: markers,
+      count: markers.length,
+      truncated: false,
+      max: 500,
+    );
+  }
+
+  @override
   Future<OrganizationDetail> getOrganization(String slug) async {
     if (delay > Duration.zero) await Future<void>.delayed(delay);
     if (scenario == FakeOrganizationScenario.error) {

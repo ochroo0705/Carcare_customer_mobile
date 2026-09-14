@@ -5,6 +5,24 @@ import 'package:carcare_customer_mobile/features/history/domain/service_order.da
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_status.dart';
+import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
+
+ServiceHistoryPage serviceHistoryPageFromJson(Map<String, dynamic> json) {
+  final orders = parseServiceOrderListJson(json['orders']);
+  final cancelled = parseCancelledAppointmentListJson(json['cancelledAppointments']);
+  HistoryPagination parsePage(Object? raw, int fallback) {
+    final map = raw is Map ? Map<String, dynamic>.from(raw) : const <String, dynamic>{};
+    int value(String key, int fallback) => map[key] is num ? (map[key] as num).toInt() : fallback;
+    return HistoryPagination(page: value('page', 1), pageSize: value('pageSize', fallback), total: value('total', fallback), totalPages: value('totalPages', 1), hasPrev: map['hasPrev'] == true, hasNext: map['hasNext'] == true);
+  }
+  return ServiceHistoryPage(
+    orders: orders,
+    cancelledAppointments: cancelled,
+    pagination: parsePage(json['pagination'], orders.length),
+    cancelledPagination: parsePage(json['cancelledPagination'], cancelled.length),
+    availableYears: json['availableYears'] is List ? (json['availableYears'] as List).whereType<num>().map((v) => v.toInt()).toList(growable: false) : const [],
+  );
+}
 
 /// `GET /api/v1/app/orders` (list) болон `/orders/[id]` (detail)-ийн JSON-ийг
 /// domain руу задална. Мөнгөн дүнгүүд backend дээр Prisma `Decimal` тул JSON-д

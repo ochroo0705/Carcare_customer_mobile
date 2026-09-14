@@ -94,8 +94,23 @@ class FakeDiagnosticsRepository implements DiagnosticsRepository {
   };
 
   @override
-  Future<List<DiagnosticReportListItem>> getDiagnostics() async =>
-      List.unmodifiable(_reports);
+  Future<DiagnosticPage> getDiagnostics({DiagnosticFilter filter = const DiagnosticFilter()}) async {
+    final q = filter.query.toLowerCase();
+    final matching = _reports.where((report) {
+      if (filter.severity != null && report.severity != filter.severity) return false;
+      if (filter.year != null && report.createdAt.year != filter.year) return false;
+      if (q.isEmpty) return true;
+      return [report.templateName, report.vehiclePlate, report.vehicleMake, report.vehicleModel, report.branchName]
+          .any((value) => value.toLowerCase().contains(q));
+    }).toList(growable: false);
+    final start = (filter.page - 1) * filter.pageSize;
+    final page = start >= matching.length ? const <DiagnosticReportListItem>[] : matching.skip(start).take(filter.pageSize).toList(growable: false);
+    return DiagnosticPage(
+      reports: page,
+      pagination: DiagnosticPagination(page: filter.page, pageSize: filter.pageSize, total: matching.length, totalPages: matching.isEmpty ? 1 : (matching.length / filter.pageSize).ceil(), hasPrev: filter.page > 1, hasNext: start + page.length < matching.length),
+      availableYears: _reports.map((r) => r.createdAt.year).toSet().toList()..sort((a, b) => b.compareTo(a)),
+    );
+  }
 
   @override
   Future<DiagnosticReportDetail> getDiagnosticDetail(String id) async {

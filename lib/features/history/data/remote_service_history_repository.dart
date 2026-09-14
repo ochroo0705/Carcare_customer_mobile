@@ -7,10 +7,9 @@ import 'package:carcare_customer_mobile/features/history/domain/service_order_de
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 
 /// `GET /api/v1/app/orders` + `/orders/[id]`-ийн эсрэг ажилладаг бодит
-/// хэрэгжүүлэлт (web commit `79f0e9e`). Backend хуудаслалттай ч домэйн
-/// интерфэйс хуудаслалтгүй тул хамгийн их зөвшөөрөгдөх хэмжээгээр (200)
-/// эхний хуудсыг татна — 200-аас олон захиалгатай account-д хязгаарлагдана
-/// (хуудаслалт нэмэх нь дараагийн ажил).
+/// хэрэгжүүлэлт (web commit `79f0e9e`). Backend pagination and filters are
+/// passed through as typed page requests; D-085 cancelled appointments are
+/// returned in the same response with independent pagination metadata.
 class RemoteServiceHistoryRepository implements ServiceHistoryRepository {
   RemoteServiceHistoryRepository(this._client);
 
@@ -19,9 +18,17 @@ class RemoteServiceHistoryRepository implements ServiceHistoryRepository {
   static const _maxPageSize = 200;
 
   @override
-  Future<List<ServiceOrder>> getServiceHistory() async {
-    final json = await _client.getJson('/orders?pageSize=$_maxPageSize');
-    return parseServiceOrderListJson(json['orders']);
+  Future<ServiceHistoryPage> getServiceHistory({
+    HistoryFilter filter = const HistoryFilter(),
+  }) async {
+    final query = <String, String>{
+      'page': '${filter.page}',
+      'pageSize': '${filter.pageSize}',
+    };
+    if (filter.query.trim().isNotEmpty) query['q'] = filter.query.trim();
+    if (filter.year != null) query['year'] = '${filter.year}';
+    final json = await _client.getJson('/orders?${Uri(queryParameters: query).query}');
+    return serviceHistoryPageFromJson(json);
   }
 
   // D-085: `cancelledAppointments` is a field on the SAME `/orders` response

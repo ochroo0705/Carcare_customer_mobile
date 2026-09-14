@@ -6,7 +6,7 @@ void main() {
   test('lists the seeded orders', () async {
     final repository = FakeServiceHistoryRepository();
 
-    final orders = await repository.getServiceHistory();
+    final orders = (await repository.getServiceHistory()).orders;
 
     // D-085 added one seeded CANCELLED order alongside the 4 completed ones.
     expect(orders, hasLength(5));

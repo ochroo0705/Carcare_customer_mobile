@@ -43,6 +43,34 @@ class RemoteOrganizationRepository implements OrganizationRepository {
   }
 
   @override
+  Future<OrganizationMapPage> getMapMarkers({
+    required MapViewport viewport,
+    OrganizationFilter? filter,
+  }) async {
+    final current = filter ?? const OrganizationFilter();
+    final query = <String, String>{
+      'north': viewport.north.toString(),
+      'south': viewport.south.toString(),
+      'east': viewport.east.toString(),
+      'west': viewport.west.toString(),
+    };
+    if (current.query.isNotEmpty) query['q'] = current.query;
+    if (current.city.isNotEmpty) query['city'] = current.city;
+    if (current.district.isNotEmpty) query['district'] = current.district;
+    if (current.hasNearMe) {
+      query['lat'] = current.lat!.toString();
+      query['lng'] = current.lng!.toString();
+      if (current.radiusKm != null) query['radius'] = current.radiusKm!.toString();
+    }
+    if (current.openNow) query['openNow'] = '1';
+    if (current.weekend) query['weekend'] = '1';
+    final json = await _client.getJson(
+      '/orgs/map?${Uri(queryParameters: query).query}',
+    );
+    return organizationMapPageFromJson(json);
+  }
+
+  @override
   Future<OrganizationDetail> getOrganization(String slug) async {
     final cached = _detailCache[slug];
     if (cached != null) return cached;

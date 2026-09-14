@@ -68,7 +68,7 @@ void main() {
       },
     });
 
-    final orders = await repo.getServiceHistory();
+    final orders = (await repo.getServiceHistory()).orders;
     expect(orders, hasLength(1));
     expect(orders.single.id, 'ord-1');
     expect(orders.single.status, ServiceOrderStatus.paid);

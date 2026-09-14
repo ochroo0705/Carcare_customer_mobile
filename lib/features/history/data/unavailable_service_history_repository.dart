@@ -12,7 +12,7 @@ class UnavailableServiceHistoryRepository implements ServiceHistoryRepository {
   const UnavailableServiceHistoryRepository();
 
   @override
-  Future<List<ServiceOrder>> getServiceHistory() async =>
+  Future<ServiceHistoryPage> getServiceHistory({HistoryFilter filter = const HistoryFilter()}) async =>
       throw const FeatureUnavailableFailure();
 
   @override

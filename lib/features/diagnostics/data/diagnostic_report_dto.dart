@@ -3,6 +3,25 @@ import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostic_r
 import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostic_report_list_item.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/report_severity.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/template_schema.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_repository.dart';
+
+DiagnosticPage diagnosticPageFromJson(Map<String, dynamic> json) {
+  final reports = parseDiagnosticReportListJson(json['reports']);
+  final raw = json['pagination'];
+  final p = raw is Map ? Map<String, dynamic>.from(raw) : const <String, dynamic>{};
+  int intValue(String key, int fallback) => p[key] is num ? (p[key] as num).toInt() : fallback;
+  return DiagnosticPage(
+    reports: reports,
+    pagination: DiagnosticPagination(
+      page: intValue('page', 1), pageSize: intValue('pageSize', reports.length),
+      total: intValue('total', reports.length), totalPages: intValue('totalPages', 1),
+      hasPrev: p['hasPrev'] == true, hasNext: p['hasNext'] == true,
+    ),
+    availableYears: json['availableYears'] is List
+        ? (json['availableYears'] as List).whereType<num>().map((v) => v.toInt()).toList(growable: false)
+        : const [],
+  );
+}
 
 /// `GET /api/v1/app/diagnostics` (list) болон `/diagnostics/[id]` (detail)-ийн
 /// JSON-ийг domain руу задална (харах: `CUSTOMER_API_CONTRACT.md` "Оношилгоо").

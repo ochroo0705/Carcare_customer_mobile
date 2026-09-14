@@ -37,6 +37,34 @@ OrganizationPage organizationPageFromJson(Map<String, dynamic> json) {
   );
 }
 
+OrganizationMapPage organizationMapPageFromJson(Map<String, dynamic> json) {
+  final rawMarkers = json['markers'];
+  if (rawMarkers is! List) {
+    throw const UnexpectedFailure('API газрын зургийн өгөгдөл буруу байна.');
+  }
+  final markers = rawMarkers
+      .whereType<Map>()
+      .map((item) => OrganizationMapMarker(
+            id: _requiredString(Map<String, dynamic>.from(item), 'id'),
+            orgSlug: _requiredString(Map<String, dynamic>.from(item), 'orgSlug'),
+            orgName: _requiredString(Map<String, dynamic>.from(item), 'orgName'),
+            branchName: _requiredString(Map<String, dynamic>.from(item), 'branchName'),
+            logoUrl: _optionalString(item['logoUrl']),
+            city: _optionalString(item['city']),
+            district: _optionalString(item['district']),
+            latitude: _requiredDouble(Map<String, dynamic>.from(item), 'latitude'),
+            longitude: _requiredDouble(Map<String, dynamic>.from(item), 'longitude'),
+            distanceKm: _optionalDouble(item['distanceKm']),
+          ))
+      .toList(growable: false);
+  return OrganizationMapPage(
+    markers: markers,
+    count: _nonNegativeInt(json['count'], markers.length),
+    truncated: json['truncated'] == true,
+    max: _positiveInt(json['max'], 500),
+  );
+}
+
 OrganizationPagination _paginationFromJson(
   Map<String, dynamic> json,
   int fallbackLength,
@@ -289,6 +317,14 @@ String? _optionalString(Object? value) {
 
 double? _optionalDouble(Object? value) =>
     value is num ? value.toDouble() : null;
+
+double _requiredDouble(Map<String, dynamic> json, String key) {
+  final value = _optionalDouble(json[key]);
+  if (value == null || !value.isFinite) {
+    throw UnexpectedFailure('API талбар буруу байна: $key');
+  }
+  return value;
+}
 
 List<T> _mapList<T>(Object? value, T Function(Map<String, dynamic>) mapper) {
   if (value is! List) {

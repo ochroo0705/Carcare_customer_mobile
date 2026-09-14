@@ -1,6 +1,7 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
-import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:flutter/foundation.dart';
@@ -12,43 +13,140 @@ class HistoryController extends ChangeNotifier {
   final ServiceHistoryRepository _repository;
   final CacheStore _cache;
   HistoryState _state = const HistoryState();
+  String _query = '';
+  int? _year;
+  Timer? _debounce;
+  int _generation = 0;
+
+  String get query => _query;
+  int? get year => _year;
+  bool get hasNextPage =>
+      _state.pagination.hasNext || _state.cancelledPagination.hasNext;
+
+  void setQuery(String value) {
+    _query = value.trim();
+    _generation++;
+    _debounce?.cancel();
+    _state = HistoryState(availableYears: _state.availableYears);
+    notifyListeners();
+    _debounce = Timer(const Duration(milliseconds: 350), load);
+  }
+
+  void setYear(int? value) {
+    if (_year == value) return;
+    _year = value;
+    _generation++;
+    _state = HistoryState(availableYears: _state.availableYears);
+    notifyListeners();
+    load();
+  }
 
   HistoryState get state => _state;
 
-  Future<void> load() async {
-    _state = HistoryState(status: HistoryStatus.loading, orders: _state.orders);
+  Future<void> load({bool append = false}) async {
+    if (append && (_state.isLoadingMore || !hasNextPage)) return;
+    final generation = ++_generation;
+    final requestedPage = append ? _state.page + 1 : 1;
+    final filter = HistoryFilter(
+      query: _query,
+      year: _year,
+      page: requestedPage,
+    );
+    if (append) {
+      final existing = _state;
+      _state = HistoryState(
+        status: HistoryStatus.data,
+        orders: existing.orders,
+        cancelledAppointments: existing.cancelledAppointments,
+        pagination: existing.pagination,
+        cancelledPagination: existing.cancelledPagination,
+        availableYears: existing.availableYears,
+        isFromCache: existing.isFromCache,
+        isLoadingMore: true,
+        page: existing.page,
+      );
+    } else {
+      _state = HistoryState(
+        status: HistoryStatus.loading,
+        orders: _state.orders,
+      );
+    }
     notifyListeners();
     try {
-      // Service history endpoint одоогоор нийтлэгдээгүй тул production wiring
-      // нь fake repository-той хэвээр. Remote history contract гармагц энэ
-      // controller-ийн эрэмбэ болон cache fallback-ийг өөрчлөх шаардлагагүй.
-      final orders = (await _repository.getServiceHistory()).toList()
-        ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
-      // D-085: a separate, best-effort fetch — its own failure must not
-      // block orders from showing, so it's not part of the try above's
-      // success path gating; a failure here just leaves the list empty.
-      final cancelledAppointments = await _repository
-          .getCancelledAppointments()
-          .catchError((_) => const <CancelledAppointmentSummary>[]);
+      final result = await _repository.getServiceHistory(filter: filter);
+      if (generation != _generation) return;
+      final orders = append ? [..._state.orders, ...result.orders] : result.orders;
+      final cancelledAppointments = append
+          ? [..._state.cancelledAppointments, ...result.cancelledAppointments]
+          : result.cancelledAppointments;
       _state = HistoryState(
         status: orders.isEmpty && cancelledAppointments.isEmpty
             ? HistoryStatus.empty
             : HistoryStatus.data,
         orders: orders,
         cancelledAppointments: cancelledAppointments,
+        pagination: result.pagination,
+        cancelledPagination: result.cancelledPagination,
+        availableYears: result.availableYears,
+        page: requestedPage,
       );
-      await _cache.writeServiceOrders(orders);
+      if (!append && _query.isEmpty && _year == null) {
+        await _cache.writeServiceOrders(orders);
+      }
     } on FeatureUnavailableFailure {
-      // Real API build: no History endpoint yet (D-014). Show an honest
-      // "coming soon" state, not fake data or an error.
-      _state = const HistoryState(status: HistoryStatus.unavailable);
+      if (generation != _generation) return;
+      if (append) {
+        _state = HistoryState(
+          status: HistoryStatus.data,
+          orders: _state.orders,
+          cancelledAppointments: _state.cancelledAppointments,
+          pagination: _state.pagination,
+          cancelledPagination: _state.cancelledPagination,
+          availableYears: _state.availableYears,
+          page: _state.page,
+        );
+      } else {
+        // Real API build: no History endpoint yet (D-014). Show an honest
+        // "coming soon" state, not fake data or an error.
+        _state = const HistoryState(status: HistoryStatus.unavailable);
+      }
     } on AppFailure catch (failure) {
-      _state = await _fallbackToCache(failure.message);
+      if (generation != _generation) return;
+      if (append) {
+        _state = HistoryState(
+          status: HistoryStatus.data,
+          orders: _state.orders,
+          cancelledAppointments: _state.cancelledAppointments,
+          pagination: _state.pagination,
+          cancelledPagination: _state.cancelledPagination,
+          availableYears: _state.availableYears,
+          loadMoreMessage: failure.message,
+          page: _state.page,
+        );
+      } else {
+        _state = await _fallbackToCache(failure.message);
+      }
     } catch (_) {
-      _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      if (generation != _generation) return;
+      if (append) {
+        _state = HistoryState(
+          status: HistoryStatus.data,
+          orders: _state.orders,
+          cancelledAppointments: _state.cancelledAppointments,
+          pagination: _state.pagination,
+          cancelledPagination: _state.cancelledPagination,
+          availableYears: _state.availableYears,
+          loadMoreMessage: 'Тодорхойгүй алдаа гарлаа.',
+          page: _state.page,
+        );
+      } else {
+        _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      }
     }
     notifyListeners();
   }
+
+  Future<void> loadMore() => load(append: true);
 
   /// Resets to the initial state and clears the on-disk cache, e.g. after
   /// the customer signs out — the next account must never see this one's
@@ -57,6 +155,12 @@ class HistoryController extends ChangeNotifier {
     _state = const HistoryState();
     notifyListeners();
     await _cache.clearServiceOrders();
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
   }
 
   Future<HistoryState> _fallbackToCache(String failureMessage) async {

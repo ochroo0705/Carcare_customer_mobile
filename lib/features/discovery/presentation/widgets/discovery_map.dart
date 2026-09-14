@@ -25,6 +25,7 @@ class DiscoveryMap extends StatefulWidget {
     required this.onBranchSelected,
     required this.onShowList,
     required this.organizationDetailController,
+    this.onViewportChanged,
     this.height = 430,
     this.locationPermissionService =
         const PermissionHandlerLocationPermissionService(),
@@ -41,6 +42,7 @@ class DiscoveryMap extends StatefulWidget {
   // түвшинд харуулахын тулд тухайн байгууллагын дэлгэрэнгүйг цөөнгүй
   // ачаална — жагсаалтын `Organization`/`Branch`-д эдгээр талбар алга.
   final OrganizationDetailController organizationDetailController;
+  final ValueChanged<LatLngBounds>? onViewportChanged;
   final double height;
   final LocationPermissionService locationPermissionService;
   final MapConfigurationService mapConfigurationService;
@@ -99,6 +101,10 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   @override
   void didUpdateWidget(covariant DiscoveryMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Viewport-backed marker responses are incremental data updates. Fitting
+    // here would recenter the camera after every response and trigger another
+    // camera-idle request indefinitely.
+    if (widget.onViewportChanged != null) return;
     if (oldWidget.hasActiveFilters == widget.hasActiveFilters &&
         _locationSignature(oldWidget.organizations) ==
             _locationSignature(widget.organizations)) {
@@ -205,8 +211,43 @@ class _DiscoveryMapState extends State<DiscoveryMap>
       final bounds = await controller.getVisibleRegion();
       if (!mounted) return;
       setState(() => _visibleBounds = bounds);
+      widget.onViewportChanged?.call(bounds);
     } catch (_) {
       // The dependable list remains available if the native view disappears.
+    }
+  }
+
+  Future<void> _handleClusterTap(Cluster cluster) async {
+    final controller = _mapController;
+    if (controller == null || _mapLoadState != _MapLoadState.ready) return;
+    final bounds = cluster.bounds;
+    final latitudeSpan =
+        (bounds.northeast.latitude - bounds.southwest.latitude).abs();
+    final longitudeDelta =
+        bounds.northeast.longitude - bounds.southwest.longitude;
+    final longitudeSpan = longitudeDelta >= 0
+        ? longitudeDelta
+        : longitudeDelta + 360;
+    try {
+      // Native bounds can collapse to a point when several branches share
+      // coordinates. In that case, zoom in by a bounded increment instead of
+      // asking the map to fit a zero-area LatLngBounds forever.
+      if (latitudeSpan < 0.0001 && longitudeSpan < 0.0001) {
+        final zoom = await controller.getZoomLevel();
+        if (zoom >= 19) return;
+        await controller.animateCamera(
+          CameraUpdate.newLatLngZoom(
+            cluster.position,
+            (zoom + 2).clamp(0, 19).toDouble(),
+          ),
+        );
+        return;
+      }
+      await controller.animateCamera(
+        CameraUpdate.newLatLngBounds(bounds, 72),
+      );
+    } catch (_) {
+      // Keep the current map usable if a native camera update races map teardown.
     }
   }
 
@@ -403,6 +444,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
                 ? (_selectedPin ?? BitmapDescriptor.defaultMarker)
                 : (_closedPin ?? _openPin ?? BitmapDescriptor.defaultMarker),
             zIndexInt: location.selected ? 1000 : 0,
+            clusterManagerId: const ClusterManagerId('discovery'),
             infoWindow: InfoWindow.noText,
             onTap: () {
               setState(
@@ -449,6 +491,12 @@ class _DiscoveryMapState extends State<DiscoveryMap>
                     zoom: positions.length == 1 ? 14 : 11.5,
                   ),
                   markers: markers,
+                  clusterManagers: <ClusterManager>{
+                    ClusterManager(
+                      clusterManagerId: ClusterManagerId('discovery'),
+                      onClusterTap: _handleClusterTap,
+                    ),
+                  },
                   padding: EdgeInsets.only(
                     top: _locationAccessState == LocationAccessState.granted
                         ? 0

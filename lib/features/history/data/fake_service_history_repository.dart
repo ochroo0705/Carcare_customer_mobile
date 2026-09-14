@@ -148,8 +148,28 @@ class FakeServiceHistoryRepository implements ServiceHistoryRepository {
   };
 
   @override
-  Future<List<ServiceOrder>> getServiceHistory() async =>
-      List.unmodifiable(_orders);
+  Future<ServiceHistoryPage> getServiceHistory({HistoryFilter filter = const HistoryFilter()}) async {
+    final q = filter.query.toLowerCase();
+    final orders = _orders.where((order) {
+      if (filter.year != null && order.completedAt.year != filter.year) return false;
+      if (q.isEmpty) return true;
+      return [order.tenantName, order.branchName, order.vehiclePlate ?? ''].any((value) => value.toLowerCase().contains(q));
+    }).toList(growable: false);
+    final cancelled = _cancelledAppointments.where((item) {
+      if (filter.year != null && item.requestedAt.year != filter.year) return false;
+      if (q.isEmpty) return true;
+      return [item.tenantName, item.branchName, item.categoryName ?? ''].any((value) => value.toLowerCase().contains(q));
+    }).toList(growable: false);
+    final start = (filter.page - 1) * filter.pageSize;
+    final pageItems = start >= orders.length ? const <ServiceOrder>[] : orders.skip(start).take(filter.pageSize).toList(growable: false);
+    final pageCancelled = start >= cancelled.length ? const <CancelledAppointmentSummary>[] : cancelled.skip(start).take(filter.pageSize).toList(growable: false);
+    HistoryPagination meta(int total) => HistoryPagination(page: filter.page, pageSize: filter.pageSize, total: total, totalPages: total == 0 ? 1 : (total / filter.pageSize).ceil(), hasPrev: filter.page > 1, hasNext: start + filter.pageSize < total);
+    final availableYears = {
+      ..._orders.map((order) => order.completedAt.year),
+      ..._cancelledAppointments.map((item) => item.requestedAt.year),
+    }.toList()..sort((a, b) => b.compareTo(a));
+    return ServiceHistoryPage(orders: pageItems, cancelledAppointments: pageCancelled, pagination: meta(orders.length), cancelledPagination: meta(cancelled.length), availableYears: availableYears);
+  }
 
   @override
   Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async =>

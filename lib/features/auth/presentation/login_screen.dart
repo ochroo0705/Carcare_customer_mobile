@@ -127,7 +127,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       SizedBox(
                         width: double.infinity,
                         child: FilledButton(
-                          onPressed: controller.isBusy ? null : _submit,
+                          onPressed:
+                              controller.isBusy ||
+                                  (controller.step == AuthStep.phone &&
+                                      _resendSecondsRemaining > 0)
+                              ? null
+                              : _submit,
                           child: controller.isBusy
                               ? const SizedBox.square(
                                   dimension: 20,
@@ -212,8 +217,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _editPhone() {
-    _resendTimer?.cancel();
-    setState(() => _resendSecondsRemaining = 0);
+    // Keep the resend cooldown ticking (do not cancel/reset the timer) so
+    // backing out and re-entering the code step can't be used to dodge it.
     context.read<AuthController>().editPhone();
   }
 

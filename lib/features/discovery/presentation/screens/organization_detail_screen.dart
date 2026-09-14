@@ -325,6 +325,15 @@ class _BranchInfoCard extends StatelessWidget {
     }
   }
 
+  /// Today's hours line, with the reason appended when it isn't just the
+  /// ordinary weekday rule (e.g. "09:00–18:00 · Наадам").
+  String get _todayHoursText {
+    final today = branch.effectiveScheduleDetailAt(DateTime.now());
+    return today.label == null
+        ? branch.hoursLabel
+        : '${branch.hoursLabel} · ${today.label}';
+  }
+
   @override
   Widget build(BuildContext context) => GlassSurface(
     child: Column(
@@ -386,14 +395,11 @@ class _BranchInfoCard extends StatelessWidget {
           ),
         ],
         const SizedBox(height: 9),
-        _DetailLine(icon: Icons.schedule_rounded, text: branch.hoursLabel),
-        if (branch.schedules.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          _WeeklyHoursTable(schedules: branch.schedules),
-        ],
-        if (_UpcomingScheduleNotices.hasAny(branch)) ...[
-          const SizedBox(height: 12),
-          _UpcomingScheduleNotices(branch: branch),
+        _DetailLine(icon: Icons.schedule_rounded, text: _todayHoursText),
+        if (branch.schedules.isNotEmpty ||
+            _UpcomingScheduleNotices.hasAny(branch)) ...[
+          const SizedBox(height: 8),
+          _HoursDisclosure(branch: branch),
         ],
         if (branch.categories.isNotEmpty) ...[
           const SizedBox(height: 16),
@@ -421,24 +427,132 @@ const _weekdayLabels = {
   'SUN': 'Ням',
 };
 
-/// Долоо хоногийн бүтэн цагийн хуваарь — `branch.hoursLabel` зөвхөн өнөөдрийн
-/// нэг мөрийг харуулдаг тул үүнийг долоо хоног бүрээр дэлгэв.
-class _WeeklyHoursTable extends StatelessWidget {
-  const _WeeklyHoursTable({required this.schedules});
+/// Долоо хоногийн бүтэн хуваарь + онцгой өдрүүдийг нэг дарж
+/// нээх/хаах блок дор нуусан — өнөөдрийн цагийг дээрх мөрөнд аль хэдийн
+/// харуулсан тул анхны байдлаараа хаалттай, зайлшгүй биш дэлгэрэнгүйг
+/// хэрэглэгч өөрөө хүсвэл л дэлгэнэ.
+class _HoursDisclosure extends StatefulWidget {
+  const _HoursDisclosure({required this.branch});
 
-  final List<BranchScheduleRule> schedules;
+  final BranchDetail branch;
 
-  BranchScheduleRule? _ruleFor(String weekday) {
-    for (final rule in schedules) {
-      if (rule.weekday == weekday) return rule;
-    }
-    return null;
+  @override
+  State<_HoursDisclosure> createState() => _HoursDisclosureState();
+}
+
+class _HoursDisclosureState extends State<_HoursDisclosure> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = scheme.primary;
+    // Mirrors the dashboard's order-status dropdown (status-controls.tsx):
+    // a full-width tinted/bordered toggle whose bottom corners square off
+    // when open, directly attached to a panel of the same tint below it.
+    final toggleRadius = _expanded
+        ? const BorderRadius.vertical(top: Radius.circular(14))
+        : BorderRadius.circular(14);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Material(
+          color: color.withValues(alpha: 0.12),
+          borderRadius: toggleRadius,
+          child: InkWell(
+            borderRadius: toggleRadius,
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 14,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: toggleRadius,
+                border: Border(
+                  top: BorderSide(color: color.withValues(alpha: 0.3)),
+                  left: BorderSide(color: color.withValues(alpha: 0.3)),
+                  right: BorderSide(color: color.withValues(alpha: 0.3)),
+                  bottom: _expanded
+                      ? BorderSide.none
+                      : BorderSide(color: color.withValues(alpha: 0.3)),
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Бүтэн долоо хоногийн хуваарь',
+                    style: TextStyle(
+                      color: color,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  AnimatedRotation(
+                    turns: _expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      size: 18,
+                      color: color,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_expanded)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.05),
+              borderRadius: const BorderRadius.vertical(
+                bottom: Radius.circular(14),
+              ),
+              border: Border(
+                left: BorderSide(color: color.withValues(alpha: 0.3)),
+                right: BorderSide(color: color.withValues(alpha: 0.3)),
+                bottom: BorderSide(color: color.withValues(alpha: 0.3)),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.branch.schedules.isNotEmpty)
+                  _WeeklyHoursTable(branch: widget.branch),
+                if (_UpcomingScheduleNotices.hasAny(widget.branch)) ...[
+                  const SizedBox(height: 12),
+                  _UpcomingScheduleNotices(branch: widget.branch),
+                ],
+              ],
+            ),
+          ),
+      ],
+    );
   }
+}
+
+/// Долоо хоногийн бүтэн цагийн хуваарь — `branch.hoursLabel` зөвхөн өнөөдрийн
+/// нэг мөрийг харуулдаг тул үүнийг долоо хоног бүрээр дэлгэв. Idэвхтэй
+/// улирлын хуваарь болон тухайн өдрийн онцгой тохиолдол (амралт/өөрчлөгдсөн
+/// цаг) байвал энгийн долоо хоногийн дүрмийн оронд тэдгээрийг харуулна —
+/// сервер талын `resolveEffectiveSchedule`-тэй ижил дараалал.
+class _WeeklyHoursTable extends StatelessWidget {
+  const _WeeklyHoursTable({required this.branch});
+
+  final BranchDetail branch;
 
   @override
   Widget build(BuildContext context) {
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
-    final today = _weekdayOrder[(DateTime.now().weekday + 6) % 7];
+    final now = DateTime.now();
+    final today = branch.effectiveScheduleDetailAt(now).rule.weekday;
+    final todayIndex = _weekdayOrder.indexOf(today);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -450,37 +564,42 @@ class _WeeklyHoursTable extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         for (final weekday in _weekdayOrder)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 72,
-                  child: Text(
-                    _weekdayLabels[weekday]!,
-                    style: weekday == today
-                        ? TextStyle(fontWeight: FontWeight.w700)
-                        : TextStyle(color: color),
-                  ),
+          Builder(
+            builder: (context) {
+              final offset = _weekdayOrder.indexOf(weekday) - todayIndex;
+              final detail = branch.effectiveScheduleDetailAt(
+                now.add(Duration(days: offset)),
+              );
+              final rule = detail.rule;
+              final hours = !rule.isOpen
+                  ? 'Хаалттай'
+                  : (rule.openTime != null && rule.closeTime != null
+                        ? '${rule.openTime}–${rule.closeTime}'
+                        : 'Цагийн мэдээлэл тодорхойгүй');
+              final style = weekday == today
+                  ? TextStyle(fontWeight: FontWeight.w700)
+                  : TextStyle(color: color);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 72,
+                      child: Text(_weekdayLabels[weekday]!, style: style),
+                    ),
+                    Expanded(
+                      child: Text(
+                        detail.label == null
+                            ? hours
+                            : '$hours (${detail.label})',
+                        style: style,
+                      ),
+                    ),
+                  ],
                 ),
-                Builder(
-                  builder: (context) {
-                    final rule = _ruleFor(weekday);
-                    final label = rule == null || !rule.isOpen
-                        ? 'Хаалттай'
-                        : (rule.openTime != null && rule.closeTime != null
-                              ? '${rule.openTime}–${rule.closeTime}'
-                              : 'Цагийн мэдээлэл тодорхойгүй');
-                    return Text(
-                      label,
-                      style: weekday == today
-                          ? TextStyle(fontWeight: FontWeight.w700)
-                          : TextStyle(color: color),
-                    );
-                  },
-                ),
-              ],
-            ),
+              );
+            },
           ),
       ],
     );
@@ -544,7 +663,7 @@ class _UpcomingScheduleNotices extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(
-              '${season.name}: ${season.startsOn} – ${season.endsOn}',
+              'Удахгүй: ${season.name} (${season.startsOn} – ${season.endsOn})',
               style: TextStyle(color: color),
             ),
           ),
