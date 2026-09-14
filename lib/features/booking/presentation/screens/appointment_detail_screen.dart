@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
@@ -26,7 +28,7 @@ import 'package:url_launcher/url_launcher.dart';
 /// When the id isn't in the loaded list yet (e.g. right after booking, before
 /// the refetch lands), it shows a loading state and resolves once `load()`
 /// completes.
-class AppointmentDetailScreen extends StatelessWidget {
+class AppointmentDetailScreen extends StatefulWidget {
   const AppointmentDetailScreen({
     required this.appointmentId,
     required this.organizationRepository,
@@ -50,9 +52,56 @@ class AppointmentDetailScreen extends StatelessWidget {
   /// same way the appointments list does it.
   final ValueChanged<Appointment> onPay;
 
+  @override
+  State<AppointmentDetailScreen> createState() =>
+      _AppointmentDetailScreenState();
+}
+
+class _AppointmentDetailScreenState extends State<AppointmentDetailScreen>
+    with WidgetsBindingObserver {
+  Timer? _pollTimer;
+
+  // Item-level order progress (labor/parts being checked off) has no push
+  // notification of its own (would be spammy — see project notes), so while
+  // this screen is open and in the foreground, poll for it periodically
+  // instead. Paused while backgrounded, cancelled on leaving the screen —
+  // never runs when nobody is looking at it.
+  static const _pollInterval = Duration(seconds: 25);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      if (!mounted) return;
+      context.read<AppointmentsController>().load();
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _startPolling();
+    } else {
+      _pollTimer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _pollTimer?.cancel();
+    super.dispose();
+  }
+
   Appointment? _find(AppointmentsController controller) {
     for (final appointment in controller.state.appointments) {
-      if (appointment.id == appointmentId) return appointment;
+      if (appointment.id == widget.appointmentId) return appointment;
     }
     return null;
   }
@@ -67,7 +116,7 @@ class AppointmentDetailScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(onPressed: onBack),
+        leading: BackButton(onPressed: widget.onBack),
         title: const Text('Цагийн дэлгэрэнгүй'),
       ),
       body: AppShellBackground(
@@ -76,7 +125,7 @@ class AppointmentDetailScreen extends StatelessWidget {
           child: switch ((appointment, isLoading)) {
             (final Appointment appointment, _) => _AppointmentDetailBody(
               appointment: appointment,
-              organizationRepository: organizationRepository,
+              organizationRepository: widget.organizationRepository,
               isCancelling: controller.isCancelling(appointment.id),
               isRescheduling: controller.isRescheduling(appointment.id),
               onRefresh: controller.load,
@@ -87,11 +136,11 @@ class AppointmentDetailScreen extends StatelessWidget {
                   ? () => _openReschedule(context, controller, appointment)
                   : null,
               onPay: appointment.canPayFee
-                  ? () => onPay(appointment)
+                  ? () => widget.onPay(appointment)
                   : null,
             ),
             (null, true) => const SkeletonDetail(),
-            (null, false) => _NotFound(onBack: onBack),
+            (null, false) => _NotFound(onBack: widget.onBack),
           },
         ),
       ),
@@ -138,7 +187,7 @@ class AppointmentDetailScreen extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (context) => RescheduleAppointmentScreen(
           appointment: appointment,
-          repository: appointmentRepository,
+          repository: widget.appointmentRepository,
           onBack: () => Navigator.of(context).pop(),
           onRescheduled: (requestedAt) =>
               controller.reschedule(appointment.id, requestedAt),

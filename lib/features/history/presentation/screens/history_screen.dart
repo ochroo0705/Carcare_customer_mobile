@@ -204,7 +204,7 @@ class _EmptyHistory extends StatelessWidget {
   );
 }
 
-class _HistoryList extends StatelessWidget {
+class _HistoryList extends StatefulWidget {
   const _HistoryList({
     required this.controller,
     required this.onOrderSelected,
@@ -216,58 +216,226 @@ class _HistoryList extends StatelessWidget {
   final VoidCallback? onDiagnosticsRequested;
 
   @override
+  State<_HistoryList> createState() => _HistoryListState();
+}
+
+class _HistoryListState extends State<_HistoryList> {
+  final _searchController = TextEditingController();
+  String _query = '';
+  int? _year;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesQuery(String haystack) =>
+      _query.isEmpty || haystack.toLowerCase().contains(_query.toLowerCase());
+
+  bool _matchesYear(DateTime date) => _year == null || date.year == _year;
+
+  bool _orderMatches(ServiceOrder order) {
+    if (!_matchesYear(order.completedAt)) return false;
+    if (_query.isEmpty) return true;
+    return _matchesQuery(order.tenantName) ||
+        _matchesQuery(order.branchName) ||
+        (order.vehiclePlate != null && _matchesQuery(order.vehiclePlate!));
+  }
+
+  bool _cancelledMatches(CancelledAppointmentSummary appt) {
+    if (!_matchesYear(appt.requestedAt)) return false;
+    if (_query.isEmpty) return true;
+    return _matchesQuery(appt.tenantName) ||
+        _matchesQuery(appt.branchName) ||
+        (appt.categoryName != null && _matchesQuery(appt.categoryName!));
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final orders = controller.state.orders;
-    final cancelledAppointments = controller.state.cancelledAppointments;
-    final isFromCache = controller.state.isFromCache;
-    final offset = isFromCache ? 2 : 1;
+    final allOrders = widget.controller.state.orders;
+    final allCancelled = widget.controller.state.cancelledAppointments;
+    // Зөвхөн бодит өгөгдөлд байгаа он жилүүдийг санал болгоно — хоосон/
+    // хамааралгүй жил гарч ирэхгүй.
+    final years =
+        {
+          for (final order in allOrders) order.completedAt.year,
+          for (final appt in allCancelled) appt.requestedAt.year,
+        }.toList()..sort((a, b) => b.compareTo(a));
+    final orders = allOrders.where(_orderMatches).toList(growable: false);
+    final cancelledAppointments = allCancelled
+        .where(_cancelledMatches)
+        .toList(growable: false);
+    final isFromCache = widget.controller.state.isFromCache;
+    final hasFilter = _query.isNotEmpty || _year != null;
+    final noResults =
+        hasFilter && orders.isEmpty && cancelledAppointments.isEmpty;
+    final offset = isFromCache ? 1 : 0;
     // D-085: cancelled/no-show/rejected appointments render after the order
     // cards, behind their own section header (only when there are any).
     final hasCancelledSection = cancelledAppointments.isNotEmpty;
     final itemCount =
         orders.length + offset + (hasCancelledSection ? 1 : 0) + cancelledAppointments.length;
-    return RefreshIndicator(
-      onRefresh: controller.load,
-      child: ListView.separated(
-        key: const PageStorageKey('history-list'),
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        itemCount: itemCount,
-        separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return _HistoryHeader(onDiagnosticsRequested: onDiagnosticsRequested);
-          }
-          if (isFromCache && index == 1) {
-            return OfflineBanner(
-              message: 'Сүлжээгүй байна — сүүлд ачаалсан түүхийг харуулж байна',
-              semanticsLabel: 'Сүлжээгүй байна. Сүүлд ачаалсан засварын түүхийг харуулж байна.',
-              retryKey: const ValueKey('history-offline-retry'),
-              onRetry: controller.load,
-            );
-          }
-          final ordersEnd = offset + orders.length;
-          if (index < ordersEnd) {
-            final order = orders[index - offset];
-            return RiseIn(
-              index: index - offset,
-              child: _OrderCard(
-                order: order,
-                onTap: () => onOrderSelected(order.id),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _HistoryHeader(
+                onDiagnosticsRequested: widget.onDiagnosticsRequested,
               ),
-            );
-          }
-          if (hasCancelledSection && index == ordersEnd) {
-            return const _CancelledSectionHeader();
-          }
-          final appt = cancelledAppointments[index - ordersEnd - 1];
-          return RiseIn(
-            index: index - offset,
-            child: _CancelledAppointmentCard(appointment: appt),
-          );
-        },
-      ),
+              const SizedBox(height: 14),
+              _HistorySearchBar(
+                controller: _searchController,
+                onChanged: (value) => setState(() => _query = value),
+                years: years,
+                selectedYear: _year,
+                onYearChanged: (year) => setState(() => _year = year),
+              ),
+            ],
+          ),
+        ),
+        Expanded(
+          child: noResults
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Text(
+                      'Илэрц олдсонгүй',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: widget.controller.load,
+                  child: ListView.separated(
+                    key: const PageStorageKey('history-list'),
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
+                    itemCount: itemCount,
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      if (isFromCache && index == 0) {
+                        return OfflineBanner(
+                          message:
+                              'Сүлжээгүй байна — сүүлд ачаалсан түүхийг харуулж байна',
+                          semanticsLabel:
+                              'Сүлжээгүй байна. Сүүлд ачаалсан засварын түүхийг харуулж байна.',
+                          retryKey: const ValueKey('history-offline-retry'),
+                          onRetry: widget.controller.load,
+                        );
+                      }
+                      final ordersEnd = offset + orders.length;
+                      if (index < ordersEnd) {
+                        final order = orders[index - offset];
+                        return RiseIn(
+                          index: index - offset,
+                          child: _OrderCard(
+                            order: order,
+                            onTap: () => widget.onOrderSelected(order.id),
+                          ),
+                        );
+                      }
+                      if (hasCancelledSection && index == ordersEnd) {
+                        return const _CancelledSectionHeader();
+                      }
+                      final appt = cancelledAppointments[index - ordersEnd - 1];
+                      return RiseIn(
+                        index: index - offset,
+                        child: _CancelledAppointmentCard(appointment: appt),
+                      );
+                    },
+                  ),
+                ),
+        ),
+      ],
     );
   }
+}
+
+/// Огнооны шүүлт одоохондоо зөвхөн он жилээр (сар/өдрөөр биш) — жагсаалтад
+/// байгаа бодит жилүүдээс сонгоно.
+class _HistorySearchBar extends StatelessWidget {
+  const _HistorySearchBar({
+    required this.controller,
+    required this.onChanged,
+    required this.years,
+    required this.selectedYear,
+    required this.onYearChanged,
+  });
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final List<int> years;
+  final int? selectedYear;
+  final ValueChanged<int?> onYearChanged;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      TextField(
+        key: const ValueKey('history-search'),
+        controller: controller,
+        onChanged: onChanged,
+        decoration: const InputDecoration(
+          hintText: 'Байгууллага, салбар, дугаараар хайх',
+          prefixIcon: Icon(Icons.search),
+        ),
+      ),
+      if (years.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _YearChip(
+                key: const ValueKey('history-year-all'),
+                label: 'Бүгд',
+                selected: selectedYear == null,
+                onTap: () => onYearChanged(null),
+              ),
+              const SizedBox(width: 8),
+              for (final year in years) ...[
+                _YearChip(
+                  key: ValueKey('history-year-$year'),
+                  label: '$year',
+                  selected: selectedYear == year,
+                  onTap: () => onYearChanged(year),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+      ],
+    ],
+  );
+}
+
+class _YearChip extends StatelessWidget {
+  const _YearChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => FilterChip(
+    label: Text(label),
+    selected: selected,
+    showCheckmark: false,
+    onSelected: (_) => onTap(),
+  );
 }
 
 class _CancelledSectionHeader extends StatelessWidget {

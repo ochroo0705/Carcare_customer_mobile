@@ -127,7 +127,6 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
       ChangeNotifierProvider.value(
         value: _routerDelegate.notificationsController,
       ),
-      ChangeNotifierProvider.value(value: _routerDelegate.favoritesController),
     ],
     child: MaterialApp.router(
       title: 'Carservice',

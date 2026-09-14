@@ -464,7 +464,9 @@ class _AppointmentCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            _StatusChip(status: appointment.status),
+            appointment.serviceProgress != null
+                ? _ProgressStatusChip(status: appointment.serviceProgress!.status)
+                : _StatusChip(status: appointment.status),
           ],
         ),
         const SizedBox(height: 4),

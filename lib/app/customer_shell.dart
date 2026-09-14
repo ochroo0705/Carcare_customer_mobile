@@ -12,12 +12,14 @@ class CustomerShell extends StatefulWidget {
     required this.destinations,
     required this.onLoginRequested,
     required this.onNotificationsRequested,
+    required this.onOpenMap,
     super.key,
   });
 
   final List<Widget> destinations;
   final VoidCallback onLoginRequested;
   final VoidCallback onNotificationsRequested;
+  final VoidCallback onOpenMap;
 
   @override
   State<CustomerShell> createState() => CustomerShellState();
@@ -25,6 +27,7 @@ class CustomerShell extends StatefulWidget {
 
 class CustomerShellState extends State<CustomerShell>
     with SingleTickerProviderStateMixin {
+  static const _discoveryIndex = 0;
   static const _profileIndex = 3;
 
   int _selectedIndex = 0;
@@ -134,6 +137,21 @@ class CustomerShellState extends State<CustomerShell>
                   ],
                 )
               : content,
+          floatingActionButton: _selectedIndex == _discoveryIndex
+              ? FloatingActionButton.extended(
+                  key: const ValueKey('discovery-open-map'),
+                  // This FAB never needs to Hero-fly anywhere, but the
+                  // shell (and its FAB) stays mounted underneath pushed
+                  // routes (login, org detail, ...); Scaffold's default FAB
+                  // hero tag then collides mid-transition with itself across
+                  // the old/new widget tree ("multiple heroes share the same
+                  // tag"). Disable the hero entirely to sidestep that.
+                  heroTag: null,
+                  onPressed: widget.onOpenMap,
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('Газрын зураг'),
+                )
+              : null,
           bottomNavigationBar: useRail
               ? null
               : NavigationBar(

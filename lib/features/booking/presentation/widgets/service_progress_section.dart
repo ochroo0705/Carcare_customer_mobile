@@ -2,7 +2,7 @@ import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart'
-    show ServiceOrderItemKindUi;
+    show ServiceOrderItemKind, ServiceOrderItemKindUi;
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
 import 'package:flutter/material.dart';
 
@@ -248,6 +248,11 @@ class _ProgressItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    // Сэлбэгийн статус хажууд харуулахгүй — web dashboard дээр аль хэдийн
+    // адилхан алгав (`order-items.tsx`: `g.kind !== "PART"`), учир нь
+    // сэлбэгт статус солих боломж байхгүй болсон тул статус нь хоцрогдсон/
+    // хамааралгүй мэдээлэл болно.
+    final isPart = item.kind == ServiceOrderItemKind.part;
     final (icon, color) = switch (item.status) {
       ServiceProgressStatus.completed =>
         (Icons.check_circle_rounded, AppColors.green),
@@ -264,8 +269,15 @@ class _ProgressItemRow extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: color),
-          const SizedBox(width: 10),
+          // Сэлбэгийн мөрөнд статусын дүрс/бичиг харуулахгүй ч зэргэлдээх
+          // ажил/оношилгооны мөртэй эгнээ зэрэгцэн харагддаг тул зайг
+          // тэнцвэржүүлж (SizedBox), зүүн эхлэл шилжихгүй байлгав.
+          if (isPart)
+            const SizedBox(width: 30)
+          else ...[
+            Icon(icon, size: 20, color: color),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -289,13 +301,14 @@ class _ProgressItemRow extends StatelessWidget {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                item.status.localizedLabel,
-                style: textTheme.bodySmall?.copyWith(
-                  color: color,
-                  fontWeight: FontWeight.w700,
+              if (!isPart)
+                Text(
+                  item.status.localizedLabel,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              ),
               if (hasPrice)
                 Text(
                   '${formatAmount(item.total!.round())}₮',

@@ -23,14 +23,15 @@ import 'package:carcare_customer_mobile/features/booking/presentation/screens/ap
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointments_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/walk_in_order_detail_screen.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_map_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
-import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
@@ -104,7 +105,10 @@ class CustomerRouteInformationParser
 }
 
 class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
-    with ChangeNotifier, PopNavigatorRouterDelegateMixin<CustomerRoutePath> {
+    with
+        ChangeNotifier,
+        PopNavigatorRouterDelegateMixin<CustomerRoutePath>,
+        WidgetsBindingObserver {
   CustomerRouterDelegate(
     this.organizationRepository,
     this.themeController,
@@ -142,17 +146,19 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     vehiclesController.addListener(notifyListeners);
     historyController.addListener(notifyListeners);
     notificationsController.addListener(notifyListeners);
-    favoritesController.addListener(notifyListeners);
-    favoritesController.load();
+    WidgetsBinding.instance.addObserver(this);
     _tokenRefreshSubscription = remotePushService.onTokenRefresh.listen(
       _onTokenRefreshed,
     );
     _foregroundMessageSubscription = remotePushService.onMessage.listen(
-      (message) => notificationsController.handleIncomingPush(
-        title: message.notification?.title,
-        body: message.notification?.body,
-        data: message.data,
-      ),
+      (message) {
+        notificationsController.handleIncomingPush(
+          title: message.notification?.title,
+          body: message.notification?.body,
+          data: message.data,
+        );
+        _reloadListsForPushType(message.data['type'] as String?);
+      },
     );
     _connectivitySubscription = connectivityService.onConnectivityChanged
         .listen(_onConnectivityChanged);
@@ -187,7 +193,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   final DeviceIdStore deviceIdStore;
   final ConnectivityService connectivityService;
   final CacheStore cacheStore;
-  final FavoritesController favoritesController = FavoritesController();
   late final StreamSubscription<String> _tokenRefreshSubscription;
   late final StreamSubscription<dynamic> _foregroundMessageSubscription;
   late final StreamSubscription<bool> _connectivitySubscription;
@@ -209,6 +214,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   bool _showNotifications = false;
   bool _wasAuthenticated = false;
   bool _disposed = false;
+  bool _showMap = false;
 
   @override
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -236,9 +242,10 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           child: CustomerShell(
             key: _shellKey,
             onLoginRequested: _requestLogin,
+            onOpenMap: _openMap,
             onNotificationsRequested: _openNotifications,
             destinations: [
-              DiscoveryScreen(onOrganizationSelected: _selectOrganization),
+              DiscoveryScreen(onBranchSelected: _selectBranch),
               AppointmentsScreen(
                 onLoginRequested: _requestLogin,
                 onAppointmentSelected: _openAppointmentDetail,
@@ -259,28 +266,25 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             ],
           ),
         ),
+        if (_showMap)
+          MaterialPage<void>(
+            key: const ValueKey('discovery-map'),
+            child: DiscoveryMapScreen(
+              onBranchSelected: _selectBranch,
+              onBack: _closeMap,
+            ),
+          ),
         if (_selectedSlug != null)
           MaterialPage<void>(
             key: ValueKey('organization-$_selectedSlug'),
             child: OrganizationDetailScreen(
               organization: organization,
               distanceLocation: _detailLocation,
-              preferredBranchId: _preferredBranchId,
+              branchId: _preferredBranchId,
               status: organizationDetailController.status,
               errorMessage: organizationDetailController.message,
               onRetry: () => organizationDetailController.load(_selectedSlug!),
               onBack: _closeDetails,
-              isFavorite:
-                  organization != null &&
-                  favoritesController.contains(organization.slug),
-              onFavoriteToggle: () {
-                if (organization != null) {
-                  favoritesController.toggle(organization.slug);
-                }
-              },
-              onBook: (organization) {
-                _startBooking(organization.slug);
-              },
             ),
           ),
         if (_showLogin)
@@ -415,6 +419,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               repository: historyRepository,
               orderId: _selectedOrderId!,
               onBack: _closeOrderDetail,
+              historyController: historyController,
               onReportSelected: _openDiagnosticDetail,
             ),
           ),
@@ -465,8 +470,10 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           _cancelLogin();
         } else if (_booking) {
           _closeBooking();
-        } else if (page.key != const ValueKey('customer-shell')) {
+        } else if (_selectedSlug != null) {
           _closeDetails();
+        } else if (_showMap) {
+          _closeMap();
         }
       },
     );
@@ -480,20 +487,13 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
-  void _selectOrganization(Organization summary) {
-    _selectedSlug = summary.slug;
+  /// Explore одоо зөвхөн харах (browse) хэсэг тул энд захиалга эхлүүлэхгүй —
+  /// тухайн дарсан салбарынхаа мэдээллийг л дэлгэнэ.
+  void _selectBranch(Organization organization, Branch branch) {
+    _selectedSlug = organization.slug;
     _detailLocation = discoveryController.nearMeLocation;
-    // The API returns branches after applying the active branch-level filters
-    // (near-me/open-now), and near-me sorts them by distance. Preserve that
-    // exact result while loading the richer detail payload. Weekend remains an
-    // organization-level eligibility filter by product decision, so it does
-    // not by itself identify one branch to pin.
-    _preferredBranchId =
-        (discoveryController.nearMe || discoveryController.openNow) &&
-            summary.branches.isNotEmpty
-        ? summary.branches.first.id
-        : null;
-    organizationDetailController.load(summary.slug);
+    _preferredBranchId = branch.id;
+    organizationDetailController.load(organization.slug);
     notifyListeners();
   }
 
@@ -502,36 +502,13 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
-  void _startBooking(String slug) {
-    _selectedSlug = slug;
-    final location = _detailLocation;
-    final detail = organizationDetailController.organization;
-    if (_preferredBranchId != null &&
-        detail != null &&
-        detail.branches.any((branch) => branch.id == _preferredBranchId)) {
-      // Keep the branch that actually satisfied the discovery filters. The
-      // detail payload may contain other branches that are closer but closed.
-    } else if (location != null && detail != null) {
-      final branches = detail.branches.toList()
-        ..sort((a, b) {
-          final aDistance = a.distanceKmFrom(
-            userLatitude: location.lat,
-            userLongitude: location.lng,
-          );
-          final bDistance = b.distanceKmFrom(
-            userLatitude: location.lat,
-            userLongitude: location.lng,
-          );
-          return (aDistance ?? double.infinity).compareTo(
-            bDistance ?? double.infinity,
-          );
-        });
-      _preferredBranchId = branches.isEmpty ? null : branches.first.id;
-    } else {
-      _preferredBranchId = null;
-    }
-    _booking = true;
-    _showLogin = !authController.isAuthenticated;
+  void _openMap() {
+    _showMap = true;
+    notifyListeners();
+  }
+
+  void _closeMap() {
+    _showMap = false;
     notifyListeners();
   }
 
@@ -623,13 +600,47 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   /// detail; anything else (broadcast) → the notifications list. Any transient
   /// overlays already on the stack are cleared first so the target lands
   /// cleanly on the shell.
+  // Terminal-status push types move an appointment/order OUT of the active
+  // Appointments list and INTO History (D-085: rejected/expired/no-show
+  // appointments and completed/cancelled orders all surface there) — those
+  // need both controllers reloaded. Everything else only ever changes a
+  // field on an already-active appointment/order, so Appointments alone
+  // covers it. `feedback_replied`/`broadcast`/unknown touch neither list.
+  static const _terminalPushTypes = {
+    'appointment_rejected',
+    'appointment_expired',
+    'appointment_no_show',
+    'order_completed',
+    'order_cancelled',
+  };
+  static const _activeOnlyPushTypes = {
+    'appointment_confirmed',
+    'appointment_reminder',
+    'appointment_rescheduled',
+    'order_in_progress',
+    'order_payment_received',
+    'order_rescheduled',
+    'expected_finish_revised',
+  };
+
+  void _reloadListsForPushType(String? type) {
+    if (!authController.isAuthenticated) return;
+    if (_terminalPushTypes.contains(type)) {
+      appointmentsController.load();
+      historyController.load();
+    } else if (_activeOnlyPushTypes.contains(type)) {
+      appointmentsController.load();
+    }
+    // feedback_replied / broadcast_account / unknown: no list is affected.
+  }
+
   void _handleNotificationTap(Map<String, dynamic> data) {
     final appointmentId = data['appointmentId'];
     if (appointmentId is String &&
         appointmentId.isNotEmpty &&
         authController.isAuthenticated) {
       _clearOverlays();
-      appointmentsController.load();
+      _reloadListsForPushType(data['type'] as String?);
       _shellKey.currentState?.selectDestination(_appointmentsTabIndex);
       _openAppointmentDetail(appointmentId);
       return;
@@ -763,6 +774,20 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     }
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    // FCM/APNs delivery is best-effort — a push can be delayed or silently
+    // dropped while backgrounded, and unlike the cache/error-driven reload
+    // above, a missed push leaves state looking perfectly normal (no error,
+    // no cache flag) so nothing else would ever catch it. Reconcile
+    // unconditionally on every foreground return rather than waiting for
+    // another unrelated push to happen to arrive.
+    if (!authController.isAuthenticated) return;
+    appointmentsController.load();
+    historyController.load();
+  }
+
   /// Registers the current FCM token against `POST /api/v1/app/devices` (see
   /// `CUSTOMER_API_CONTRACT.md` "Push device registration"). Best-effort: a
   /// missing token (no Firebase configured, permission denied, or a platform
@@ -846,6 +871,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   @override
   void dispose() {
     _disposed = true;
+    WidgetsBinding.instance.removeObserver(this);
     _tokenRefreshSubscription.cancel();
     _foregroundMessageSubscription.cancel();
     _connectivitySubscription.cancel();
@@ -858,7 +884,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     vehiclesController.removeListener(notifyListeners);
     historyController.removeListener(notifyListeners);
     notificationsController.removeListener(notifyListeners);
-    favoritesController.removeListener(notifyListeners);
     discoveryController.dispose();
     organizationDetailController.dispose();
     authController.dispose();
@@ -866,7 +891,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     vehiclesController.dispose();
     historyController.dispose();
     notificationsController.dispose();
-    favoritesController.dispose();
     super.dispose();
   }
 }

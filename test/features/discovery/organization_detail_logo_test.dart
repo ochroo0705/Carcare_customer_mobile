@@ -31,9 +31,6 @@ Future<void> _pump(WidgetTester tester, {String? logoUrl}) async {
         errorMessage: null,
         onRetry: () {},
         onBack: () {},
-        onBook: (_) {},
-        isFavorite: false,
-        onFavoriteToggle: () {},
       ),
     ),
   );

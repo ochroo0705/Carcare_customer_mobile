@@ -5,6 +5,7 @@ import 'package:carcare_customer_mobile/features/history/domain/diagnostic_repor
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/widgets/service_order_status_chip.dart';
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ class ServiceOrderDetailScreen extends StatefulWidget {
     required this.repository,
     required this.orderId,
     required this.onBack,
+    required this.historyController,
     this.onReportSelected,
     super.key,
   });
@@ -23,6 +25,12 @@ class ServiceOrderDetailScreen extends StatefulWidget {
   final ServiceHistoryRepository repository;
   final String orderId;
   final VoidCallback onBack;
+  // Энэ дэлгэц HistoryController-оос дата авахгүй, өөрөө нэг удаа шууд
+  // repository-с татдаг тул push мэдэгдлээр (жишээ нь захиалга дуусахад)
+  // жагсаалт дахин ачаалагдахад энэ дэлгэц НЭЭЛТТЭЙ байсан ч шинэчлэгдэхгүй
+  // байсан — тиймээс энд controller-ийг сонсож дэвсгэр дээр (skeleton
+  // харуулахгүйгээр) чимээгүй дахин татна.
+  final HistoryController historyController;
 
   /// Хавсаргасан оношилгооны тайлангийн товч мөрөнд дарахад дуудагдана —
   /// `null` бол мөр дарах боломжгүй хэвээр үлдэнэ.
@@ -41,7 +49,22 @@ class _ServiceOrderDetailScreenState extends State<ServiceOrderDetailScreen> {
   @override
   void initState() {
     super.initState();
+    widget.historyController.addListener(_handleHistoryChanged);
     _load();
+  }
+
+  @override
+  void dispose() {
+    widget.historyController.removeListener(_handleHistoryChanged);
+    super.dispose();
+  }
+
+  void _handleHistoryChanged() {
+    // Loading skeleton рүү буцахгүй — History дахин ачаалагдах шалтгаан
+    // (login, connectivity, push мэдэгдэл) бүр ямар нэгэн харилцан хамааралгүй
+    // байж болно; одоо байгаа мэдээллийг харуулсаар, зөвхөн амжилттай ирвэл
+    // солино.
+    _refreshSilently();
   }
 
   Future<void> _load() async {
@@ -67,6 +90,22 @@ class _ServiceOrderDetailScreenState extends State<ServiceOrderDetailScreen> {
         _message = 'Тодорхойгүй алдаа гарлаа.';
         _status = _DetailStatus.error;
       });
+    }
+  }
+
+  Future<void> _refreshSilently() async {
+    try {
+      final detail = await widget.repository.getServiceOrderDetail(
+        widget.orderId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _detail = detail;
+        _status = _DetailStatus.data;
+      });
+    } catch (_) {
+      // Дэвсгэр дээрх чимээгүй шинэчлэлт — амжилтгүй бол одоо харуулж буй
+      // мэдээллийг алдаа/skeleton-оор орлуулахгүй, зүгээр алгасна.
     }
   }
 

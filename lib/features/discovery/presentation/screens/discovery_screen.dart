@@ -3,31 +3,26 @@ import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
-import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
-import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/organization_card.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_card.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/device_location_service.dart';
-import 'package:carcare_customer_mobile/features/favorites/presentation/controllers/favorites_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-enum _DiscoveryView { list, map }
-
-enum _FavoritesFilter { all, saved }
-
 class DiscoveryScreen extends StatefulWidget {
-  const DiscoveryScreen({required this.onOrganizationSelected, super.key});
-  final ValueChanged<Organization> onOrganizationSelected;
+  const DiscoveryScreen({required this.onBranchSelected, super.key});
+  final void Function(Organization organization, Branch branch)
+  onBranchSelected;
 
   @override
   State<DiscoveryScreen> createState() => _DiscoveryScreenState();
 }
 
 class _DiscoveryScreenState extends State<DiscoveryScreen> {
-  _DiscoveryView _view = _DiscoveryView.list;
-  _FavoritesFilter _favoritesFilter = _FavoritesFilter.all;
+  bool _filtersExpanded = false;
   final _searchController = TextEditingController();
 
   @override
@@ -39,7 +34,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<DiscoveryController>();
-    final favoritesController = context.watch<FavoritesController>();
     return AppShellBackground(
       child: SafeArea(
         child: RefreshIndicator(
@@ -54,15 +48,13 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   child: _DiscoveryHeader(
                     controller: controller,
                     searchController: _searchController,
-                    view: _view,
-                    onViewChanged: (view) => setState(() => _view = view),
-                    favoritesFilter: _favoritesFilter,
-                    onFavoritesFilterChanged: (filter) =>
-                        setState(() => _favoritesFilter = filter),
+                    filtersExpanded: _filtersExpanded,
+                    onFiltersExpandedChanged: (expanded) =>
+                        setState(() => _filtersExpanded = expanded),
                   ),
                 ),
               ),
-              ..._content(controller, favoritesController),
+              ..._content(controller),
             ],
           ),
         ),
@@ -70,19 +62,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
-  List<Widget> _content(
-    DiscoveryController controller,
-    FavoritesController favoritesController,
-  ) {
+  List<Widget> _content(DiscoveryController controller) {
     final state = controller.state;
-    final organizations = _favoritesFilter == _FavoritesFilter.saved
-        ? controller.visibleOrganizations
-              .where(
-                (organization) =>
-                    favoritesController.contains(organization.slug),
-              )
-              .toList(growable: false)
-        : controller.visibleOrganizations;
+    final organizations = controller.visibleOrganizations;
     final banner = state.isFromCache
         ? [
             SliverPadding(
@@ -100,7 +82,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         : const <Widget>[];
     return [
       ...banner,
-      ..._statusContent(state, organizations, controller, favoritesController),
+      ..._statusContent(state, organizations, controller),
     ];
   }
 
@@ -108,8 +90,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     DiscoveryState state,
     List<Organization> organizations,
     DiscoveryController controller,
-    FavoritesController favoritesController,
   ) {
+    // Жагсаалт одоо байгууллагын биш салбарын түвшинд харагддаг тул
+    // байгууллага бүрийг өөрийн салбаруудаар нь тэгшлэв — эзэн байгууллагын
+    // нэрийг картын дэд гарчиг болгон ашиглахын тулд хосолсон хэвээр үлдээв.
+    final branchEntries = [
+      for (final organization in organizations)
+        for (final branch in organization.branches)
+          (organization: organization, branch: branch),
+    ];
     // Шүүлт солиход (reload) өмнөх жагсаалт хэвээр байвал skeleton руу
     // "гялсхийхгүй" — өмнөх өгөгдлийг үзүүлсээр байна (зөвхөн анхны ачаалалд
     // skeleton). Ингэснээр filter section болон жагсаалт тогтвортой харагдана.
@@ -147,23 +136,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           ),
         ),
       ],
-      DiscoveryStatus.data
-          when organizations.isEmpty &&
-              _favoritesFilter == _FavoritesFilter.saved =>
-        [
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: _MessageState(
-              icon: Icons.favorite_border_rounded,
-              title: 'Хадгалсан сервис алга',
-              message: 'Сервисийн зүрхэн тэмдгийг дарж энд хадгалаарай.',
-              actionLabel: 'Бүгдийг харах',
-              onAction: () =>
-                  setState(() => _favoritesFilter = _FavoritesFilter.all),
-            ),
-          ),
-        ],
-      DiscoveryStatus.data when organizations.isEmpty => [
+      DiscoveryStatus.data when branchEntries.isEmpty => [
         SliverFillRemaining(
           hasScrollBody: false,
           child: _MessageState(
@@ -178,35 +151,21 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           ),
         ),
       ],
-      DiscoveryStatus.data when _view == _DiscoveryView.map => [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
-          sliver: SliverToBoxAdapter(
-            child: DiscoveryMap(
-              organizations: organizations,
-              hasActiveFilters: controller.hasActiveFilters,
-              onOrganizationSelected: widget.onOrganizationSelected,
-              onShowList: () => setState(() => _view = _DiscoveryView.list),
-            ),
-          ),
-        ),
-      ],
       DiscoveryStatus.data => [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
           sliver: SliverList.separated(
-            itemCount: organizations.length,
+            itemCount: branchEntries.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              final organization = organizations[index];
+              final entry = branchEntries[index];
               return RiseIn(
                 index: index,
-                child: OrganizationCard(
-                  organization: organization,
-                  isFavorite: favoritesController.contains(organization.slug),
-                  onFavoriteToggle: () =>
-                      favoritesController.toggle(organization.slug),
-                  onTap: () => widget.onOrganizationSelected(organization),
+                child: BranchCard(
+                  organization: entry.organization,
+                  branch: entry.branch,
+                  onTap: () =>
+                      widget.onBranchSelected(entry.organization, entry.branch),
                 ),
               );
             },
@@ -221,28 +180,21 @@ class _DiscoveryHeader extends StatelessWidget {
   const _DiscoveryHeader({
     required this.controller,
     required this.searchController,
-    required this.view,
-    required this.onViewChanged,
-    required this.favoritesFilter,
-    required this.onFavoritesFilterChanged,
+    required this.filtersExpanded,
+    required this.onFiltersExpandedChanged,
   });
 
   final DiscoveryController controller;
   final TextEditingController searchController;
-  final _DiscoveryView view;
-  final ValueChanged<_DiscoveryView> onViewChanged;
-  final _FavoritesFilter favoritesFilter;
-  final ValueChanged<_FavoritesFilter> onFavoritesFilterChanged;
+  final bool filtersExpanded;
+  final ValueChanged<bool> onFiltersExpandedChanged;
 
   @override
   Widget build(BuildContext context) {
-    final state = controller.state;
-    final organizations = controller.visibleOrganizations;
-    final branchCount = organizations.fold<int>(
-      0,
-      (total, organization) => total + organization.branches.length,
-    );
     final scheme = Theme.of(context).colorScheme;
+    // Идэвхтэй шүүлт байвал хэрэглэгч түүнийг далдлагдсан хэсэгт
+    // "мартахгүйн" тулд үргэлж дэлгэсэн байлгана — гар аргаар хаасан ч.
+    final showFilters = filtersExpanded || controller.hasActiveFilters;
 
     return Column(
       children: [
@@ -272,9 +224,16 @@ class _DiscoveryHeader extends StatelessWidget {
                     TextField(
                       controller: searchController,
                       onChanged: controller.setQuery,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (_) => FocusScope.of(context).unfocus(),
                       decoration: InputDecoration(
                         hintText: 'Нэр, хот эсвэл дүүргээр хайх',
-                        prefixIcon: const Icon(Icons.search),
+                        prefixIcon: IconButton(
+                          key: const ValueKey('discovery-search-submit'),
+                          onPressed: () => FocusScope.of(context).unfocus(),
+                          tooltip: 'Хайх',
+                          icon: const Icon(Icons.search),
+                        ),
                         suffixIcon: controller.hasActiveFilters
                             ? IconButton(
                                 onPressed: () {
@@ -284,149 +243,104 @@ class _DiscoveryHeader extends StatelessWidget {
                                 tooltip: 'Шүүлтүүр цэвэрлэх',
                                 icon: const Icon(Icons.close_rounded),
                               )
-                            : const Icon(Icons.tune_rounded),
+                            : null,
                       ),
                     ),
-                    // controller.cities/districts одоо сүүлийн ШҮҮЛТГҮЙ каталогоос
-                    // тооцогддог тул идэвхтэй сервер шүүлт 0 илэрцтэй болсон ч
-                    // хоосрохгүй — гэхдээ анхны ачаалалт өмнө (өгөгдөл огт
-                    // ирээгүй) хоёуланг нь шалгасаар байна.
-                    if (controller.cities.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _LocationFilter(
-                              value: controller.city,
-                              hint: 'Хот / аймаг',
-                              icon: Icons.location_city_outlined,
-                              values: controller.cities,
-                              onChanged: controller.setCity,
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _LocationFilter(
-                              value: controller.district,
-                              hint: 'Дүүрэг / сум',
-                              icon: Icons.place_outlined,
-                              values: controller.districts,
-                              onChanged: controller.setDistrict,
-                            ),
-                          ),
-                        ],
+                    // Хайлтын мөрийн зэрэгцээ дан icon товч байсан нь
+                    // "хайх" товч мэт андуурагдах эрсдэлтэй тул хайлтын мөртэй
+                    // адил өргөнтэй, тодорхой бичигтэй товч болгов — далд
+                    // байдлаар анхны төлөвт хаалттай (хот/дүүрэг, ойролцоо/
+                    // нээлттэй/амралтын өдөр хайлтын мөрийг бөглөрүүлж
+                    // байсан); идэвхтэй шүүлттэй үед автоматаар дэлгэгдсэн
+                    // хэвээр үлдэнэ (`showFilters`).
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.tonalIcon(
+                        key: const ValueKey('discovery-filters-toggle'),
+                        onPressed: () =>
+                            onFiltersExpandedChanged(!filtersExpanded),
+                        icon: Icon(
+                          filtersExpanded
+                              ? Icons.expand_less_rounded
+                              : Icons.tune_rounded,
+                        ),
+                        label: Text(
+                          filtersExpanded
+                              ? 'Шүүлтүүрүүд нуух'
+                              : 'Шүүлтүүрүүд харуулах',
+                        ),
                       ),
-                    ],
-                    // Сервер шүүлтийн chip-үүд (ойролцоо/одоо нээлттэй/амралтын
-                    // өдөр) нь одоогийн үр дүнгээс ХАРААТГҮЙ — идэвхтэй шүүлт
-                    // байвал (тэр байтугай 0 илэрцтэй үед ч) харагдаж байх
-                    // ёстой, эс бөгөөс хэрэглэгч буцааж унтраах товчгүй үлдэнэ.
-                    // `state.organizations` биш `controller.hasCatalog`
-                    // ашигласан нь чухал: шүүлтийг унтраахад `load()` шинэ
-                    // хариу авах хүртэл `state.organizations` өмнөх (0
-                    // байсан) утгаараа "loading" төлөвт хадгалагдсан хэвээр
-                    // байдаг тул унтраасан даруйдаа chip мөр түр зуур бүр
-                    // алга болдог байсан (`hasActiveFilters` мөн шууд false
-                    // болчихсон учир хоёулаа false болно) — `hasCatalog` нь
-                    // сүүлийн шүүлтгүй ачаалалтаас тооцогддог тул reload-ын
-                    // үед өөрчлөгддөггүй.
-                    if (controller.hasCatalog ||
-                        controller.hasActiveFilters) ...[
-                      const SizedBox(height: 8),
-                      _ServerFilterChips(controller: controller),
-                    ],
-                    // Тоолуур мөрийг үр дүнгээс үл хамааран үргэлж харуулна
-                    // (0 ч гэсэн) — эс бөгөөс шүүлт солиход/0 илэрцтэй болоход
-                    // мөр өөрөө алга болж, доод компонентууд байнга шилжиж
-                    // байсан (layout shift).
-                    const SizedBox(height: 18),
-                    Row(
-                      children: [
-                        _DiscoveryMetric(
-                          value: '${organizations.length}',
-                          label: 'сервис',
-                        ),
-                        _MetricDivider(
-                          color: CarCareTheme.of(context).glassBorder,
-                        ),
-                        _DiscoveryMetric(
-                          value: '$branchCount',
-                          label: 'салбар',
-                        ),
-                      ],
+                    ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      alignment: Alignment.topCenter,
+                      child: !showFilters
+                          ? const SizedBox.shrink()
+                          : Column(
+                              children: [
+                                // controller.cities/districts одоо сүүлийн
+                                // ШҮҮЛТГҮЙ каталогоос тооцогддог тул идэвхтэй
+                                // сервер шүүлт 0 илэрцтэй болсон ч хоосрохгүй
+                                // — гэхдээ анхны ачаалалт өмнө (өгөгдөл огт
+                                // ирээгүй) хоёуланг нь шалгасаар байна.
+                                if (controller.cities.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _LocationFilter(
+                                          value: controller.city,
+                                          hint: 'Хот / аймаг',
+                                          icon: Icons.location_city_outlined,
+                                          values: controller.cities,
+                                          onChanged: controller.setCity,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: _LocationFilter(
+                                          value: controller.district,
+                                          hint: 'Дүүрэг / сум',
+                                          icon: Icons.place_outlined,
+                                          values: controller.districts,
+                                          onChanged: controller.setDistrict,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                                // Сервер шүүлтийн chip-үүд (ойролцоо/одоо
+                                // нээлттэй/амралтын өдөр) нь одоогийн үр
+                                // дүнгээс ХАРААТГҮЙ — идэвхтэй шүүлт байвал
+                                // (тэр байтугай 0 илэрцтэй үед ч) харагдаж
+                                // байх ёстой, эс бөгөөс хэрэглэгч буцааж
+                                // унтраах товчгүй үлдэнэ. `state.organizations`
+                                // биш `controller.hasCatalog` ашигласан нь
+                                // чухал: шүүлтийг унтраахад `load()` шинэ
+                                // хариу авах хүртэл `state.organizations`
+                                // өмнөх (0 байсан) утгаараа "loading" төлөвт
+                                // хадгалагдсан хэвээр байдаг тул унтраасан
+                                // даруйдаа chip мөр түр зуур бүр алга болдог
+                                // байсан (`hasActiveFilters` мөн шууд false
+                                // болчихсон учир хоёулаа false болно) —
+                                // `hasCatalog` нь сүүлийн шүүлтгүй
+                                // ачаалалтаас тооцогддог тул reload-ын үед
+                                // өөрчлөгддөггүй.
+                                if (controller.hasCatalog ||
+                                    controller.hasActiveFilters) ...[
+                                  const SizedBox(height: 8),
+                                  _ServerFilterChips(controller: controller),
+                                ],
+                              ],
+                            ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 18),
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Авто сервисүүд',
-                    style: Theme.of(context).textTheme.titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    state.organizations.isNotEmpty
-                        ? '${organizations.length} байгууллагаас сонгох'
-                        : 'Танд тохирох газраа олоорой',
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            SegmentedButton<_DiscoveryView>(
-              key: const ValueKey('discovery-view-toggle'),
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(
-                  value: _DiscoveryView.list,
-                  icon: Icon(Icons.view_list_outlined),
-                  tooltip: 'Жагсаалт',
-                ),
-                ButtonSegment(
-                  value: _DiscoveryView.map,
-                  icon: Icon(Icons.map_outlined),
-                  tooltip: 'Газрын зураг',
-                ),
-              ],
-              selected: {view},
-              onSelectionChanged: (selection) {
-                onViewChanged(selection.first);
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        SegmentedButton<_FavoritesFilter>(
-          key: const ValueKey('discovery-favorites-filter'),
-          showSelectedIcon: false,
-          style: const ButtonStyle(visualDensity: VisualDensity.compact),
-          segments: const [
-            ButtonSegment(
-              value: _FavoritesFilter.all,
-              label: Text('Бүгд'),
-              icon: Icon(Icons.explore_outlined),
-            ),
-            ButtonSegment(
-              value: _FavoritesFilter.saved,
-              label: Text('Хадгалсан'),
-              icon: Icon(Icons.favorite_border_rounded),
-            ),
-          ],
-          selected: {favoritesFilter},
-          onSelectionChanged: (selection) {
-            onFavoritesFilterChanged(selection.first);
-          },
         ),
       ],
     );
@@ -484,42 +398,6 @@ class _AmbientOrb extends StatelessWidget {
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     ),
   );
-}
-
-class _DiscoveryMetric extends StatelessWidget {
-  const _DiscoveryMetric({required this.value, required this.label});
-
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Expanded(
-    child: Column(
-      children: [
-        Text(
-          value,
-          style: Theme.of(context).textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
-        ),
-      ],
-    ),
-  );
-}
-
-class _MetricDivider extends StatelessWidget {
-  const _MetricDivider({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) =>
-      Container(width: 1, height: 32, color: color);
 }
 
 class _MessageState extends StatelessWidget {

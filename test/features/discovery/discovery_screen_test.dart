@@ -28,33 +28,6 @@ void main() {
   setUpAll(() => debugDisableAppBootstrap = true);
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets(
-    'saves an organization and filters to it via the Хадгалсан toggle',
-    (tester) async {
-      await tester.pumpWidget(
-        CarCareCustomerApp(
-          organizationRepository: FakeOrganizationRepository(
-            delay: Duration.zero,
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final favoriteButton = find.byKey(const ValueKey('favorite-auto-doctor'));
-      await _scrollUntilVisible(tester, favoriteButton, 200);
-      await tester.tap(favoriteButton);
-      await tester.pumpAndSettle();
-
-      final savedToggle = find.text('Хадгалсан');
-      await _scrollUntilVisible(tester, savedToggle, -200);
-      await tester.tap(savedToggle);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Auto Doctor Service'), findsOneWidget);
-      expect(find.text('Эрдэнэт Car Care'), findsNothing);
-    },
-  );
-
   testWidgets('offers the list when map initialization times out', (
     tester,
   ) async {
@@ -86,8 +59,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.map_outlined));
+    await tester.tap(find.byKey(const ValueKey('discovery-open-map')));
+    // Let the page-push transition finish before asserting: unlike the old
+    // inline setState-driven toggle, this is a real Navigator push, and
+    // `isConfigured()` resolves a beat after the first frame.
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
     expect(find.text('Газрын зураг ачаалж байна…'), findsOneWidget);
 
     // The 12s init-timeout timer is armed only after `isConfigured()` resolves
@@ -102,13 +79,90 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(showListButton);
     await tester.pumpAndSettle();
+    // Back on Explore's list, the fullscreen map page popped off the stack.
     expect(
-      find.byKey(const ValueKey('organization-auto-doctor')),
+      find.byKey(const ValueKey('branch-auto-doctor-auto-doctor-bzd')),
       findsOneWidget,
     );
+    expect(find.byKey(const ValueKey('discovery-open-map')), findsOneWidget);
   });
 
-  testWidgets('preserves map mode while switching top-level destinations', (
+  testWidgets(
+    'opens the fullscreen map from the FAB, only on the Хайх tab',
+    (tester) async {
+      // Map config is unmocked here (unlike the timeout test above), so
+      // `isConfigured()` never resolves and the map would sit on its
+      // spinning "loading" overlay forever — `pumpAndSettle` would time out
+      // waiting for that animation. Reporting "unconfigured" keeps the map
+      // page static so this test only needs to assert the FAB/nav wiring.
+      const mapChannel = MethodChannel(
+        'mn.carcare.carcare_customer_mobile/map_configuration',
+      );
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        mapChannel,
+        (call) async => call.method == 'isConfigured' ? false : null,
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          mapChannel,
+          null,
+        ),
+      );
+
+      await tester.pumpWidget(
+        CarCareCustomerApp(
+          organizationRepository: FakeOrganizationRepository(
+            delay: Duration.zero,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('discovery-open-map')), findsOneWidget);
+
+      // Switching to another tab hides the map FAB — it's Explore-only.
+      await tester.tap(find.text('Захиалгууд'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('discovery-open-map')), findsNothing);
+
+      await tester.tap(find.text('Хайх'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('discovery-open-map')));
+      await tester.pumpAndSettle();
+      expect(find.text('Газрын зураг'), findsOneWidget);
+
+      await tester.tap(find.byType(BackButton));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const ValueKey('branch-auto-doctor-auto-doctor-bzd')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('opens a branch detail page from a tap', (tester) async {
+    await tester.pumpWidget(
+      CarCareCustomerApp(
+        organizationRepository: FakeOrganizationRepository(
+          delay: Duration.zero,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final branchCard = find.byKey(
+      const ValueKey('branch-auto-doctor-auto-doctor-bzd'),
+    );
+    await _scrollUntilVisible(tester, branchCard, 200);
+    await tester.tap(branchCard);
+    await tester.pumpAndSettle();
+    expect(find.text('Баянзүрх салбар'), findsOneWidget);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+    expect(branchCard, findsOneWidget);
+  });
+
+  testWidgets('shows branches and opens a view-only detail page', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -119,116 +173,26 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-
-    await tester.tap(find.byIcon(Icons.map_outlined));
-    await tester.pump();
-    await tester.tap(find.text('Цаг'));
-    await tester.pump();
-    await tester.tap(find.text('Хайх'));
-    await tester.pump();
-
-    final switcherFinder = find.byKey(const ValueKey('discovery-view-toggle'));
-    final dynamic switcher = tester.widget(switcherFinder);
-    expect(switcher.selected.single.toString(), contains('map'));
-    expect(find.byKey(const ValueKey('discovery-map-0')), findsOneWidget);
-  });
-
-  testWidgets('saves an organization from its detail page', (tester) async {
-    await tester.pumpWidget(
-      CarCareCustomerApp(
-        organizationRepository: FakeOrganizationRepository(
-          delay: Duration.zero,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final organizationCard = find.byKey(
-      const ValueKey('organization-auto-doctor'),
-    );
-    await _scrollUntilVisible(tester, organizationCard, 200);
-    await tester.tapAt(
-      tester.getTopLeft(organizationCard) + const Offset(100, 24),
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Хадгалах'), findsOneWidget);
-
-    await tester.tap(find.byKey(const ValueKey('detail-favorite-auto-doctor')));
-    await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.favorite_rounded), findsOneWidget);
-    expect(find.text('Хадгалсан'), findsOneWidget);
-
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    final savedToggle = find.text('Хадгалсан');
-    await _scrollUntilVisible(tester, savedToggle, -200);
-    await tester.tap(savedToggle);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Auto Doctor Service'), findsOneWidget);
-  });
-
-  testWidgets('shows organizations and opens details', (tester) async {
-    await tester.pumpWidget(
-      CarCareCustomerApp(
-        organizationRepository: FakeOrganizationRepository(
-          delay: Duration.zero,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
     expect(find.text('Нэр, хот эсвэл дүүргээр хайх'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.view_list_outlined));
-    await tester.pumpAndSettle();
-    final organizationCard = find.byKey(
-      const ValueKey('organization-auto-doctor'),
-    );
-    await _scrollUntilVisible(tester, organizationCard, 200);
-    expect(find.text('Auto Doctor Service'), findsOneWidget);
+    // Auto Doctor Service has two branches, so the tenant name (the card's
+    // subtext) appears once per branch card.
+    expect(find.text('Auto Doctor Service'), findsNWidgets(2));
 
+    final sbdBranch = find.byKey(
+      const ValueKey('branch-auto-doctor-auto-doctor-sbd'),
+    );
+    await _scrollUntilVisible(tester, sbdBranch, 200);
+    await tester.tap(sbdBranch);
     await tester.pumpAndSettle();
-    await tester.tap(organizationCard);
-    await tester.pumpAndSettle();
-    // Tenant profile page: "Цаг захиалах" is the primary action, placed
-    // above the (informational-only) branches list.
-    final bookButton = find.text('Цаг захиалах');
-    expect(bookButton, findsOneWidget);
-    // Both branches' info render at once further down (no chip
-    // selector/pre-selection any more — that now lives inside booking only).
-    final sbdBranch = find.text('Сүхбаатар салбар');
-    await _scrollUntilVisible(tester, sbdBranch, 300);
-    expect(find.text('Баянзүрх салбар'), findsOneWidget);
-    expect(sbdBranch, findsOneWidget);
+
+    // Explore is view-only now — no booking entry point on this page, and
+    // only the tapped branch's own info renders (not its sibling branch).
+    expect(find.text('Цаг захиалах'), findsNothing);
+    expect(find.text('Сүхбаатар салбар'), findsOneWidget);
+    expect(find.text('Баянзүрх салбар'), findsNothing);
     expect(find.text('1-р хороо, Олимпын гудамж 9'), findsOneWidget);
     expect(find.text('09:00–18:00'), findsOneWidget);
-
-    await _scrollUntilVisible(tester, bookButton, -300);
-    await tester.tap(bookButton);
-    await tester.pumpAndSettle();
-    expect(find.text('Нэвтрэх / Бүртгүүлэх'), findsOneWidget);
-    expect(
-      find.text('Утасны дугаараа оруулаад, ирэх 6 оронтой кодоор нэвтэрнэ.'),
-      findsOneWidget,
-    );
-    expect(find.text('Үйлчилгээ сонгох'), findsNothing);
-
-    await tester.enterText(
-      find.byKey(const ValueKey('login-phone')),
-      '99112233',
-    );
-    await tester.tap(find.text('Код авах →'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const ValueKey('login-otp')), '123456');
-    await tester.tap(find.text('Нэвтрэх →'));
-    await tester.pumpAndSettle();
-    expect(find.text('Цаг хүсэх'), findsOneWidget);
-    // No branch is preselected any more (booking starts from the org's
-    // single "Цаг захиалах" button, not a specific branch) — the fake org has
-    // no categories configured, so the branch dropdown is reachable right
-    // away rather than gated behind a category pick.
-    expect(find.text('Эхлээд үйлчилгээгээ сонгоно уу'), findsOneWidget);
-    expect(find.byKey(const ValueKey('booking-branch-dropdown-null')), findsOneWidget);
   });
 
   testWidgets('shows an explicit empty state', (tester) async {
@@ -252,8 +216,6 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.view_list_outlined));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'Эрдэнэт');
@@ -296,11 +258,12 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.view_list_outlined));
-      await tester.pumpAndSettle();
-      final firstLoadCard = find.text('Auto Doctor Service');
-      await _scrollUntilVisible(tester, firstLoadCard, 200);
-      expect(firstLoadCard, findsOneWidget);
+      await _scrollUntilVisible(
+        tester,
+        find.byKey(const ValueKey('branch-auto-doctor-auto-doctor-bzd')),
+        200,
+      );
+      expect(find.text('Auto Doctor Service'), findsNWidgets(2));
 
       // Simulated restart with no network: unmount the whole tree first so
       // the next pumpWidget performs a genuine fresh initState (otherwise
@@ -317,8 +280,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.view_list_outlined));
-      await tester.pumpAndSettle();
 
       expect(
         find.text('Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна'),
@@ -326,9 +287,12 @@ void main() {
       );
       // The offline banner adds height above the list, so the first card
       // needs a scroll to come into the test viewport.
-      final offlineCard = find.text('Auto Doctor Service');
-      await _scrollUntilVisible(tester, offlineCard, 200);
-      expect(offlineCard, findsOneWidget);
+      await _scrollUntilVisible(
+        tester,
+        find.byKey(const ValueKey('branch-auto-doctor-auto-doctor-bzd')),
+        200,
+      );
+      expect(find.text('Auto Doctor Service'), findsNWidgets(2));
 
       // Retrying while still offline keeps showing the cached list rather
       // than dropping to a hard error, since the cache is still valid data.
@@ -340,9 +304,12 @@ void main() {
         find.text('Сүлжээгүй байна — сүүлд ачаалсан жагсаалтыг харуулж байна'),
         findsOneWidget,
       );
-      final afterRetryCard = find.text('Auto Doctor Service');
-      await _scrollUntilVisible(tester, afterRetryCard, 200);
-      expect(afterRetryCard, findsOneWidget);
+      await _scrollUntilVisible(
+        tester,
+        find.byKey(const ValueKey('branch-auto-doctor-auto-doctor-bzd')),
+        200,
+      );
+      expect(find.text('Auto Doctor Service'), findsNWidgets(2));
     },
   );
 }

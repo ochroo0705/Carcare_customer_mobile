@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostic_report_detail.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_repository.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/domain/report_severity.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/diagnostic_pdf_export.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/widgets/report_answers_view.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/widgets/severity_chip.dart';
@@ -34,6 +35,7 @@ class _DiagnosticDetailScreenState extends State<DiagnosticDetailScreen> {
   DiagnosticReportDetail? _detail;
   String? _message;
   bool _isExporting = false;
+  CheckTone? _toneFilter;
 
   @override
   void initState() {
@@ -118,6 +120,8 @@ class _DiagnosticDetailScreenState extends State<DiagnosticDetailScreen> {
       detail: _detail!,
       onExport: _sharePdf,
       isExporting: _isExporting,
+      toneFilter: _toneFilter,
+      onToneFilterChanged: (tone) => setState(() => _toneFilter = tone),
     ),
   };
 }
@@ -127,11 +131,15 @@ class _DetailBody extends StatelessWidget {
     required this.detail,
     required this.onExport,
     required this.isExporting,
+    required this.toneFilter,
+    required this.onToneFilterChanged,
   });
 
   final DiagnosticReportDetail detail;
   final VoidCallback onExport;
   final bool isExporting;
+  final CheckTone? toneFilter;
+  final ValueChanged<CheckTone?> onToneFilterChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -194,8 +202,39 @@ class _DetailBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        ReportAnswersView(schema: detail.schema, data: detail.data),
+        _ToneFilterRow(selected: toneFilter, onChanged: onToneFilterChanged),
+        const SizedBox(height: 12),
+        ReportAnswersView(
+          schema: detail.schema,
+          data: detail.data,
+          toneFilter: toneFilter,
+        ),
       ],
     );
   }
+}
+
+/// Тайлангийн зүйлсийг тона (Хэвийн/Анхаарах/Солих)-оор шүүх сегмент товч —
+/// жагсаалтын дэлгэц дэх `ReportSeverity` шүүлттэй ижил хэлбэр, гэхдээ энд
+/// нэг check зүйл тус бүрийн хариулт дээр (`CheckTone`) ажиллана.
+class _ToneFilterRow extends StatelessWidget {
+  const _ToneFilterRow({required this.selected, required this.onChanged});
+
+  final CheckTone? selected;
+  final ValueChanged<CheckTone?> onChanged;
+
+  @override
+  Widget build(BuildContext context) => SegmentedButton<CheckTone?>(
+    key: const ValueKey('diagnostic-detail-tone-filter'),
+    showSelectedIcon: false,
+    style: const ButtonStyle(visualDensity: VisualDensity.compact),
+    segments: const [
+      ButtonSegment(value: null, label: Text('Бүгд')),
+      ButtonSegment(value: CheckTone.good, label: Text('Хэвийн')),
+      ButtonSegment(value: CheckTone.warn, label: Text('Анхаарах')),
+      ButtonSegment(value: CheckTone.bad, label: Text('Солих')),
+    ],
+    selected: {selected},
+    onSelectionChanged: (values) => onChanged(values.first),
+  );
 }

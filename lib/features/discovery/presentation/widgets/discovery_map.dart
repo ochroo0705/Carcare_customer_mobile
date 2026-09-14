@@ -2,9 +2,11 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/map_location_limiter.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/location_permission_banner.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
@@ -14,13 +16,16 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DiscoveryMap extends StatefulWidget {
   const DiscoveryMap({
     required this.organizations,
     this.hasActiveFilters = false,
-    required this.onOrganizationSelected,
+    required this.onBranchSelected,
     required this.onShowList,
+    required this.organizationDetailController,
+    this.height = 430,
     this.locationPermissionService =
         const PermissionHandlerLocationPermissionService(),
     this.mapConfigurationService = const NativeMapConfigurationService(),
@@ -29,8 +34,14 @@ class DiscoveryMap extends StatefulWidget {
 
   final List<Organization> organizations;
   final bool hasActiveFilters;
-  final ValueChanged<Organization> onOrganizationSelected;
+  final void Function(Organization organization, Branch branch)
+  onBranchSelected;
   final VoidCallback onShowList;
+  // Пин дарахад дэлгэрэнгүй (цаг/хаяг/утас/ангилал) картыг web-тэй ижил
+  // түвшинд харуулахын тулд тухайн байгууллагын дэлгэрэнгүйг цөөнгүй
+  // ачаална — жагсаалтын `Organization`/`Branch`-д эдгээр талбар алга.
+  final OrganizationDetailController organizationDetailController;
+  final double height;
   final LocationPermissionService locationPermissionService;
   final MapConfigurationService mapConfigurationService;
 
@@ -77,7 +88,12 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.organizationDetailController.addListener(_handleDetailChanged);
     _initializeMap();
+  }
+
+  void _handleDetailChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
@@ -152,6 +168,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.organizationDetailController.removeListener(_handleDetailChanged);
     _initializationTimer?.cancel();
     _mapController?.dispose();
     super.dispose();
@@ -387,12 +404,17 @@ class _DiscoveryMapState extends State<DiscoveryMap>
                 : (_closedPin ?? _openPin ?? BitmapDescriptor.defaultMarker),
             zIndexInt: location.selected ? 1000 : 0,
             infoWindow: InfoWindow.noText,
-            onTap: () => setState(
-              () => _selected = (
-                organization: location.organization,
-                branch: location.branch,
-              ),
-            ),
+            onTap: () {
+              setState(
+                () => _selected = (
+                  organization: location.organization,
+                  branch: location.branch,
+                ),
+              );
+              widget.organizationDetailController.load(
+                location.organization.slug,
+              );
+            },
           ),
         )
         .toSet();
@@ -402,7 +424,7 @@ class _DiscoveryMapState extends State<DiscoveryMap>
         : _ulaanbaatar;
     final mapUnavailable = _mapLoadState == _MapLoadState.unavailable;
     return Container(
-      height: 430,
+      height: widget.height,
       decoration: BoxDecoration(
         border: Border.all(color: CarCareTheme.of(context).glassBorder),
         borderRadius: BorderRadius.circular(AppRadii.large),
@@ -470,9 +492,11 @@ class _DiscoveryMapState extends State<DiscoveryMap>
                 child: _SelectedBranchCard(
                   organization: visibleSelection.organization,
                   branch: visibleSelection.branch,
+                  detailController: widget.organizationDetailController,
                   onClose: () => setState(() => _selected = null),
-                  onDetails: () => widget.onOrganizationSelected(
+                  onDetails: () => widget.onBranchSelected(
                     visibleSelection!.organization,
+                    visibleSelection.branch,
                   ),
                 ),
               ),
@@ -649,29 +673,49 @@ class _MapUnavailableOverlay extends StatelessWidget {
   );
 }
 
+/// Пин дарахад гарч ирэх карт — web-ийн газрын зураг дээрх карттай ижил
+/// түвшний мэдээлэл (лого, нээлттэй/хаалттай төлөв + цаг, хаяг, утас,
+/// ангилалууд) харуулахын тулд тухайн байгууллагын дэлгэрэнгүйг (`detailController`)
+/// цөөнгүй ачаалж, ирэх хүртэл зөвхөн жагсаалтаас аль хэдийн байгаа
+/// нэр/зай мэдээллийг харуулна.
 class _SelectedBranchCard extends StatelessWidget {
   const _SelectedBranchCard({
     required this.organization,
     required this.branch,
+    required this.detailController,
     required this.onClose,
     required this.onDetails,
   });
 
   final Organization organization;
   final Branch branch;
+  final OrganizationDetailController detailController;
   final VoidCallback onClose;
   final VoidCallback onDetails;
+
+  BranchDetail? _matchingBranch(OrganizationDetail detail) {
+    for (final candidate in detail.branches) {
+      if (candidate.id == branch.id) return candidate;
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final detail = detailController.organization;
+    final detailMatches = detail != null && detail.slug == organization.slug;
+    final loadingDetail =
+        detailController.status == OrganizationDetailStatus.loading &&
+        !detailMatches;
+    final branchDetail = detailMatches ? _matchingBranch(detail) : null;
     return Material(
       color: scheme.surface,
       elevation: 12,
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxHeight: 360),
+        constraints: const BoxConstraints(maxHeight: 420),
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
           child: Column(
@@ -679,20 +723,9 @@ class _SelectedBranchCard extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    padding: const EdgeInsets.all(9),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: CarCareTheme.of(context).glassBorder,
-                      ),
-                    ),
-                    child: Image.asset('assets/brand/mark.png'),
-                  ),
+                  _CardLogo(organization: organization),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -712,6 +745,10 @@ class _SelectedBranchCard extends StatelessWidget {
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
+                        if (branchDetail != null) ...[
+                          const SizedBox(height: 6),
+                          _OpenStatusLine(branch: branchDetail),
+                        ],
                       ],
                     ),
                   ),
@@ -723,10 +760,67 @@ class _SelectedBranchCard extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 10),
+              if (branch.distanceLabel != null) ...[
+                _CardDetail(
+                  icon: Icons.near_me_outlined,
+                  text: branch.distanceLabel!,
+                ),
+                const SizedBox(height: 6),
+              ],
               _CardDetail(
                 icon: Icons.place_outlined,
-                text: branch.locationLabel,
+                text: branchDetail?.fullAddress ?? branch.locationLabel,
               ),
+              if (branchDetail != null) ...[
+                const SizedBox(height: 6),
+                _CardDetail(icon: Icons.schedule_rounded, text: branchDetail.hoursLabel),
+              ],
+              if (detail?.phone != null) ...[
+                const SizedBox(height: 6),
+                _PhoneLine(phone: detail!.phone!),
+              ],
+              if (loadingDetail) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Дэлгэрэнгүй ачаалж байна…',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ],
+              if (branchDetail != null && branchDetail.categories.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final category in branchDetail.categories)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainer,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          category.name,
+                          style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               SizedBox(
                 width: double.infinity,
@@ -742,6 +836,119 @@ class _SelectedBranchCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CardLogo extends StatelessWidget {
+  const _CardLogo({required this.organization});
+
+  final Organization organization;
+
+  @override
+  Widget build(BuildContext context) {
+    final letter = Center(
+      child: Text(
+        organization.name.characters.isEmpty
+            ? '?'
+            : organization.name.characters.first.toUpperCase(),
+        style: Theme.of(
+          context,
+        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+      ),
+    );
+    final logoUrl = organization.logoUrl?.trim();
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: CarCareTheme.of(context).glassBorder),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: logoUrl == null || logoUrl.isEmpty
+          ? letter
+          : CachedNetworkImage(
+              imageUrl: logoUrl,
+              fit: BoxFit.cover,
+              placeholder: (_, _) => letter,
+              errorWidget: (_, _, _) => letter,
+            ),
+    );
+  }
+}
+
+class _OpenStatusLine extends StatelessWidget {
+  const _OpenStatusLine({required this.branch});
+
+  final BranchDetail branch;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = branch.openStatusAt(DateTime.now());
+    final color = switch (status) {
+      BranchOpenStatus.open => AppColors.green,
+      BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
+      BranchOpenStatus.unknown => Theme.of(context).colorScheme.onSurfaceVariant,
+    };
+    final label = switch (status) {
+      BranchOpenStatus.open => 'Нээлттэй',
+      BranchOpenStatus.closed => 'Хаалттай',
+      BranchOpenStatus.unknown => 'Төлөв тодорхойгүй',
+    };
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
+}
+
+class _PhoneLine extends StatelessWidget {
+  const _PhoneLine({required this.phone});
+
+  final String phone;
+
+  Future<void> _call() async {
+    final uri = Uri(scheme: 'tel', path: phone);
+    await launchUrl(uri);
+  }
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+    onTap: _call,
+    borderRadius: BorderRadius.circular(8),
+    child: Row(
+      children: [
+        Icon(
+          Icons.phone_outlined,
+          size: 17,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            phone,
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _CardDetail extends StatelessWidget {
