@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -13,6 +15,13 @@ class SecureSessionStore {
   static const _phoneKey = 'account_phone';
   static const _nameKey = 'account_name';
   final FlutterSecureStorage _storage;
+  final _cleared = StreamController<void>.broadcast();
+
+  /// Fires every time [clear] runs — a signout as well as a repository's
+  /// `onUnauthorized` 401 handler both go through here, so anything holding
+  /// authenticated UI state (see `AuthController`) can react regardless of
+  /// which screen's API call happened to trigger the 401.
+  Stream<void> get onCleared => _cleared.stream;
 
   /// API client-д Authorization header үүсгэхэд хэрэглэнэ.
   Future<String?> readToken() => _storage.read(key: _tokenKey);
@@ -40,5 +49,8 @@ class SecureSessionStore {
   }
 
   /// Logout/401-ийн дараа бүх session key-г хамтад нь устгана.
-  Future<void> clear() => _storage.deleteAll();
+  Future<void> clear() async {
+    await _storage.deleteAll();
+    _cleared.add(null);
+  }
 }

@@ -18,37 +18,28 @@ class RemoteOrganizationRepository implements OrganizationRepository {
   final Map<String, OrganizationDetail> _detailCache = {};
 
   @override
-  Future<List<Organization>> getOrganizations({
+  Future<OrganizationPage> getOrganizations({
     OrganizationFilter? filter,
   }) async {
     final query = <String, String>{};
-    if (filter != null && filter.hasNearMe) {
-      query['lat'] = filter.lat!.toString();
-      query['lng'] = filter.lng!.toString();
-      if (filter.radiusKm != null) {
-        query['radius'] = filter.radiusKm!.toString();
+    final current = filter ?? const OrganizationFilter();
+    if (current.query.isNotEmpty) query['q'] = current.query;
+    if (current.city.isNotEmpty) query['city'] = current.city;
+    if (current.district.isNotEmpty) query['district'] = current.district;
+    query['page'] = current.page.toString();
+    query['pageSize'] = current.pageSize.toString();
+    if (current.hasNearMe) {
+      query['lat'] = current.lat!.toString();
+      query['lng'] = current.lng!.toString();
+      if (current.radiusKm != null) {
+        query['radius'] = current.radiusKm!.toString();
       }
     }
-    if (filter != null && filter.openNow) query['openNow'] = '1';
-    if (filter != null && filter.weekend) query['weekend'] = '1';
-    final path = query.isEmpty
-        ? '/orgs'
-        : '/orgs?${Uri(queryParameters: query).query}';
+    if (current.openNow) query['openNow'] = '1';
+    if (current.weekend) query['weekend'] = '1';
+    final path = '/orgs?${Uri(queryParameters: query).query}';
     final json = await _client.getJson(path);
-    final items = json['orgs'];
-    if (items is! List) {
-      throw const UnexpectedFailure('API жагсаалт буруу байна.');
-    }
-    return items
-        .map((item) {
-          if (item is! Map) {
-            throw const UnexpectedFailure('API өгөгдөл буруу байна.');
-          }
-          return OrganizationSummaryDto.fromJson(
-            Map<String, dynamic>.from(item),
-          ).toDomain();
-        })
-        .toList(growable: false);
+    return organizationPageFromJson(json);
   }
 
   @override

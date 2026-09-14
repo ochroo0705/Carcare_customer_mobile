@@ -24,10 +24,25 @@ class DiscoveryScreen extends StatefulWidget {
 class _DiscoveryScreenState extends State<DiscoveryScreen> {
   bool _filtersExpanded = false;
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    if (_scrollController.position.extentAfter < 500) {
+      context.read<DiscoveryController>().loadMore();
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -39,6 +54,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         child: RefreshIndicator(
           onRefresh: controller.load,
           child: CustomScrollView(
+            controller: _scrollController,
             key: const PageStorageKey('discovery-scroll'),
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
@@ -153,7 +169,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       ],
       DiscoveryStatus.data => [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 32),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
           sliver: SliverList.separated(
             itemCount: branchEntries.length,
             separatorBuilder: (_, _) => const SizedBox(height: 12),
@@ -171,8 +187,50 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             },
           ),
         ),
+        if (state.isLoadingMore || state.loadMoreMessage != null ||
+            state.pagination.hasNext)
+          SliverToBoxAdapter(
+            child: _LoadMoreFooter(
+              state: state,
+              onRetry: controller.loadMore,
+            ),
+          ),
+        const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
     };
+  }
+}
+
+class _LoadMoreFooter extends StatelessWidget {
+  const _LoadMoreFooter({required this.state, required this.onRetry});
+
+  final DiscoveryState state;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state.isLoadingMore) {
+      return const Padding(
+        padding: EdgeInsets.all(20),
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    if (state.loadMoreMessage != null) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+        child: Center(
+          child: OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Дахин ачаалах'),
+          ),
+        ),
+      );
+    }
+    return const Padding(
+      padding: EdgeInsets.all(12),
+      child: SizedBox(height: 1),
+    );
   }
 }
 

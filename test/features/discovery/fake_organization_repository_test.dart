@@ -6,7 +6,8 @@ void main() {
   group('FakeOrganizationRepository', () {
     test('returns representative organization data', () async {
       final repository = FakeOrganizationRepository(delay: Duration.zero);
-      final organizations = await repository.getOrganizations();
+      final page = await repository.getOrganizations();
+      final organizations = page.organizations;
       expect(organizations, hasLength(3));
       expect(organizations.first.branches, hasLength(2));
       expect(organizations.first.branches, isNotEmpty);
@@ -17,7 +18,7 @@ void main() {
         scenario: FakeOrganizationScenario.empty,
         delay: Duration.zero,
       );
-      expect(await repository.getOrganizations(), isEmpty);
+      expect((await repository.getOrganizations()).organizations, isEmpty);
     });
 
     test('supports an error scenario', () async {

@@ -14,18 +14,60 @@ class FakeOrganizationRepository implements OrganizationRepository {
   final Duration delay;
 
   @override
-  Future<List<Organization>> getOrganizations({
+  Future<OrganizationPage> getOrganizations({
     OrganizationFilter? filter,
   }) async {
     // Fake mode серверийн шүүлтийг дуурайлгахгүй — бүх жагсаалтыг буцаана.
     if (delay > Duration.zero) await Future<void>.delayed(delay);
-    return switch (scenario) {
-      FakeOrganizationScenario.data => _organizations,
-      FakeOrganizationScenario.empty => const [],
-      FakeOrganizationScenario.error => throw const ServerFailure(
-        'Авто сервисүүдийг ачаалж чадсангүй.',
+    if (scenario == FakeOrganizationScenario.empty) {
+      return const OrganizationPage(
+        organizations: [],
+        pagination: OrganizationPagination(
+          page: 1, pageSize: 20, total: 0, totalPages: 1,
+          hasPrev: false, hasNext: false,
+        ),
+      );
+    }
+    if (scenario == FakeOrganizationScenario.error) {
+      throw const ServerFailure('Авто сервисүүдийг ачаалж чадсангүй.');
+    }
+    final current = filter ?? const OrganizationFilter();
+    final query = current.query.toLowerCase();
+    final filtered = _organizations.map((organization) {
+      final orgMatches = query.isNotEmpty && organization.name.toLowerCase().contains(query);
+      final branches = organization.branches.where((branch) {
+        if (current.city.isNotEmpty && branch.city != current.city) return false;
+        if (current.district.isNotEmpty && branch.district != current.district) return false;
+        if (query.isEmpty || orgMatches) return true;
+        return [branch.name, branch.city, branch.district]
+            .any((value) => value.toLowerCase().contains(query));
+      }).toList(growable: false);
+      return Organization(
+        slug: organization.slug,
+        name: organization.name,
+        logoUrl: organization.logoUrl,
+        branches: branches,
+      );
+    }).where((organization) => organization.branches.isNotEmpty).toList(growable: false);
+    final start = (current.page - 1) * current.pageSize;
+    final items = start >= filtered.length
+        ? const <Organization>[]
+        : filtered.skip(start).take(current.pageSize).toList(growable: false);
+    return OrganizationPage(
+      organizations: items,
+      pagination: OrganizationPagination(
+        page: current.page,
+        pageSize: current.pageSize,
+        total: filtered.length,
+        totalPages: filtered.isEmpty ? 1 : (filtered.length / current.pageSize).ceil(),
+        hasPrev: current.page > 1,
+        hasNext: start + items.length < filtered.length,
       ),
-    };
+      facets: OrganizationFacets(
+        cities: _organizations.expand((o) => o.branches).map((b) => b.city).toSet().toList(),
+        districts: _organizations.expand((o) => o.branches).map((b) => b.district).toSet().toList(),
+      ),
+    );
   }
 
   @override

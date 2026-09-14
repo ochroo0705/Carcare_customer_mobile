@@ -1,9 +1,16 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 
 class FakeAuthRepository implements AuthRepository {
   Account? _account;
+
+  @override
+  // Fake mode never triggers a real 401, so nothing ever fires here — kept
+  // only to satisfy the interface.
+  Stream<void> get onSessionInvalidated => const Stream.empty();
 
   @override
   Future<Account?> restoreSession() async => _account;

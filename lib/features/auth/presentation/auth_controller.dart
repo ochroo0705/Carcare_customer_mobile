@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
@@ -9,9 +11,23 @@ enum AuthStep { phone, otp }
 /// UI зөвхөн энэ state-ийг ажиглана; token хадгалалт, server contract-ийг
 /// [AuthRepository] хэрэгжүүлдэг.
 class AuthController extends ChangeNotifier {
-  AuthController(this._repository);
+  AuthController(this._repository) {
+    // Any authenticated repository can clear the session on a 401, not just
+    // the screen that happened to make the failing call — listen at this
+    // single point so `account` never drifts out of sync with storage.
+    _invalidatedSubscription = _repository.onSessionInvalidated.listen(
+      (_) => _handleSessionInvalidated(),
+    );
+  }
 
   final AuthRepository _repository;
+  late final StreamSubscription<void> _invalidatedSubscription;
+
+  /// Runs, while the session is still valid, right before [signOut] clears
+  /// it — e.g. deregistering the device for push. Set by whoever owns the
+  /// side effects that need the still-live token (see `AppRouter`); signing
+  /// out after a 401 skips this since the token is already invalid there.
+  Future<void> Function()? beforeSignOut;
   Account? account;
   AuthStep step = AuthStep.phone;
   String phone = '';
@@ -62,14 +78,35 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    // Must run before the token is cleared below — device deregistration
+    // needs a still-valid Authorization header, otherwise the server 401s
+    // the DELETE before it ever removes the row, leaving push notifications
+    // arriving on a signed-out device indefinitely.
+    await beforeSignOut?.call();
     await _repository.signOut();
     account = null;
     notifyListeners();
   }
 
-  /// Signs out after a confirmed `401`. Same effect as [signOut]; kept as a
+  /// Signs out after a confirmed `401`. Same effect as [signOut], except the
+  /// token is already invalid server-side at this point, so [beforeSignOut]
+  /// (e.g. device deregistration) is expected to fail there too — kept as a
   /// separate name so call sites document why the session was cleared.
   Future<void> clearConfirmedUnauthorized() => signOut();
+
+  /// Storage has already been cleared by the repository that hit the 401 —
+  /// this only needs to drop the in-memory `account` so the UI catches up.
+  void _handleSessionInvalidated() {
+    if (account == null) return;
+    account = null;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _invalidatedSubscription.cancel();
+    super.dispose();
+  }
 
   Future<bool> _run(Future<void> Function() action) async {
     if (isBusy) return false;

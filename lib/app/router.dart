@@ -130,7 +130,9 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     organizationDetailController = OrganizationDetailController(
       organizationRepository,
     );
-    authController = AuthController(authRepository)..restore();
+    authController = AuthController(authRepository)
+      ..restore()
+      ..beforeSignOut = _removeDeviceForPush;
     appointmentsController = AppointmentsController(
       appointmentRepository,
       cache: cacheStore,
@@ -743,6 +745,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       vehiclesController.reset();
       historyController.reset();
       notificationsController.reset();
+      // Best-effort safety net for the 401-triggered path: `authController`
+      // wires `_removeDeviceForPush` to run before an explicit sign-out
+      // clears the token (see `beforeSignOut` below), but a 401 means the
+      // token was already invalid server-side, so this call is expected to
+      // fail there too — left in only in case removal was never attempted.
       _removeDeviceForPush();
     }
     _wasAuthenticated = isAuthenticated;

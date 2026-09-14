@@ -678,6 +678,11 @@ class _MapUnavailableOverlay extends StatelessWidget {
 /// ангилалууд) харуулахын тулд тухайн байгууллагын дэлгэрэнгүйг (`detailController`)
 /// цөөнгүй ачаалж, ирэх хүртэл зөвхөн жагсаалтаас аль хэдийн байгаа
 /// нэр/зай мэдээллийг харуулна.
+/// This card is a quick preview meant to fit alongside the map — it shows a
+/// handful of categories plus a "+N" count rather than every single one
+/// (unlike the organization detail page, which has room for the full list).
+const _maxPreviewCategories = 4;
+
 class _SelectedBranchCard extends StatelessWidget {
   const _SelectedBranchCard({
     required this.organization,
@@ -803,7 +808,10 @@ class _SelectedBranchCard extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    for (final category in branchDetail.categories)
+                    // Quick preview card: a taste of what's offered, not the
+                    // full list — that's what the detail page is for.
+                    for (final category
+                        in branchDetail.categories.take(_maxPreviewCategories))
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 9,
@@ -816,6 +824,22 @@ class _SelectedBranchCard extends StatelessWidget {
                         child: Text(
                           category.name,
                           style: Theme.of(context).textTheme.labelSmall,
+                        ),
+                      ),
+                    if (branchDetail.categories.length > _maxPreviewCategories)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: scheme.surfaceContainer,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          '+${branchDetail.categories.length - _maxPreviewCategories}',
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
                       ),
                   ],

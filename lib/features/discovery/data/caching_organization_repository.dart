@@ -24,7 +24,7 @@ class CachingOrganizationRepository implements OrganizationRepository {
   final Duration ttl;
 
   @override
-  Future<List<Organization>> getOrganizations({OrganizationFilter? filter}) =>
+  Future<OrganizationPage> getOrganizations({OrganizationFilter? filter}) =>
       _delegate.getOrganizations(filter: filter);
 
   @override

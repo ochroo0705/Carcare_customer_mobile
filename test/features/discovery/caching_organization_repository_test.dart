@@ -18,9 +18,19 @@ class _CountingDelegate implements OrganizationRepository {
   bool fail = false;
 
   @override
-  Future<List<Organization>> getOrganizations({
+  Future<OrganizationPage> getOrganizations({
     OrganizationFilter? filter,
-  }) async => const [];
+  }) async => const OrganizationPage(
+    organizations: [],
+    pagination: OrganizationPagination(
+      page: 1,
+      pageSize: 20,
+      total: 0,
+      totalPages: 1,
+      hasPrev: false,
+      hasNext: false,
+    ),
+  );
 
   @override
   Future<OrganizationDetail> getOrganization(String slug) async {

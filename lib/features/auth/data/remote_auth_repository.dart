@@ -16,6 +16,9 @@ class RemoteAuthRepository implements AuthRepository {
   final SecureSessionStore _sessionStore;
 
   @override
+  Stream<void> get onSessionInvalidated => _sessionStore.onCleared;
+
+  @override
   /// Өмнө хадгалсан session-ийг сэргээнэ. Secure storage-д шаардлагатай
   /// талбарын аль нэг нь дутуу бол хагас session үүсгэхгүй.
   Future<Account?> restoreSession() => _sessionStore.readAccount();

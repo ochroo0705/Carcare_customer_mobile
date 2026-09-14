@@ -50,6 +50,9 @@ class _ControllableForegroundPush implements RemotePushService {
 
 class _AuthedRepo implements AuthRepository {
   @override
+  Stream<void> get onSessionInvalidated => const Stream.empty();
+
+  @override
   Future<Account?> restoreSession() async =>
       const Account(id: '1', phone: '99112233');
 

@@ -24,6 +24,52 @@ void main() {
     expect(organization.branches.single.latitude, 47.91);
   });
 
+  test('parses organization page metadata and facets', () {
+    final page = organizationPageFromJson({
+      'orgs': [
+        {
+          'slug': 'one',
+          'name': 'One',
+          'branches': [
+            {'id': 'b1', 'name': 'Branch', 'city': 'УБ', 'district': 'БЗД'},
+          ],
+        },
+      ],
+      'pagination': {
+        'page': 2,
+        'pageSize': 20,
+        'total': 41,
+        'totalPages': 3,
+        'hasPrev': true,
+        'hasNext': true,
+      },
+      'facets': {
+        'cities': ['УБ'],
+        'districts': ['БЗД'],
+      },
+    });
+
+    expect(page.organizations, hasLength(1));
+    expect(page.pagination.page, 2);
+    expect(page.pagination.total, 41);
+    expect(page.pagination.hasNext, isTrue);
+    expect(page.facets.cities, ['УБ']);
+    expect(page.facets.districts, ['БЗД']);
+  });
+
+  test('falls back safely for legacy list responses without metadata', () {
+    final page = organizationPageFromJson({
+      'orgs': [
+        {'slug': 'one', 'name': 'One', 'branches': []},
+      ],
+    });
+
+    expect(page.pagination.page, 1);
+    expect(page.pagination.total, 1);
+    expect(page.pagination.hasNext, isFalse);
+    expect(page.facets.cities, isEmpty);
+  });
+
   test('tolerates branches with missing/blank city or district', () {
     // `Branch.city`/`district` are optional server-side (schema.prisma:
     // `city String?` / `district String?`); a real tenant can create a

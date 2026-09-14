@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
@@ -36,6 +38,8 @@ class DiscoveryController extends ChangeNotifier {
   bool _nearMePending = false;
   bool _openNowPending = false;
   bool _weekendPending = false;
+  Timer? _queryDebounce;
+  int _requestGeneration = 0;
 
   DiscoveryState get state => _state;
   String get query => _query;
@@ -47,6 +51,7 @@ class DiscoveryController extends ChangeNotifier {
   bool get nearMePending => _nearMePending;
   bool get openNowPending => _openNowPending;
   bool get weekendPending => _weekendPending;
+  bool get hasNextPage => _state.pagination.hasNext;
   /// Location snapshot used for the active near-me result. This is kept out of
   /// organization models because it belongs to the current discovery session.
   ({double lat, double lng})? get nearMeLocation =>
@@ -84,6 +89,7 @@ class DiscoveryController extends ChangeNotifier {
   }
 
   List<String> get cities {
+    if (_state.facets.cities.isNotEmpty) return _state.facets.cities;
     final values = <String>{};
     for (final organization in _lastUnfiltered) {
       for (final branch in organization.branches) {
@@ -94,6 +100,7 @@ class DiscoveryController extends ChangeNotifier {
   }
 
   List<String> get districts {
+    if (_state.facets.districts.isNotEmpty) return _state.facets.districts;
     final values = <String>{};
     for (final organization in _lastUnfiltered) {
       for (final branch in organization.branches) {
@@ -107,46 +114,20 @@ class DiscoveryController extends ChangeNotifier {
   }
 
   List<Organization> get visibleOrganizations {
-    final normalizedQuery = _query.toLowerCase();
-    final results = <Organization>[];
-    for (final organization in _state.organizations) {
-      final organizationMatches = organization.name.toLowerCase().contains(
-        normalizedQuery,
-      );
-      final branches = organization.branches
-          .where((branch) {
-            if (_city.isNotEmpty && branch.city.trim() != _city) return false;
-            if (_district.isNotEmpty && branch.district.trim() != _district) {
-              return false;
-            }
-            if (normalizedQuery.isEmpty || organizationMatches) return true;
-            return <String>[
-              branch.name,
-              branch.city,
-              branch.district,
-            ].any((value) => value.toLowerCase().contains(normalizedQuery));
-          })
-          .toList(growable: false);
-      if (branches.isEmpty) continue;
-      // Зай (distanceKm) болон ойрын эрэмбэ серверээс ирнэ — client дахин
-      // эрэмбэлэхгүй (сервер аль хэдийн ойроор эрэмбэлсэн).
-      results.add(
-        Organization(
-          slug: organization.slug,
-          name: organization.name,
-          logoUrl: organization.logoUrl,
-          branches: branches,
-        ),
-      );
-    }
-    return results;
+    // Search and branch filters are applied by GET /orgs. The client only
+    // presents the already-filtered page; filtering a page locally would make
+    // pagination incomplete and could expose branches excluded by the API.
+    return _state.organizations;
   }
 
   void setQuery(String value) {
     final next = value.trim();
     if (_query == next) return;
     _query = next;
+    _invalidateCurrentResults();
     notifyListeners();
+    _queryDebounce?.cancel();
+    _queryDebounce = Timer(const Duration(milliseconds: 350), load);
   }
 
   void setCity(String? value) {
@@ -154,14 +135,18 @@ class DiscoveryController extends ChangeNotifier {
     if (_city == next) return;
     _city = next;
     _district = '';
+    _invalidateCurrentResults();
     notifyListeners();
+    load();
   }
 
   void setDistrict(String? value) {
     final next = value?.trim() ?? '';
     if (_district == next) return;
     _district = next;
+    _invalidateCurrentResults();
     notifyListeners();
+    load();
   }
 
   /// "Одоо нээлттэй" серверийн шүүлтийг асаах/унтраах — жагсаалтыг дахин ачаална.
@@ -225,7 +210,6 @@ class DiscoveryController extends ChangeNotifier {
 
   void clearFilters() {
     if (!hasActiveFilters) return;
-    final hadServerFilter = _nearMe || _openNow || _weekend;
     _query = '';
     _city = '';
     _district = '';
@@ -234,39 +218,125 @@ class DiscoveryController extends ChangeNotifier {
     _weekend = false;
     _lat = null;
     _lng = null;
+    _queryDebounce?.cancel();
+    _invalidateCurrentResults();
     notifyListeners();
     // Сервер шүүлт унтарсан бол шүүлтгүй жагсаалтыг дахин ачаална.
-    if (hadServerFilter) load();
+    load();
   }
 
-  Future<void> load() async {
-    final filter = _serverFilter;
-    _state = DiscoveryState(
-      status: DiscoveryStatus.loading,
-      organizations: _state.organizations,
-    );
-    notifyListeners();
+  Future<void> load({bool append = false}) async {
+    if (append && (_state.isLoadingMore || !_state.pagination.hasNext)) return;
+    final generation = ++_requestGeneration;
+    final filter = _serverFilterForPage(append ? _state.pagination.page + 1 : 1);
+    if (append) {
+      _state = DiscoveryState(
+        status: DiscoveryStatus.data,
+        organizations: _state.organizations,
+        pagination: _state.pagination,
+        facets: _state.facets,
+        isFromCache: _state.isFromCache,
+        isLoadingMore: true,
+      );
+      notifyListeners();
+    } else {
+      _state = DiscoveryState(
+        status: DiscoveryStatus.loading,
+        organizations: _state.organizations,
+        pagination: _state.pagination,
+        facets: _state.facets,
+      );
+      notifyListeners();
+    }
     try {
-      final organizations = await _repository.getOrganizations(filter: filter);
+      final result = await _repository.getOrganizations(filter: filter);
+      if (generation != _requestGeneration) return;
+      final organizations = append
+          ? [..._state.organizations, ...result.organizations]
+          : result.organizations;
       _state = DiscoveryState(
         status: organizations.isEmpty
             ? DiscoveryStatus.empty
             : DiscoveryStatus.data,
         organizations: organizations,
+        pagination: result.pagination,
+        facets: result.facets,
       );
-      // Зөвхөн шүүлтгүй бүрэн жагсаалтыг offline cache-д хадгална (шүүсэн дэд
-      // жагсаалт cache-ийг бохирдуулахгүй) — мөн cities/districts-д ашиглах
-      // сүүлийн бүрэн каталогийг шинэчилнэ.
-      if (filter == null) {
+      // Зөвхөн шүүлтгүй эхний хуудсыг offline cache-д хадгална (шүүсэн дэд
+      // жагсаалт болон нэмэлт хуудсууд cache-ийг бохирдуулахгүй).
+      if (!filter.hasTextFilters &&
+          !filter.hasNearMe &&
+          !filter.openNow &&
+          !filter.weekend &&
+          filter.page == 1) {
         await _cache.writeOrganizations(organizations);
         _lastUnfiltered = organizations;
       }
     } on AppFailure catch (failure) {
-      _state = await _fallbackToCache(failure.message);
+      if (generation != _requestGeneration) return;
+      if (append) {
+        _state = DiscoveryState(
+          status: DiscoveryStatus.data,
+          organizations: _state.organizations,
+          pagination: _state.pagination,
+          facets: _state.facets,
+          loadMoreMessage: failure.message,
+        );
+      } else {
+        _state = await _fallbackToCache(failure.message);
+      }
     } catch (_) {
-      _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      if (generation != _requestGeneration) return;
+      if (append) {
+        _state = DiscoveryState(
+          status: DiscoveryStatus.data,
+          organizations: _state.organizations,
+          pagination: _state.pagination,
+          facets: _state.facets,
+          loadMoreMessage: 'Тодорхойгүй алдаа гарлаа.',
+        );
+      } else {
+        _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      }
     }
     notifyListeners();
+  }
+
+  Future<void> loadMore() => load(append: true);
+
+  void _invalidateCurrentResults() {
+    // Invalidate immediately, not only when the debounced request starts. A
+    // slower previous response must never overwrite results for the new query
+    // or be presented as if it matched the new city/district.
+    _requestGeneration++;
+    _state = DiscoveryState(
+      status: DiscoveryStatus.loading,
+      organizations: const [],
+      pagination: _state.pagination,
+      facets: _state.facets,
+    );
+  }
+
+  OrganizationFilter _serverFilterForPage(int page) {
+    final base = _serverFilter;
+    return OrganizationFilter(
+      query: _query,
+      city: _city,
+      district: _district,
+      page: page,
+      pageSize: 20,
+      lat: base?.lat,
+      lng: base?.lng,
+      radiusKm: base?.radiusKm,
+      openNow: _openNow,
+      weekend: _weekend,
+    );
+  }
+
+  @override
+  void dispose() {
+    _queryDebounce?.cancel();
+    super.dispose();
   }
 
   Organization? organizationBySlug(String slug) {
@@ -284,12 +354,24 @@ class DiscoveryController extends ChangeNotifier {
         message: failureMessage,
       );
     }
-    // Cache-д зөвхөн шүүлтгүй жагсаалт л бичигддэг (дээрх load()) тул үүнийг
-    // ч бас сүүлийн бүрэн каталог гэж үзнэ.
+    // Cache-д зөвхөн шүүлтгүй эхний хуудас бичигддэг (дээрх load()) тул
+    // offline үед үүнийг сүүлд үзсэн каталогийн snapshot гэж үзнэ.
     _lastUnfiltered = cached;
     return DiscoveryState(
       status: DiscoveryStatus.data,
       organizations: cached,
+      pagination: OrganizationPagination(
+        page: 1,
+        pageSize: cached.length,
+        total: cached.length,
+        totalPages: 1,
+        hasPrev: false,
+        hasNext: false,
+      ),
+      facets: OrganizationFacets(
+        cities: cached.expand((o) => o.branches).map((b) => b.city).toSet().toList(),
+        districts: cached.expand((o) => o.branches).map((b) => b.district).toSet().toList(),
+      ),
       isFromCache: true,
       message: failureMessage,
     );

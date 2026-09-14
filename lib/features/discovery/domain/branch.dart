@@ -38,6 +38,11 @@ class Branch {
 /// заавал. Идэвхгүй утга null — query-д орохгүй.
 class OrganizationFilter {
   const OrganizationFilter({
+    this.query = '',
+    this.city = '',
+    this.district = '',
+    this.page = 1,
+    this.pageSize = 20,
     this.lat,
     this.lng,
     this.radiusKm,
@@ -45,6 +50,11 @@ class OrganizationFilter {
     this.weekend = false,
   });
 
+  final String query;
+  final String city;
+  final String district;
+  final int page;
+  final int pageSize;
   final double? lat;
   final double? lng;
   final double? radiusKm;
@@ -53,7 +63,8 @@ class OrganizationFilter {
   final bool weekend;
 
   bool get hasNearMe => lat != null && lng != null;
-  bool get isActive => hasNearMe || openNow || weekend;
+  bool get hasTextFilters => query.isNotEmpty || city.isNotEmpty || district.isNotEmpty;
+  bool get isActive => hasTextFilters || hasNearMe || openNow || weekend;
 }
 
 /// Салбарт санал болгож буй үйлчилгээний ангилал (booking v2) — шийдэгдсэн

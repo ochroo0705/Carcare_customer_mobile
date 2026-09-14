@@ -1,6 +1,67 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
+import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
+
+OrganizationPage organizationPageFromJson(Map<String, dynamic> json) {
+  final items = json['orgs'];
+  if (items is! List) throw const UnexpectedFailure('API жагсаалт буруу байна.');
+  final organizations = items
+      .map((item) {
+        if (item is! Map) throw const UnexpectedFailure('API өгөгдөл буруу байна.');
+        return OrganizationSummaryDto.fromJson(Map<String, dynamic>.from(item)).toDomain();
+      })
+      .toList(growable: false);
+  final rawPagination = json['pagination'];
+  final pagination = rawPagination is Map
+      ? _paginationFromJson(Map<String, dynamic>.from(rawPagination), organizations.length)
+      : OrganizationPagination(
+          page: 1,
+          pageSize: organizations.length,
+          total: organizations.length,
+          totalPages: 1,
+          hasPrev: false,
+          hasNext: false,
+        );
+  final rawFacets = json['facets'];
+  final facets = rawFacets is Map
+      ? OrganizationFacets(
+          cities: _stringList(rawFacets['cities']),
+          districts: _stringList(rawFacets['districts']),
+        )
+      : const OrganizationFacets();
+  return OrganizationPage(
+    organizations: organizations,
+    pagination: pagination,
+    facets: facets,
+  );
+}
+
+OrganizationPagination _paginationFromJson(
+  Map<String, dynamic> json,
+  int fallbackLength,
+) => OrganizationPagination(
+  page: _positiveInt(json['page'], 1),
+  pageSize: _positiveInt(json['pageSize'], fallbackLength),
+  total: _nonNegativeInt(json['total'], fallbackLength),
+  totalPages: _positiveInt(json['totalPages'], 1),
+  hasPrev: json['hasPrev'] == true,
+  hasNext: json['hasNext'] == true,
+);
+
+int _positiveInt(Object? value, int fallback) {
+  final parsed = value is num ? value.toInt() : int.tryParse('$value');
+  return parsed != null && parsed > 0 ? parsed : (fallback > 0 ? fallback : 1);
+}
+
+int _nonNegativeInt(Object? value, int fallback) {
+  final parsed = value is num ? value.toInt() : int.tryParse('$value');
+  return parsed != null && parsed >= 0 ? parsed : fallback;
+}
+
+List<String> _stringList(Object? value) => value is List
+    ? value.whereType<String>().map((item) => item.trim()).where((item) => item.isNotEmpty).toList(growable: false)
+    : const [];
 
 class OrganizationSummaryDto {
   OrganizationSummaryDto({

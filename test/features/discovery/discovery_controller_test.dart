@@ -16,22 +16,26 @@ void main() {
 
   tearDown(() => controller.dispose());
 
-  test('filters by organization and branch text', () {
+  test('filters by organization and branch text on the server', () async {
     controller.setQuery('auto doctor');
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     expect(controller.visibleOrganizations, hasLength(1));
     expect(controller.visibleOrganizations.single.branches, hasLength(2));
 
     controller.setQuery('Яармаг');
+    await Future<void>.delayed(const Duration(milliseconds: 400));
     expect(controller.visibleOrganizations, hasLength(1));
     expect(controller.visibleOrganizations.single.slug, 'khurd-motors');
   });
 
-  test('filters branches by city and district', () {
+  test('filters branches by city and district on the server', () async {
     controller.setCity('Улаанбаатар');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(controller.visibleOrganizations, hasLength(2));
     expect(controller.districts, contains('Баянзүрх'));
 
     controller.setDistrict('Баянзүрх');
+    await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(controller.visibleOrganizations, hasLength(1));
     expect(
       controller.visibleOrganizations.single.branches.single.id,
@@ -39,16 +43,18 @@ void main() {
     );
   });
 
-  test('changing city resets district and clear restores all data', () {
+  test('changing city resets district and clear restores all data', () async {
     controller
       ..setCity('Улаанбаатар')
       ..setDistrict('Баянзүрх')
       ..setCity('Орхон');
+    await Future<void>.delayed(const Duration(milliseconds: 20));
 
     expect(controller.district, isEmpty);
     expect(controller.visibleOrganizations.single.slug, 'erdenet-car-care');
 
     controller.clearFilters();
+    await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(controller.hasActiveFilters, isFalse);
     expect(controller.visibleOrganizations, hasLength(3));
   });
