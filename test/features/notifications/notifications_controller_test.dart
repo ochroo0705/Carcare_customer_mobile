@@ -1,8 +1,45 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notification_type.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_state.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// Lets a test control exactly when each `getNotifications` call resolves,
+/// to reproduce out-of-order responses (e.g. a pull-to-refresh's `load()`
+/// resolving after a `markRead`-triggered `load()` that started later).
+class _RaceNotificationsRepository implements NotificationsRepository {
+  final List<Completer<List<AppNotification>>> completers = [];
+
+  @override
+  Future<List<AppNotification>> getNotifications() {
+    final completer = Completer<List<AppNotification>>();
+    completers.add(completer);
+    return completer.future;
+  }
+
+  @override
+  Future<void> markRead(String id) async {}
+
+  @override
+  Future<void> markAllRead() async {}
+
+  @override
+  Future<void> addExternal(AppNotification notification) async {}
+}
+
+AppNotification _notification(String id, {bool isRead = false}) =>
+    AppNotification(
+      id: id,
+      type: NotificationType.broadcast,
+      title: id,
+      message: '',
+      createdAt: DateTime(2026, 1, 1),
+      isRead: isRead,
+    );
 
 void main() {
   test('loads the seeded notifications and reports the unread count', () async {
@@ -80,5 +117,28 @@ void main() {
 
     expect(controller.state.status, NotificationsStatus.initial);
     expect(controller.unreadCount, 0);
+  });
+
+  test('ignores a stale load() response that arrives after a newer one '
+      '(e.g. pull-to-refresh racing a mark-read reload)', () async {
+    final repository = _RaceNotificationsRepository();
+    final controller = NotificationsController(repository);
+
+    // Two overlapping loads: the first mirrors a pull-to-refresh that
+    // started first but is slow; the second mirrors the reload triggered
+    // right after by a "mark read" tap.
+    unawaited(controller.load());
+    final second = controller.load();
+    expect(repository.completers, hasLength(2));
+
+    // The SECOND (newer) call's response arrives first...
+    repository.completers[1].complete([_notification('newer')]);
+    await second;
+    // ...then the stale first call's response arrives late.
+    repository.completers[0].complete([_notification('older')]);
+    await Future<void>.delayed(Duration.zero);
+
+    // The stale response must not clobber the newer result.
+    expect(controller.state.notifications.single.id, 'newer');
   });
 }

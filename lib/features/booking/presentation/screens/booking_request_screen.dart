@@ -35,9 +35,11 @@ class BookingRequestScreen extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<CreatedAppointment> onCompleted;
   final VoidCallback onUnauthenticated;
+
   /// Cross-org "юу хийлгэх гэж байна?" пикерээс (Booking tab) аль хэдийн
   /// сонгогдсон ангилалуудын id — зөвхөн [lockCategories] үнэн үед хэрэглэгдэнэ.
   final List<String>? initialCategoryIds;
+
   /// Ангилалыг Booking tab-ийн пикер дээр аль хэдийн сонгосон тул энд дахин
   /// сонгуулахгүй (зөвхөн товч тоймоор харуулна), мөн [initialBranchId]-аас
   /// өөр салбар руу сольж болохгүй (тухайн салбар л сонгосон бүх ажлыг санал
@@ -48,7 +50,8 @@ class BookingRequestScreen extends StatefulWidget {
   State<BookingRequestScreen> createState() => _BookingRequestScreenState();
 }
 
-class _BookingRequestScreenState extends State<BookingRequestScreen> {
+class _BookingRequestScreenState extends State<BookingRequestScreen>
+    with WidgetsBindingObserver {
   final _noteController = TextEditingController();
   late final VehiclesController _vehiclesController;
   late DateTime _displayedMonth;
@@ -70,6 +73,34 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
   DayAvailability? _availability;
   bool _loadingSlots = false;
   String? _slotsError;
+
+  /// Огноо/салбар/ангилал хурдан дараалан солиход хуучин хүсэлтийн хариу
+  /// (сүлжээгээр дараа нь буцаж ирэх боломжтой) шинэ сонголтыг дарж бичихээс
+  /// сэргийлнэ — зөвхөн ХАМГИЙН СҮҮЛД эхэлсэн `_loadAvailability` дуудлагын
+  /// хариу л хэрэглэгдэнэ.
+  int _availabilityRequestId = 0;
+
+  /// [widget.lockCategories] үед: `initialBranchId` энэ байгууллагын салбарын
+  /// жагсаалтад олдсонгүй (устсан/буруу) — салбар аль хэдийн cross-org
+  /// жагсаалтад баталгаажсан гэж таамагласан тул ийм тохиолдолд аюулгүй
+  /// орлуулагч байхгүй; хэрэглэгчийг буцаах ёстой.
+  bool _lockedBranchMissing = false;
+
+  /// [widget.lockCategories] үед: `initialCategoryIds`-аас энэ салбар ЦААШИД
+  /// санал болгодоггүй болсон ангиллуудын нэрс (жагсаалт бэлдсэнээс хойш
+  /// салбар өөрийн ангиллаа өөрчилсөн байж болзошгүй тул) — зөвхөн сануулах
+  /// зорилготой, сонгосон дунд орохгүй.
+  List<String> _lockedUnavailableCategoryNames = const [];
+
+  /// [widget.lockCategories] урсгал үргэлжлэх боломжгүй тохиолдол: салбар огт
+  /// олдоогүй, эсвэл сонгосон ангилал БҮГД цаашид санал болгогдохгүй болсон
+  /// (хоосон categoryIds-тэй захиалга илгээх нь хэрэглэгчийн санаачилгагүйгээр
+  /// урсгалын утгыг өөрчилнө тул блоклоно).
+  bool get _lockedFlowBlocked =>
+      widget.lockCategories &&
+      (_lockedBranchMissing ||
+          (_selectedCategoryIds.isEmpty &&
+              (widget.initialCategoryIds?.isNotEmpty ?? false)));
 
   /// Байгууллагын БҮХ салбарт байгаа ангиллууд (давхардалгүй, нэрээр
   /// эрэмбэлэгдсэн) — категори/салбар аль алиныг нь эхлээд сонгож болох
@@ -109,6 +140,7 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
     final branch = _selectedBranch;
     final date = _selectedDate;
     if (branch == null || date == null) return;
+    final requestId = ++_availabilityRequestId;
     setState(() {
       _loadingSlots = true;
       _slotsError = null;
@@ -121,21 +153,21 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
         date: date,
         categoryIds: _selectedCategoryIds.toList(),
       );
-      if (mounted) {
+      if (mounted && requestId == _availabilityRequestId) {
         setState(() {
           _availability = availability;
           _loadingSlots = false;
         });
       }
     } on AppFailure catch (failure) {
-      if (mounted) {
+      if (mounted && requestId == _availabilityRequestId) {
         setState(() {
           _slotsError = failure.message;
           _loadingSlots = false;
         });
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && requestId == _availabilityRequestId) {
         setState(() {
           _slotsError = 'Цаг ачаалж чадсангүй.';
           _loadingSlots = false;
@@ -144,11 +176,15 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
     }
   }
 
+  /// Сонгосон нүхний бодит UTC мөч — `_availability`-аас, device-local
+  /// hour/minute-ээс биш (`AvailabilitySlot.utc`-ийн тайлбарыг үз).
   DateTime? get _requestedAt {
-    final date = _selectedDate;
     final slot = _selectedSlot;
-    if (date == null || slot == null) return null;
-    return DateTime(date.year, date.month, date.day, slot.hour, slot.minute);
+    if (slot == null) return null;
+    return _availability?.slots
+        .where((s) => s.time == slot)
+        .map((s) => s.utc)
+        .firstOrNull;
   }
 
   /// Салбар солиход: хугацаа өөрчлөгдөж болох тул сонгосон цаг болон боломжит
@@ -204,12 +240,40 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
     final preferredBranch = preferredMatches.isEmpty
         ? null
         : preferredMatches.first;
-    _selectedBranch = preferredBranch ??
-        (widget.organization.branches.length == 1
+    // `lockCategories` үед `initialBranchId` аль хэдийн cross-org үр дүнгийн
+    // жагсаалт дээр баталгаажсан гэдэгт найдна — олдоогүй бол (салбар
+    // устсан/шилжсэн байж болзошгүй) ганц-салбарын fallback-аар БУСАД, санаанд
+    // тохирохгүй салбарыг чимээгүйхэн сонгуулахгүй; `_lockedBranchMissing`-ээр
+    // блоклоно.
+    _selectedBranch =
+        preferredBranch ??
+        (!widget.lockCategories && widget.organization.branches.length == 1
             ? widget.organization.branches.single
             : null);
     if (widget.lockCategories) {
-      _selectedCategoryIds.addAll(widget.initialCategoryIds ?? const []);
+      final requestedCategoryIds = widget.initialCategoryIds ?? const [];
+      final branch = _selectedBranch;
+      if (branch == null) {
+        _lockedBranchMissing = true;
+      } else {
+        // Салбар жагсаалт бэлдсэнээс хойш өөрийн ангиллаа өөрчилсөн байж
+        // болзошгүй тул тухайн салбарт ХАРЬЯАЛАГДАХГҮЙ болсон ангилал бүрийг
+        // мэдэгдэнэ, зөвхөн ХАРЬЯАЛАГДАХ ангиллуудыг л сонгоно.
+        final offeredIds = branch.categories.map((c) => c.id).toSet();
+        final unavailableNames = <String>[];
+        for (final id in requestedCategoryIds) {
+          if (offeredIds.contains(id)) {
+            _selectedCategoryIds.add(id);
+          } else {
+            final name = _allCategories
+                .where((category) => category.id == id)
+                .map((category) => category.name)
+                .firstOrNull;
+            unavailableNames.add(name ?? id);
+          }
+        }
+        _lockedUnavailableCategoryNames = unavailableNames;
+      }
     }
     final now = DateTime.now();
     _displayedMonth = DateTime(now.year, now.month);
@@ -223,10 +287,40 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
       // (setState is illegal before the first build).
       _selectedVehicleId = state.vehicles.single.id;
     }
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  /// Апп background-оос буцаж ирэхэд (дэлгэц түгжигдэх/апп сольсны дараа)
+  /// сонгосон огноо/цаг хугацаандаа хоцорсон эсвэл дүүрсэн байж болзошгүй —
+  /// дахин ачаалж шинэчилнэ. `_loadAvailability` эхлэхдээ `_selectedSlot`-г
+  /// цэвэрлэдэг тул хэрэглэгч заавал дахин баталгаажуулна, хоцорсон/дүүрсэн
+  /// цагийг чимээгүйхэн сонгоотой үлдээхгүй.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    final branch = _selectedBranch;
+    final date = _selectedDate;
+    if (branch == null || date == null) return;
+    final today = DateTime.now();
+    final todayKey = DateTime(today.year, today.month, today.day);
+    if (date.isBefore(todayKey)) {
+      // Тухайн өдөр өнгөрсөн (ж: шөнө дунд давсан) — стал огноог тайлбаргүй
+      // дахин асуухаас илүү шууд цэвэрлэж, хэрэглэгчийг огнооны хуанлиас
+      // эхлүүлнэ.
+      setState(() {
+        _selectedDate = null;
+        _selectedSlot = null;
+        _availability = null;
+        _slotsError = null;
+      });
+      return;
+    }
+    _loadAvailability();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _vehiclesController.removeListener(_maybeAutoSelectSingleVehicle);
     _noteController.dispose();
     super.dispose();
@@ -258,275 +352,313 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
     body: AppShellBackground(
       child: SafeArea(
         top: false,
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            _BookingHeader(
-              organization: widget.organization,
-              selectedBranch: _selectedBranch,
-              categoryCount: _allCategories.length,
-            ),
-            if (widget.lockCategories) ...[
-              if (_selectedCategoryIds.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                GlassSurface(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Үйлчилгээ',
-                        style: Theme.of(context).textTheme.titleSmall
-                            ?.copyWith(fontWeight: FontWeight.w700),
+        child: _lockedFlowBlocked
+            ? _LockedFlowUnavailable(
+                branchMissing: _lockedBranchMissing,
+                onBack: widget.onBack,
+              )
+            : ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _BookingHeader(
+                    organization: widget.organization,
+                    selectedBranch: _selectedBranch,
+                    categoryCount: _allCategories.length,
+                  ),
+                  if (widget.lockCategories) ...[
+                    if (_lockedUnavailableCategoryNames.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _LockedCategoriesWarning(
+                        unavailableNames: _lockedUnavailableCategoryNames,
                       ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final category in _allCategories)
-                            if (_selectedCategoryIds.contains(category.id))
-                              Chip(label: Text(category.name)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Нийт ойролцоогоор $_selectedDurationMinutes мин',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ],
+                    if (_selectedCategoryIds.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      GlassSurface(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Үйлчилгээ',
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final category in _allCategories)
+                                  if (_selectedCategoryIds.contains(
+                                    category.id,
+                                  ))
+                                    Chip(label: Text(category.name)),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Нийт ойролцоогоор $_selectedDurationMinutes мин',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
-                  ),
-                ),
-              ],
-            ] else if (_allCategories.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              GlassSurface(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Үйлчилгээ сонгох',
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _selectedCategoryIds.isEmpty
-                          ? 'Хэрэгтэй үйлчилгээгээ сонгоно уу (нэг буюу хэд) — доорх '
-                                'салбарын сонголт үүнд тохируулан шүүгдэнэ.'
-                          : 'Нийт ойролцоогоор $_selectedDurationMinutes мин',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ] else if (_allCategories.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    GlassSurface(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Үйлчилгээ сонгох',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _selectedCategoryIds.isEmpty
+                                ? 'Хэрэгтэй үйлчилгээгээ сонгоно уу (нэг буюу хэд) — доорх '
+                                      'салбарын сонголт үүнд тохируулан шүүгдэнэ.'
+                                : 'Нийт ойролцоогоор $_selectedDurationMinutes мин',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: [
+                              for (final category in _allCategories)
+                                FilterChip(
+                                  label: Text(category.name),
+                                  // Checkmark-гүй — эс бөгөөс сонгоход chip өргөсөж
+                                  // Wrap-ийн бусад chip-үүд шилжинэ (jank).
+                                  showCheckmark: false,
+                                  selected: _selectedCategoryIds.contains(
+                                    category.id,
+                                  ),
+                                  onSelected: (selected) =>
+                                      _toggleCategory(category.id, selected),
+                                ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        for (final category in _allCategories)
-                          FilterChip(
-                            label: Text(category.name),
-                            // Checkmark-гүй — эс бөгөөс сонгоход chip өргөсөж
-                            // Wrap-ийн бусад chip-үүд шилжинэ (jank).
-                            showCheckmark: false,
-                            selected: _selectedCategoryIds.contains(
-                              category.id,
-                            ),
-                            onSelected: (selected) =>
-                                _toggleCategory(category.id, selected),
-                          ),
-                      ],
-                    ),
                   ],
-                ),
-              ),
-            ],
-            // Дэвийн шийдвэрээр: ангилал сонгогдоогүй бол салбар сонгох
-            // хэсгийг НУУНА (grey/disable биш) — ганц салбартай байгууллагад
-            // аль хэдийн автоматаар сонгогдсон байх тул харах шаардлагагүй.
-            // Харин байгууллагад ангилал огт байхгүй бол (сонгох зүйл алга)
-            // энэ дүрэм хэрэглэгдэхгүй — эс бөгөөс салбар сонгох боломж
-            // мөнхөд алга болно (сонгох ганц ч категори байхгүй тул).
-            // `lockCategories` үед салбар аль хэдийн cross-org үр дүнгийн
-            // жагсаалт дээр баталгаажсан тул энэ хэсгийг огт харуулахгүй.
-            if (!widget.lockCategories &&
-                widget.organization.branches.length > 1 &&
-                (_allCategories.isEmpty ||
-                    _selectedCategoryIds.isNotEmpty)) ...[
-              const SizedBox(height: 16),
-              GlassSurface(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Салбар сонгох',
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 12),
-                    if (_compatibleBranches.isEmpty)
-                      Text(
-                        'Сонгосон бүх үйлчилгээг нэгэн зэрэг санал болгодог '
-                        'салбар алга байна. Үйлчилгээнийхээ сонголтоо өөрчилнө үү.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      )
-                    else
-                      // Ганц салбар үлдсэн ч dropdown-г харуулсаар байна —
-                      // эс бөгөөс автоматаар сонгогдоод юу ч харагдахгүй болж,
-                      // хэрэглэгчид "алга болсон" мэт санагдана (зөвхөн дээрх
-                      // толгой хэсэгт нэрийг нь харах боломжтой байсан).
-                      DropdownButtonFormField<String>(
-                        // Категори сольсноор `_selectedBranch` энэ виджетээс
-                        // ГАДУУР (`_toggleCategory`) өөрчлөгдөж болох тул value-г
-                        // `key`-д оруулж, дахин зурахад шинэ утгаараа эхэлнэ
-                        // (`initialValue` дотоод төлөв тул өөрөө дахин синк хийхгүй).
-                        key: ValueKey(
-                          'booking-branch-dropdown-${_selectedBranch?.id}',
-                        ),
-                        initialValue: _selectedBranch?.id,
-                        decoration: const InputDecoration(labelText: 'Салбар'),
-                        hint: const Text('Салбараа сонгоно уу'),
-                        items: [
-                          for (final branch in _compatibleBranches)
-                            DropdownMenuItem(
-                              value: branch.id,
-                              child: Text(branch.name),
+                  // Дэвийн шийдвэрээр: ангилал сонгогдоогүй бол салбар сонгох
+                  // хэсгийг НУУНА (grey/disable биш) — ганц салбартай байгууллагад
+                  // аль хэдийн автоматаар сонгогдсон байх тул харах шаардлагагүй.
+                  // Харин байгууллагад ангилал огт байхгүй бол (сонгох зүйл алга)
+                  // энэ дүрэм хэрэглэгдэхгүй — эс бөгөөс салбар сонгох боломж
+                  // мөнхөд алга болно (сонгох ганц ч категори байхгүй тул).
+                  // `lockCategories` үед салбар аль хэдийн cross-org үр дүнгийн
+                  // жагсаалт дээр баталгаажсан тул энэ хэсгийг огт харуулахгүй.
+                  if (!widget.lockCategories &&
+                      widget.organization.branches.length > 1 &&
+                      (_allCategories.isEmpty ||
+                          _selectedCategoryIds.isNotEmpty)) ...[
+                    const SizedBox(height: 16),
+                    GlassSurface(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Салбар сонгох',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_compatibleBranches.isEmpty)
+                            Text(
+                              'Сонгосон бүх үйлчилгээг нэгэн зэрэг санал болгодог '
+                              'салбар алга байна. Үйлчилгээнийхээ сонголтоо өөрчилнө үү.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                            )
+                          else
+                            // Ганц салбар үлдсэн ч dropdown-г харуулсаар байна —
+                            // эс бөгөөс автоматаар сонгогдоод юу ч харагдахгүй болж,
+                            // хэрэглэгчид "алга болсон" мэт санагдана (зөвхөн дээрх
+                            // толгой хэсэгт нэрийг нь харах боломжтой байсан).
+                            DropdownButtonFormField<String>(
+                              // Категори сольсноор `_selectedBranch` энэ виджетээс
+                              // ГАДУУР (`_toggleCategory`) өөрчлөгдөж болох тул value-г
+                              // `key`-д оруулж, дахин зурахад шинэ утгаараа эхэлнэ
+                              // (`initialValue` дотоод төлөв тул өөрөө дахин синк хийхгүй).
+                              key: ValueKey(
+                                'booking-branch-dropdown-${_selectedBranch?.id}',
+                              ),
+                              initialValue: _selectedBranch?.id,
+                              decoration: const InputDecoration(
+                                labelText: 'Салбар',
+                              ),
+                              hint: const Text('Салбараа сонгоно уу'),
+                              items: [
+                                for (final branch in _compatibleBranches)
+                                  DropdownMenuItem(
+                                    value: branch.id,
+                                    child: Text(branch.name),
+                                  ),
+                              ],
+                              onChanged: (id) {
+                                if (id == null) return;
+                                _selectBranch(
+                                  _compatibleBranches.firstWhere(
+                                    (b) => b.id == id,
+                                  ),
+                                );
+                              },
                             ),
                         ],
-                        onChanged: (id) {
-                          if (id == null) return;
-                          _selectBranch(
-                            _compatibleBranches.firstWhere((b) => b.id == id),
-                          );
+                      ),
+                    ),
+                  ],
+                  if (_selectedBranch != null) ...[
+                    const SizedBox(height: 16),
+                    GlassSurface(
+                      child: BookingCalendar(
+                        month: _displayedMonth,
+                        selectedDate: _selectedDate,
+                        branch: _selectedBranch,
+                        onMonthChanged: (month) =>
+                            setState(() => _displayedMonth = month),
+                        onDateSelected: (date) {
+                          setState(() {
+                            _selectedDate = date;
+                            _selectedSlot = null;
+                            _error = null;
+                          });
+                          _loadAvailability();
                         },
                       ),
+                    ),
                   ],
-                ),
-              ),
-            ],
-            if (_selectedBranch != null) ...[
-              const SizedBox(height: 16),
-              GlassSurface(
-                child: BookingCalendar(
-                  month: _displayedMonth,
-                  selectedDate: _selectedDate,
-                  branch: _selectedBranch,
-                  onMonthChanged: (month) =>
-                      setState(() => _displayedMonth = month),
-                  onDateSelected: (date) {
-                    setState(() {
-                      _selectedDate = date;
-                      _selectedSlot = null;
-                      _error = null;
-                    });
-                    _loadAvailability();
-                  },
-                ),
-              ),
-            ],
-            if (_selectedBranch != null && _selectedDate != null) ...[
-              const SizedBox(height: 12),
-              GlassSurface(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Цаг сонгох',
-                      style: Theme.of(context).textTheme.titleSmall
-                          ?.copyWith(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _availability != null
-                          ? 'Нэг захиалга ≈ ${_availability!.durationMinutes} мин'
-                          : (_selectedBranch?.hoursLabel ?? ''),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
+                  if (_selectedBranch != null && _selectedDate != null) ...[
                     const SizedBox(height: 12),
-                    if (_loadingSlots)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Center(
-                          child: SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(strokeWidth: 2),
+                    GlassSurface(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Цаг сонгох',
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
                           ),
-                        ),
-                      )
-                    else if (_slotsError != null)
-                      Text(
-                        _slotsError!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      )
-                    else if (_availability != null && !_availability!.open)
-                      Text(
-                        _availability!.reason ?? 'Энэ өдөр хаалттай.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    else
-                      TimeSlotGrid(
-                        slots: _availability?.slots ?? const [],
-                        selected: _selectedSlot,
-                        onSelected: (slot) => setState(() {
-                          _selectedSlot = slot;
-                          _error = null;
-                        }),
+                          const SizedBox(height: 4),
+                          Text(
+                            _availability != null
+                                ? 'Нэг захиалга ≈ ${_availability!.durationMinutes} мин'
+                                : (_selectedBranch?.hoursLabel ?? ''),
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
+                                ),
+                          ),
+                          const SizedBox(height: 12),
+                          if (_loadingSlots)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 8),
+                              child: Center(
+                                child: SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (_slotsError != null)
+                            Text(
+                              _slotsError!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context).colorScheme.error,
+                                  ),
+                            )
+                          else if (_availability != null &&
+                              !_availability!.open)
+                            Text(
+                              _availability!.reason ?? 'Энэ өдөр хаалттай.',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                            )
+                          else
+                            TimeSlotGrid(
+                              slots: _availability?.slots ?? const [],
+                              selected: _selectedSlot,
+                              onSelected: (slot) => setState(() {
+                                _selectedSlot = slot;
+                                _error = null;
+                              }),
+                            ),
+                        ],
                       ),
+                    ),
                   ],
-                ),
+                  const SizedBox(height: 12),
+                  _VehiclePicker(
+                    controller: _vehiclesController,
+                    selectedVehicleId: _selectedVehicleId,
+                    onChanged: (id) => setState(() {
+                      _userTouchedVehicle = true;
+                      _selectedVehicleId = id;
+                    }),
+                    onAddVehicle: widget.onAddVehicle,
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _noteController,
+                    maxLines: 4,
+                    maxLength: 500,
+                    decoration: const InputDecoration(
+                      labelText: 'Тэмдэглэл (заавал биш)',
+                      alignLabelWithHint: true,
+                    ),
+                  ),
+                  Text(
+                    'Энэ нь хүсэлт илгээх үйлдэл. Сервис баталгаажуулсны дараа цаг баталгаажна.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  FilledButton.icon(
+                    key: const ValueKey('submit-booking'),
+                    onPressed: _submitting ? null : _submit,
+                    icon: const Icon(Icons.send_outlined),
+                    label: Text(
+                      _submitting ? 'Илгээж байна…' : 'Хүсэлт илгээх',
+                    ),
+                  ),
+                ],
               ),
-            ],
-            const SizedBox(height: 12),
-            _VehiclePicker(
-              controller: _vehiclesController,
-              selectedVehicleId: _selectedVehicleId,
-              onChanged: (id) => setState(() {
-                _userTouchedVehicle = true;
-                _selectedVehicleId = id;
-              }),
-              onAddVehicle: widget.onAddVehicle,
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteController,
-              maxLines: 4,
-              maxLength: 500,
-              decoration: const InputDecoration(
-                labelText: 'Тэмдэглэл (заавал биш)',
-                alignLabelWithHint: true,
-              ),
-            ),
-            Text(
-              'Энэ нь хүсэлт илгээх үйлдэл. Сервис баталгаажуулсны дараа цаг баталгаажна.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-            ],
-            const SizedBox(height: 20),
-            FilledButton.icon(
-              key: const ValueKey('submit-booking'),
-              onPressed: _submitting ? null : _submit,
-              icon: const Icon(Icons.send_outlined),
-              label: Text(_submitting ? 'Илгээж байна…' : 'Хүсэлт илгээх'),
-            ),
-          ],
-        ),
       ),
     ),
   );
@@ -566,6 +698,76 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+}
+
+/// `lockCategories` урсгал үргэлжлэх боломжгүй үеийн бүтэн дэлгэцийн мэдэгдэл
+/// (салбар олдоогүй, эсвэл сонгосон ангилал БҮГД цаашид энэ салбарт байхгүй
+/// болсон) — цаашаа явахгүй, буцаж дахин сонгуулна.
+class _LockedFlowUnavailable extends StatelessWidget {
+  const _LockedFlowUnavailable({
+    required this.branchMissing,
+    required this.onBack,
+  });
+
+  final bool branchMissing;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.info_outline,
+            size: 40,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            branchMissing
+                ? 'Сонгосон салбар олдсонгүй. Дахин сонгоно уу.'
+                : 'Сонгосон бүх үйлчилгээг энэ салбар цаашид санал болгохгүй '
+                      'боллоо. Дахин сонгоно уу.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton(onPressed: onBack, child: const Text('Буцах')),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Хэсэгчлэн боломжгүй болсон ангиллуудыг сануулах — блокдоггүй, зөвхөн
+/// мэдээлнэ (боломжтой хэсгээр захиалга үргэлжилнэ).
+class _LockedCategoriesWarning extends StatelessWidget {
+  const _LockedCategoriesWarning({required this.unavailableNames});
+
+  final List<String> unavailableNames;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GlassSurface(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.warning_amber_rounded, size: 20, color: scheme.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Энэ салбар цаашид дараах үйлчилгээг санал болгохгүй тул '
+              'захиалгаас хасагдлаа: ${unavailableNames.join(', ')}.',
+              style: Theme.of(context).textTheme.bodySmall
+                  ?.copyWith(color: scheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

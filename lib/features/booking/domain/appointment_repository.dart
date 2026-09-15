@@ -44,11 +44,6 @@ abstract interface class AppointmentRepository {
 
   Future<void> cancelAppointment(String id);
 
-  /// PENDING/CONFIRMED, захиалгагүй (ServiceOrder үүсээгүй) цагийг өөр
-  /// хугацаанд шилжүүлнэ. Client талын `Appointment.canReschedule` нь UX-д
-  /// зориулсан урьдчилсан шалгалт; эрхийн эцсийн шийдвэр server дээр үлдэнэ.
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt);
-
   /// Current fee/payment status for one appointment — call whenever a
   /// payment screen opens (`CUSTOMER_API_CONTRACT.md`'s
   /// `GET /appointments/[id]/payment`).

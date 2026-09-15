@@ -14,21 +14,32 @@ class NotificationsController extends ChangeNotifier {
   final LocalPushService _pushService;
   NotificationsState _state = const NotificationsState();
 
+  /// `markRead`/`markAllRead`/`handleIncomingPush` each trigger their own
+  /// `load()` on top of a possible manual refresh, so calls can overlap (e.g.
+  /// a pull-to-refresh in flight when the customer taps "mark read", or a
+  /// push arriving mid-refresh) — without this, a slower call finishing after
+  /// a faster one can silently revert state it already moved past (a just
+  /// -read notification flipping back to unread). Incremented at the start of
+  /// every `load()`; only the call that is still the latest may apply.
+  int _loadRequestId = 0;
+
   NotificationsState get state => _state;
 
   int get unreadCount =>
       _state.notifications.where((notification) => !notification.isRead).length;
 
   Future<void> load() async {
+    final requestId = ++_loadRequestId;
     _state = NotificationsState(
       status: NotificationsStatus.loading,
       notifications: _state.notifications,
     );
     notifyListeners();
+    NotificationsState result;
     try {
       final notifications = (await _repository.getNotifications()).toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      _state = NotificationsState(
+      result = NotificationsState(
         status: notifications.isEmpty
             ? NotificationsStatus.empty
             : NotificationsStatus.data,
@@ -38,23 +49,28 @@ class NotificationsController extends ChangeNotifier {
       // Real API build: no notifications-list endpoint yet (D-014). The in-app
       // list shows "coming soon"; real pushes still surface via the OS/local
       // banner in handleIncomingPush, which doesn't depend on the list.
-      _state = const NotificationsState(status: NotificationsStatus.unavailable);
+      result = const NotificationsState(
+        status: NotificationsStatus.unavailable,
+      );
     } on AppFailure catch (failure) {
-      _state = NotificationsState(
+      result = NotificationsState(
         status: NotificationsStatus.error,
         message: failure.message,
       );
     } catch (_) {
-      _state = const NotificationsState(
+      result = const NotificationsState(
         status: NotificationsStatus.error,
         message: 'Тодорхойгүй алдаа гарлаа.',
       );
     }
+    if (requestId != _loadRequestId) return;
+    _state = result;
     notifyListeners();
   }
 
   /// Resets to the initial state, e.g. after the customer signs out.
   void reset() {
+    _loadRequestId++;
     _state = const NotificationsState();
     notifyListeners();
   }

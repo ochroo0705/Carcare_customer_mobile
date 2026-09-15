@@ -18,7 +18,6 @@ class AppointmentDto {
     required this.tenantName,
     required this.tenantSlug,
     required this.branchName,
-    this.branchId,
     this.note,
     this.categoryName,
     this.vehiclePlate,
@@ -48,7 +47,6 @@ class AppointmentDto {
       tenantName: _requiredString(tenant, 'name'),
       tenantSlug: _requiredString(tenant, 'slug'),
       branchName: _requiredString(branch, 'name'),
-      branchId: _optionalString(branch['id']),
       note: _optionalString(json['note']),
       categoryName: category == null ? null : _optionalString(category['name']),
       vehiclePlate: accountVehicle == null
@@ -65,7 +63,6 @@ class AppointmentDto {
   final String tenantName;
   final String tenantSlug;
   final String branchName;
-  final String? branchId;
   final String? note;
   final String? categoryName;
   final String? vehiclePlate;
@@ -79,7 +76,6 @@ class AppointmentDto {
     tenantName: tenantName,
     tenantSlug: tenantSlug,
     branchName: branchName,
-    branchId: branchId,
     note: note,
     categoryName: categoryName,
     vehiclePlate: vehiclePlate,
@@ -163,9 +159,7 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
       final item = _optionalMap(rawItem);
       final itemId = item == null ? null : _optionalString(item['id']);
       final name = item == null ? null : _optionalString(item['description']);
-      final itemStatus = item == null
-          ? null
-          : _optionalString(item['status']);
+      final itemStatus = item == null ? null : _optionalString(item['status']);
       if (itemId == null || name == null || itemStatus == null) continue;
       final kindRaw = item == null ? null : _optionalString(item['kind']);
       items.add(
@@ -192,9 +186,16 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
     for (final rawEntry in rawHistory) {
       final entry = _optionalMap(rawEntry);
       final entryId = entry == null ? null : _optionalString(entry['id']);
-      final toStatusRaw = entry == null ? null : _optionalString(entry['toStatus']);
-      final createdAt = entry == null ? null : _optionalDateTime(entry['createdAt']);
-      if (entry == null || entryId == null || toStatusRaw == null || createdAt == null) {
+      final toStatusRaw = entry == null
+          ? null
+          : _optionalString(entry['toStatus']);
+      final createdAt = entry == null
+          ? null
+          : _optionalDateTime(entry['createdAt']);
+      if (entry == null ||
+          entryId == null ||
+          toStatusRaw == null ||
+          createdAt == null) {
         continue;
       }
       final fromStatusRaw = _optionalString(entry['fromStatus']);

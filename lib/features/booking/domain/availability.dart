@@ -5,8 +5,10 @@ class AvailabilitySlot {
     required this.minute,
     required this.available,
     required this.remaining,
+    required this.utc,
   });
 
+  /// Салбарын (Ulaanbaatar) орон нутгийн цаг — зөвхөн харуулахад.
   final int hour;
   final int minute;
 
@@ -15,6 +17,12 @@ class AvailabilitySlot {
 
   /// Тухайн нүхэнд үлдсэн багтаамж.
   final int remaining;
+
+  /// Энэ нүхний бодит UTC мөч — сервер (`iso` талбар) тооцсон, эрхийн
+  /// эцсийн эх сурвалж. Захиалга илгээхдээ ЭНЭ утгыг хэрэглэнэ, `hour`/
+  /// `minute`-аас device-local цаг барьж дахин тооцохгүй — эс бөгөөс
+  /// device-ийн timezone Ulaanbaatar-аас өөр үед буруу мөч илгээгдэнэ.
+  final DateTime utc;
 
   ({int hour, int minute}) get time => (hour: hour, minute: minute);
 }

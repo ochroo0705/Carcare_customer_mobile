@@ -48,6 +48,11 @@ class RemoteAppointmentRepository implements AppointmentRepository {
         final hour = int.tryParse(parts[0]);
         final minute = int.tryParse(parts[1]);
         if (hour == null || minute == null) continue;
+        // `iso` бол server-ийн тооцсон бодит UTC мөч (Ulaanbaatar-аас өөр
+        // timezone-той device дээр `hour`/`minute`-аас дахин зохион байгуулах
+        // нь буруу мөч гаргадаг) — байхгүй/буруу бол нүхийг бүхэлд нь алгасна.
+        final utc = DateTime.tryParse('${item['iso']}')?.toUtc();
+        if (utc == null) continue;
         final remaining = item['remaining'];
         slots.add(
           AvailabilitySlot(
@@ -55,6 +60,7 @@ class RemoteAppointmentRepository implements AppointmentRepository {
             minute: minute,
             available: item['available'] == true,
             remaining: remaining is num ? remaining.toInt() : 0,
+            utc: utc,
           ),
         );
       }
@@ -90,7 +96,8 @@ class RemoteAppointmentRepository implements AppointmentRepository {
     final appointment = Map<String, dynamic>.from(value);
     final id = appointment['id'];
     final status = appointment['status'];
-    final parsedAt = DateTime.tryParse('${appointment['requestedAt']}')?.toLocal();
+    final parsedAt = DateTime.tryParse('${appointment['requestedAt']}')
+        ?.toLocal();
     if (id is! String || status is! String || parsedAt == null) {
       throw const UnexpectedFailure('Захиалгын мэдээлэл буруу байна.');
     }
@@ -132,16 +139,6 @@ class RemoteAppointmentRepository implements AppointmentRepository {
     final json = await _client.postJson('/appointments/$id/cancel', const {});
     if (json['ok'] != true) {
       throw const UnexpectedFailure('Захиалга цуцлагдсангүй.');
-    }
-  }
-
-  @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {
-    final json = await _client.postJson('/appointments/$id/reschedule', {
-      'requestedAt': requestedAt.toUtc().toIso8601String(),
-    });
-    if (json['ok'] != true) {
-      throw const UnexpectedFailure('Цаг шилжүүлэгдсэнгүй.');
     }
   }
 

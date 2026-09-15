@@ -395,7 +395,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             child: AppointmentDetailScreen(
               appointmentId: _selectedAppointmentId!,
               organizationRepository: organizationRepository,
-              appointmentRepository: appointmentRepository,
               onBack: _closeAppointmentDetail,
               onPay: (appointment) =>
                   _openPayment(appointment.id, appointment.payment),

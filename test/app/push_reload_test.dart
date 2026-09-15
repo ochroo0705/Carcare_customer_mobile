@@ -118,10 +118,6 @@ class _CountingAppointmentRepository implements AppointmentRepository {
   Future<void> cancelAppointment(String id) => _inner.cancelAppointment(id);
 
   @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) =>
-      _inner.rescheduleAppointment(id, requestedAt);
-
-  @override
   Future<AppointmentPayment?> getPayment(String appointmentId) =>
       _inner.getPayment(appointmentId);
 

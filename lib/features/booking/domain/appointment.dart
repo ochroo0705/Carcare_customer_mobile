@@ -10,7 +10,6 @@ class Appointment {
     required this.tenantName,
     required this.tenantSlug,
     required this.branchName,
-    this.branchId,
     this.note,
     this.categoryName,
     this.vehiclePlate,
@@ -24,9 +23,6 @@ class Appointment {
   final String tenantName;
   final String tenantSlug;
   final String branchName;
-  // Шилжүүлэх (reschedule) урсгалд шаардлагатай — тухайн салбарын боломжит
-  // цаг татахад ашиглана. Хуучин кэшлэгдсэн бичлэгт байхгүй байж болзошгүй.
-  final String? branchId;
   final String? note;
   final String? categoryName;
   final String? vehiclePlate;
@@ -52,12 +48,6 @@ class Appointment {
       payment != null &&
       payment!.status != AppointmentFeeStatus.paid;
 
-  /// Захиалгаа өөр хугацаанд шилжүүлэх боломжтой эсэх — идэвхтэй (pending/
-  /// confirmed) ба ХАРИН ажилтан аль хэдийн засварын хуудас (ServiceOrder)
-  /// нээсэн бол үгүй (тэр цагт байгууллагатай шууд холбогдох ёстой — веб
-  /// талын `rescheduleAppointmentByAccount`-тай ижил дүрэм).
-  bool get canReschedule => status.isActive && serviceProgress == null;
-
   Appointment copyWith({
     AppointmentStatus? status,
     DateTime? requestedAt,
@@ -70,7 +60,6 @@ class Appointment {
     tenantName: tenantName,
     tenantSlug: tenantSlug,
     branchName: branchName,
-    branchId: branchId,
     note: note,
     categoryName: categoryName,
     vehiclePlate: vehiclePlate,

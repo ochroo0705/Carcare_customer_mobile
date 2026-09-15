@@ -42,8 +42,6 @@ class _RetryRepository implements AppointmentRepository {
   @override
   Future<void> cancelAppointment(String id) async {}
   @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
-  @override
   Future<DayAvailability> getAvailability({
     required String branchId,
     required DateTime date,
@@ -83,8 +81,6 @@ class _PaysAfterRepository implements AppointmentRepository {
   Future<List<WalkInOrder>> getWalkInOrders() async => const [];
   @override
   Future<void> cancelAppointment(String id) async {}
-  @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
   @override
   Future<DayAvailability> getAvailability({
     required String branchId,

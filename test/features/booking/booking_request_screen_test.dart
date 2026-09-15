@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
@@ -25,6 +27,15 @@ DayAvailability _fakeAvailability() => DayAvailability(
         minute: m % 60,
         available: true,
         remaining: 1,
+        // `_acceptDefaultDateTime` always picks a day in next month, so any
+        // far-future anchor date keeps this a valid (non-past) instant.
+        utc: DateTime.utc(
+          DateTime.now().year + 1,
+          1,
+          1,
+          m ~/ 60,
+          m % 60,
+        ).subtract(const Duration(hours: 8)),
       ),
   ],
 );
@@ -67,9 +78,6 @@ class _CapturingAppointmentRepository implements AppointmentRepository {
   Future<void> cancelAppointment(String id) async {}
 
   @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
-
-  @override
   Future<AppointmentPayment?> getPayment(String appointmentId) async => null;
 
   @override
@@ -106,7 +114,102 @@ class _ConflictAppointmentRepository implements AppointmentRepository {
   @override
   Future<void> cancelAppointment(String id) async {}
   @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
+  Future<AppointmentPayment?> getPayment(String id) async => null;
+  @override
+  Future<AppointmentPaymentCheckResult> checkPayment(String id) async =>
+      const AppointmentPaymentCheckResult(paid: false);
+  @override
+  Future<AppointmentPayment?> retryPayment(String id) async => null;
+}
+
+/// Lets a test control exactly when each `getAvailability` call resolves, to
+/// reproduce out-of-order network responses (a later-fired request's response
+/// arriving before an earlier one's).
+class _RaceAvailabilityRepository implements AppointmentRepository {
+  final List<Completer<DayAvailability>> completers = [];
+  final List<DateTime> requestedDates = [];
+
+  @override
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds = const [],
+  }) {
+    final completer = Completer<DayAvailability>();
+    completers.add(completer);
+    requestedDates.add(date);
+    return completer.future;
+  }
+
+  @override
+  Future<CreatedAppointment> createAppointment({
+    required String branchId,
+    required DateTime requestedAt,
+    String? note,
+    String? accountVehicleId,
+    List<String> categoryIds = const [],
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<List<Appointment>> getAppointments() async => const [];
+  @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+  @override
+  Future<void> cancelAppointment(String id) async {}
+  @override
+  Future<AppointmentPayment?> getPayment(String id) async => null;
+  @override
+  Future<AppointmentPaymentCheckResult> checkPayment(String id) async =>
+      const AppointmentPaymentCheckResult(paid: false);
+  @override
+  Future<AppointmentPayment?> retryPayment(String id) async => null;
+}
+
+DayAvailability _availabilityWithSlot(int hour, int minute) => DayAvailability(
+  open: true,
+  durationMinutes: 30,
+  slots: [
+    AvailabilitySlot(
+      hour: hour,
+      minute: minute,
+      available: true,
+      remaining: 1,
+      utc: DateTime.utc(DateTime.now().year + 1, 1, 1, hour, minute),
+    ),
+  ],
+);
+
+/// Returns 09:00 on the first `getAvailability` call and 11:00 on every call
+/// after — simulates the slot the customer picked getting taken (or the
+/// schedule changing) while the app was backgrounded.
+class _CountingAvailabilityRepository implements AppointmentRepository {
+  int calls = 0;
+
+  @override
+  Future<DayAvailability> getAvailability({
+    required String branchId,
+    required DateTime date,
+    List<String> categoryIds = const [],
+  }) async {
+    calls += 1;
+    return _availabilityWithSlot(calls == 1 ? 9 : 11, 0);
+  }
+
+  @override
+  Future<CreatedAppointment> createAppointment({
+    required String branchId,
+    required DateTime requestedAt,
+    String? note,
+    String? accountVehicleId,
+    List<String> categoryIds = const [],
+  }) async => throw UnimplementedError();
+
+  @override
+  Future<List<Appointment>> getAppointments() async => const [];
+  @override
+  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
+  @override
+  Future<void> cancelAppointment(String id) async {}
   @override
   Future<AppointmentPayment?> getPayment(String id) async => null;
   @override
@@ -125,6 +228,37 @@ const _branch = BranchDetail(
   address: 'Энхтайваны өргөн чөлөө',
   openTime: '09:00',
   closeTime: '18:00',
+);
+
+const _categoryA = BranchServiceCategory(
+  id: 'cat-a',
+  name: 'Тос солих',
+  durationMinutes: 30,
+  systemServiceKeyId: 'key-a',
+);
+const _categoryB = BranchServiceCategory(
+  id: 'cat-b',
+  name: 'Дугуй солих',
+  durationMinutes: 20,
+  systemServiceKeyId: 'key-b',
+);
+
+const _branchWithCategories = BranchDetail(
+  id: 'branch-with-categories',
+  name: 'Ангилалтай салбар',
+  city: 'Улаанбаатар',
+  district: 'Баянзүрх',
+  khoroo: '1-р хороо',
+  address: 'Энхтайваны өргөн чөлөө',
+  openTime: '09:00',
+  closeTime: '18:00',
+  categories: [_categoryA, _categoryB],
+);
+
+const _organizationWithCategories = OrganizationDetail(
+  slug: 'infosystems',
+  name: 'Инфосистемс',
+  branches: [_branchWithCategories],
 );
 
 // Ганц салбартай тул BookingRequestScreen үүнийг шууд автоматаар сонгоно
@@ -312,5 +446,246 @@ void main() {
     // The 409 message is shown in-place and the booking is NOT completed.
     expect(find.text('Энэ цаг дүүрсэн байна.'), findsOneWidget);
     expect(completed, isFalse);
+  });
+
+  testWidgets(
+    'ignores a stale availability response that arrives after a newer one',
+    (tester) async {
+      await _useTallSurface(tester);
+      final repository = _RaceAvailabilityRepository();
+      final vehiclesController = VehiclesController(FakeVehicleRepository());
+      await vehiclesController.load();
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: vehiclesController,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: BookingRequestScreen(
+              organization: _organization,
+              repository: repository,
+              onAddVehicle: () {},
+              onBack: () {},
+              onCompleted: (_) {},
+              onUnauthenticated: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const ValueKey('booking-calendar-next')));
+      await tester.pumpAndSettle();
+      final now = DateTime.now();
+      final nextMonth = DateTime(now.year, now.month + 1);
+
+      // Tap day 1, then quickly switch to day 2, before either request has
+      // resolved — mirrors a customer double-tapping between dates on a slow
+      // connection.
+      await tester.tap(
+        find.byKey(
+          ValueKey('booking-date-${nextMonth.year}-${nextMonth.month}-1'),
+        ),
+      );
+      await tester.pump();
+      await tester.tap(
+        find.byKey(
+          ValueKey('booking-date-${nextMonth.year}-${nextMonth.month}-2'),
+        ),
+      );
+      await tester.pump();
+
+      expect(repository.completers, hasLength(2));
+
+      // Resolve the SECOND (newer, day-2) request first, then the stale
+      // first (day-1) request — the out-of-order arrival this test targets.
+      repository.completers[1].complete(_availabilityWithSlot(10, 0));
+      await tester.pump();
+      repository.completers[0].complete(_availabilityWithSlot(9, 0));
+      await tester.pump();
+
+      // The stale day-1 response (09:00) must not clobber the day-2 result
+      // (10:00) that arrived first.
+      expect(find.byKey(const ValueKey('booking-slot-10-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('booking-slot-9-0')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    're-validates the selected slot when the app resumes from background',
+    (tester) async {
+      await _useTallSurface(tester);
+      final repository = _CountingAvailabilityRepository();
+      final vehiclesController = VehiclesController(FakeVehicleRepository());
+      await vehiclesController.load();
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: vehiclesController,
+          child: MaterialApp(
+            theme: AppTheme.light,
+            home: BookingRequestScreen(
+              organization: _organization,
+              repository: repository,
+              onAddVehicle: () {},
+              onBack: () {},
+              onCompleted: (_) {},
+              onUnauthenticated: () {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await _acceptDefaultDateTime(tester);
+      expect(repository.calls, 1);
+      expect(find.byKey(const ValueKey('booking-slot-9-0')), findsOneWidget);
+
+      // Simulate backgrounding the app (e.g. to unlock the phone) and coming
+      // back — the customer's selected 09:00 slot may have been taken, or the
+      // schedule may have changed, while the screen sat idle. The lifecycle
+      // state machine only allows linear steps (resumed <-> inactive <->
+      // hidden <-> paused), so the full chain must be walked both ways.
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]) {
+        tester.binding.handleAppLifecycleStateChanged(state);
+        await tester.pump();
+      }
+      await tester.pumpAndSettle();
+
+      // Availability was re-fetched (not just left stale)...
+      expect(repository.calls, 2);
+      // ...and the now-different slot list is shown, with the earlier
+      // selection cleared rather than silently carried over.
+      expect(find.byKey(const ValueKey('booking-slot-11-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('booking-slot-9-0')), findsNothing);
+      expect(find.byKey(const ValueKey('submit-booking')), findsOneWidget);
+    },
+  );
+
+  group('lockCategories revalidation', () {
+    testWidgets(
+      'blocks the flow and offers to go back when the locked branch id no '
+      'longer exists',
+      (tester) async {
+        await _useTallSurface(tester);
+        final vehiclesController = VehiclesController(FakeVehicleRepository());
+        await vehiclesController.load();
+        var backTapped = false;
+
+        await tester.pumpWidget(
+          ChangeNotifierProvider.value(
+            value: vehiclesController,
+            child: MaterialApp(
+              theme: AppTheme.light,
+              home: BookingRequestScreen(
+                organization: _organizationWithCategories,
+                initialBranchId: 'branch-that-no-longer-exists',
+                initialCategoryIds: const ['cat-a'],
+                lockCategories: true,
+                repository: FakeAppointmentRepository(),
+                onAddVehicle: () {},
+                onBack: () => backTapped = true,
+                onCompleted: (_) {},
+                onUnauthenticated: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text('Сонгосон салбар олдсонгүй. Дахин сонгоно уу.'),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('submit-booking')), findsNothing);
+
+        await tester.tap(find.text('Буцах'));
+        expect(backTapped, isTrue);
+      },
+    );
+
+    testWidgets(
+      'drops a locked category the branch no longer offers, but keeps '
+      'booking with the rest',
+      (tester) async {
+        await _useTallSurface(tester);
+        final vehiclesController = VehiclesController(FakeVehicleRepository());
+        await vehiclesController.load();
+
+        await tester.pumpWidget(
+          ChangeNotifierProvider.value(
+            value: vehiclesController,
+            child: MaterialApp(
+              theme: AppTheme.light,
+              home: BookingRequestScreen(
+                organization: _organizationWithCategories,
+                initialBranchId: 'branch-with-categories',
+                initialCategoryIds: const ['cat-a', 'cat-removed'],
+                lockCategories: true,
+                repository: FakeAppointmentRepository(),
+                onAddVehicle: () {},
+                onBack: () {},
+                onCompleted: (_) {},
+                onUnauthenticated: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Still bookable: the form renders, keeps the still-offered category.
+        expect(find.byKey(const ValueKey('submit-booking')), findsOneWidget);
+        expect(find.text('Тос солих'), findsOneWidget);
+        // Warns about the one that's gone (falls back to the raw id since no
+        // branch in the org names it).
+        expect(find.textContaining('cat-removed'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'blocks the flow when every locked category is no longer offered',
+      (tester) async {
+        await _useTallSurface(tester);
+        final vehiclesController = VehiclesController(FakeVehicleRepository());
+        await vehiclesController.load();
+
+        await tester.pumpWidget(
+          ChangeNotifierProvider.value(
+            value: vehiclesController,
+            child: MaterialApp(
+              theme: AppTheme.light,
+              home: BookingRequestScreen(
+                organization: _organizationWithCategories,
+                initialBranchId: 'branch-with-categories',
+                initialCategoryIds: const ['cat-removed-1', 'cat-removed-2'],
+                lockCategories: true,
+                repository: FakeAppointmentRepository(),
+                onAddVehicle: () {},
+                onBack: () {},
+                onCompleted: (_) {},
+                onUnauthenticated: () {},
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.text(
+            'Сонгосон бүх үйлчилгээг энэ салбар цаашид санал болгохгүй '
+            'боллоо. Дахин сонгоно уу.',
+          ),
+          findsOneWidget,
+        );
+        expect(find.byKey(const ValueKey('submit-booking')), findsNothing);
+      },
+    );
   });
 }

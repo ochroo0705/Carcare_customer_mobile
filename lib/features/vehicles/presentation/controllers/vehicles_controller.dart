@@ -14,6 +14,15 @@ class VehiclesController extends ChangeNotifier {
   final Set<String> _deletingIds = {};
   final Set<String> _refreshingIds = {};
 
+  /// `delete()` triggers its own `load()` on top of a possible manual
+  /// refresh, so calls can overlap — without this, a slower call finishing
+  /// after a faster one can silently overwrite state it already moved past
+  /// (e.g. a delete's reload landing before, then getting clobbered by, a
+  /// stale concurrent refresh that started earlier and doesn't reflect the
+  /// deletion). Incremented at the start of every `load()`; only the call
+  /// that is still the latest may apply.
+  int _loadRequestId = 0;
+
   VehiclesState get state => _state;
 
   bool isDeleting(String id) => _deletingIds.contains(id);
@@ -21,23 +30,27 @@ class VehiclesController extends ChangeNotifier {
   bool isRefreshing(String id) => _refreshingIds.contains(id);
 
   Future<void> load() async {
+    final requestId = ++_loadRequestId;
     _state = VehiclesState(
       status: VehiclesStatus.loading,
       vehicles: _state.vehicles,
     );
     notifyListeners();
+    VehiclesState result;
     try {
       final vehicles = await _repository.getVehicles();
-      _state = VehiclesState(
+      result = VehiclesState(
         status: vehicles.isEmpty ? VehiclesStatus.empty : VehiclesStatus.data,
         vehicles: vehicles,
       );
       await _cache.writeVehicles(vehicles);
     } on AppFailure catch (failure) {
-      _state = await _fallbackToCache(failure.message);
+      result = await _fallbackToCache(failure.message);
     } catch (_) {
-      _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      result = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
     }
+    if (requestId != _loadRequestId) return;
+    _state = result;
     notifyListeners();
   }
 
@@ -45,6 +58,7 @@ class VehiclesController extends ChangeNotifier {
   /// the customer signs out — the next account must never see this one's
   /// cached vehicles.
   Future<void> reset() async {
+    _loadRequestId++;
     _state = const VehiclesState();
     _deletingIds.clear();
     notifyListeners();
@@ -99,7 +113,8 @@ class VehiclesController extends ChangeNotifier {
       _state = VehiclesState(
         status: _state.status,
         vehicles: [
-          for (final v in _state.vehicles) if (v.id == id) updated else v,
+          for (final v in _state.vehicles)
+            if (v.id == id) updated else v,
         ],
         isFromCache: _state.isFromCache,
       );

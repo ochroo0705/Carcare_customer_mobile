@@ -101,13 +101,24 @@ class FakeAppointmentRepository implements AppointmentRepository {
     // Fake: 09:00–17:30-ийн 30 минутын нүхнүүд, бүгд сул.
     final duration = 30 * (categoryIds.isEmpty ? 1 : categoryIds.length);
     final slots = <AvailabilitySlot>[];
+    // Ulaanbaatar (UTC+8, DST-гүй) орон нутгийн цагийг UTC рүү хөрвүүлнэ —
+    // жинхэнэ endpoint-ийн `iso` талбарыг дуурайна.
     for (var m = 9 * 60; m + duration <= 18 * 60; m += 30) {
+      final hour = m ~/ 60;
+      final minute = m % 60;
       slots.add(
         AvailabilitySlot(
-          hour: m ~/ 60,
-          minute: m % 60,
+          hour: hour,
+          minute: minute,
           available: true,
           remaining: 1,
+          utc: DateTime.utc(
+            date.year,
+            date.month,
+            date.day,
+            hour,
+            minute,
+          ).subtract(const Duration(hours: 8)),
         ),
       );
     }
@@ -164,17 +175,6 @@ class FakeAppointmentRepository implements AppointmentRepository {
     _appointments[index] = appointment.copyWith(
       status: AppointmentStatus.cancelled,
     );
-  }
-
-  @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {
-    final index = _appointments.indexWhere(
-      (appointment) => appointment.id == id,
-    );
-    if (index == -1) throw const NotFoundFailure();
-    final appointment = _appointments[index];
-    if (!appointment.canReschedule) throw const ConflictFailure();
-    _appointments[index] = appointment.copyWith(requestedAt: requestedAt);
   }
 
   @override

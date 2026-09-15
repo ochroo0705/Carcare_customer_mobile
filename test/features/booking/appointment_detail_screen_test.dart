@@ -34,8 +34,6 @@ class _OneAppointmentRepo implements AppointmentRepository {
   @override
   Future<void> cancelAppointment(String id) async {}
   @override
-  Future<void> rescheduleAppointment(String id, DateTime requestedAt) async {}
-  @override
   Future<AppointmentPayment?> getPayment(String id) async => null;
   @override
   Future<AppointmentPayment?> retryPayment(String id) async => null;
@@ -73,7 +71,6 @@ Future<void> _pump(
         home: AppointmentDetailScreen(
           appointmentId: appointmentId,
           organizationRepository: FakeOrganizationRepository(),
-          appointmentRepository: FakeAppointmentRepository(),
           onBack: () {},
           onPay: onPay ?? (_) {},
         ),

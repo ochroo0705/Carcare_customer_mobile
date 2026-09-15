@@ -15,13 +15,10 @@ class AppointmentsController extends ChangeNotifier {
   final CacheStore _cache;
   AppointmentsState _state = const AppointmentsState();
   final Set<String> _cancellingIds = {};
-  final Set<String> _reschedulingIds = {};
 
   AppointmentsState get state => _state;
 
   bool isCancelling(String id) => _cancellingIds.contains(id);
-
-  bool isRescheduling(String id) => _reschedulingIds.contains(id);
 
   /// `sortedAppointments`-той ижил "бүрэн дуусаад бүрэн төлөгдсөн" хамгаалалт
   /// (харах: тэдгээрийн доод коммент) — walk-in захиалгад ч мөн адил
@@ -91,7 +88,6 @@ class AppointmentsController extends ChangeNotifier {
   Future<void> reset() async {
     _state = const AppointmentsState();
     _cancellingIds.clear();
-    _reschedulingIds.clear();
     notifyListeners();
     await _cache.clearAppointments();
   }
@@ -128,26 +124,6 @@ class AppointmentsController extends ChangeNotifier {
       return 'Тодорхойгүй алдаа гарлаа.';
     } finally {
       _cancellingIds.remove(id);
-      notifyListeners();
-    }
-  }
-
-  /// Reschedules an appointment and reloads the list. Returns an error
-  /// message on failure, or `null` on success (mirrors [cancel]).
-  Future<String?> reschedule(String id, DateTime requestedAt) async {
-    if (_reschedulingIds.contains(id)) return null;
-    _reschedulingIds.add(id);
-    notifyListeners();
-    try {
-      await _repository.rescheduleAppointment(id, requestedAt);
-      await load();
-      return null;
-    } on AppFailure catch (failure) {
-      return failure.message;
-    } catch (_) {
-      return 'Тодорхойгүй алдаа гарлаа.';
-    } finally {
-      _reschedulingIds.remove(id);
       notifyListeners();
     }
   }
