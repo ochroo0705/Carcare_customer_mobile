@@ -20,4 +20,9 @@ abstract interface class VehicleRepository {
   Future<void> deleteVehicle(String id);
 
   Future<VehicleLookupResult> lookupByPlate(String plate);
+
+  /// Машины дэлгэрэнгүй дэлгэцээс гар аргаар HUR-аас дахин татаж, буцаасан
+  /// шинэ (шинэчлэгдсэн) [Vehicle]-ийг буцаана. `id` = account-vehicle/link id
+  /// (бусад бүх method-той адил).
+  Future<Vehicle> refreshFromHur(String id);
 }

@@ -49,6 +49,9 @@ class _CountingDelegate implements OrganizationRepository {
     if (fail) throw const NetworkFailure();
     return _detail;
   }
+
+  @override
+  Future<List<ServiceKey>> getServiceKeys() async => const [];
 }
 
 void main() {

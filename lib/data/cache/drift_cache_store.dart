@@ -431,6 +431,7 @@ Map<String, dynamic> _organizationDetailToJson(OrganizationDetail detail) => {
                   'id': category.id,
                   'name': category.name,
                   'durationMinutes': category.durationMinutes,
+                  'systemServiceKeyId': category.systemServiceKeyId,
                 },
               )
               .toList(),
@@ -446,13 +447,17 @@ List<BranchServiceCategory> _branchCategoriesFromJson(Object? raw) {
     if (entry is! Map) continue;
     final id = entry['id'];
     final name = entry['name'];
-    if (id is! String || name is! String) continue;
+    final systemServiceKeyId = entry['systemServiceKeyId'];
+    if (id is! String || name is! String || systemServiceKeyId is! String) {
+      continue;
+    }
     final duration = entry['durationMinutes'];
     categories.add(
       BranchServiceCategory(
         id: id,
         name: name,
         durationMinutes: duration is num ? duration.toInt() : 30,
+        systemServiceKeyId: systemServiceKeyId,
       ),
     );
   }

@@ -20,6 +20,7 @@ class OrganizationDetailScreen extends StatelessWidget {
     required this.errorMessage,
     required this.onRetry,
     required this.onBack,
+    required this.onBook,
     super.key,
   });
 
@@ -30,6 +31,7 @@ class OrganizationDetailScreen extends StatelessWidget {
   final String? errorMessage;
   final VoidCallback onRetry;
   final VoidCallback onBack;
+  final VoidCallback onBook;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -55,26 +57,31 @@ class OrganizationDetailScreen extends StatelessWidget {
                 organization: organization!,
                 branchId: branchId,
                 distanceLocation: distanceLocation,
+                onBook: onBook,
               ),
       ),
     ),
   );
 }
 
-/// Нэг салбарын танилцах хуудас — Explore одоо зөвхөн харах (browse) хэсэг
-/// болсон тул сонголт/захиалгын үйлдэлгүй: байгууллагын танилцуулга (лого,
-/// утас, хадгалах) дээр дарж орсон яг тэр салбарынхаа хаяг/цаг/үйлчилгээг
-/// харуулна. Цаг захиалах нь тусдаа Booking таб руу шилжсэн.
+/// Нэг салбарын танилцах хуудас — байгууллагын танилцуулга (лого, утас,
+/// хадгалах) дээр дарж орсон яг тэр салбарынхаа хаяг/цаг/үйлчилгээг
+/// харуулна. Цаг захиалах эндээс шууд эхэлдэг (`onBook`) — өмнө нь энэ
+/// боломж Booking таб руу зөвхөн шилжсэн байсан нь backend-ийн global
+/// service-key системийг хүлээж байсан учиртай; тэр саад одоо арилсан тул
+/// (D-093-ийг үзнэ үү, `../../../../COWORK.md`) энд буцаан холбов.
 class _BranchDetailView extends StatelessWidget {
   const _BranchDetailView({
     required this.organization,
     required this.branchId,
     required this.distanceLocation,
+    required this.onBook,
   });
 
   final OrganizationDetail organization;
   final String? branchId;
   final ({double lat, double lng})? distanceLocation;
+  final VoidCallback onBook;
 
   BranchDetail? get _branch {
     if (organization.branches.isEmpty) return null;
@@ -101,6 +108,7 @@ class _BranchDetailView extends StatelessWidget {
             branch: branch,
             distanceLocation: distanceLocation,
             highlightLabel: null,
+            onBook: onBook,
           ),
       ],
     );
@@ -272,18 +280,19 @@ class _HeroLogo extends StatelessWidget {
 }
 
 /// Нэг салбарын танилцах мэдээлэл (хаяг, цагийн хуваарь, санал болгож буй
-/// үйлчилгээ) — сонголт/захиалгын үйлдэлгүй, зөвхөн харуулна. Салбар сонгох,
-/// цаг захиалах бүгд Booking таб дотор явагдана.
+/// үйлчилгээ) болон цаг захиалах CTA.
 class _BranchInfoCard extends StatelessWidget {
   const _BranchInfoCard({
     required this.branch,
     required this.distanceLocation,
     required this.highlightLabel,
+    required this.onBook,
   });
 
   final BranchDetail branch;
   final ({double lat, double lng})? distanceLocation;
   final String? highlightLabel;
+  final VoidCallback onBook;
 
   Future<void> _openDirections(BuildContext context) async {
     final destination = '${branch.latitude},${branch.longitude}';
@@ -411,6 +420,16 @@ class _BranchInfoCard extends StatelessWidget {
           const SizedBox(height: 8),
           _CategoryChipRow(categories: branch.categories),
         ],
+        const SizedBox(height: 18),
+        SizedBox(
+          width: double.infinity,
+          child: FilledButton.icon(
+            key: const ValueKey('detail-book-button'),
+            onPressed: onBook,
+            icon: const Icon(Icons.event_available_outlined, size: 18),
+            label: const Text('Цаг захиалах'),
+          ),
+        ),
       ],
     ),
   );

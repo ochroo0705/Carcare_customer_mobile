@@ -28,7 +28,7 @@ class CustomerShell extends StatefulWidget {
 class CustomerShellState extends State<CustomerShell>
     with SingleTickerProviderStateMixin {
   static const _discoveryIndex = 0;
-  static const _profileIndex = 3;
+  static const _profileIndex = 4;
 
   int _selectedIndex = 0;
 
@@ -116,6 +116,11 @@ class CustomerShellState extends State<CustomerShell>
                           label: Text('Хайх'),
                         ),
                         NavigationRailDestination(
+                          icon: Icon(Icons.build_circle_outlined),
+                          selectedIcon: Icon(Icons.build_circle_rounded),
+                          label: Text('Захиалах'),
+                        ),
+                        NavigationRailDestination(
                           icon: Icon(Icons.event_note_outlined),
                           selectedIcon: Icon(Icons.event_note_rounded),
                           label: Text('Захиалгууд'),
@@ -162,6 +167,11 @@ class CustomerShellState extends State<CustomerShell>
                       icon: Icon(Icons.explore_outlined),
                       selectedIcon: Icon(Icons.explore_rounded),
                       label: 'Хайх',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.build_circle_outlined),
+                      selectedIcon: Icon(Icons.build_circle_rounded),
+                      label: 'Захиалах',
                     ),
                     NavigationDestination(
                       icon: Icon(Icons.event_note_outlined),

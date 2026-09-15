@@ -31,6 +31,7 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/screens/
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_screen.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/screens/service_key_picker_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
@@ -203,6 +204,17 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   ({double lat, double lng})? _detailLocation;
   String? _preferredBranchId;
   bool _booking = false;
+  /// Booking tab-ийн cross-org picker дээр сонгосон, тухайн үед сонгосон
+  /// салбар руу шилжихэд ашигласан ажлын түлхүүрүүд — `_selectServiceKeyBranch`
+  /// дуудагдах мөчид (тор өөрөө нэгтгэсэн дэлгэц дотроо байрладаг тул) шинээр
+  /// тавигдана; id-г нь дараа нь `BookingRequestScreen`-ийн ангилал түгжихэд
+  /// ашиглана. `_closeBooking`/`_closeDetails` дээр л цэвэрлэнэ.
+  List<ServiceKey> _pendingServiceKeys = const [];
+  /// `_selectServiceKeyBranch`-аар захиалга эхэлсэн эсэх — үнэн үед
+  /// `BookingRequestScreen`-д `_pendingServiceKeys`-д тохирох ангилалуудыг
+  /// урьдчилан бөглөж түгжинэ. "Цаг захиалах" товч (Explore-с) шиг энгийн
+  /// эхлэлд худал хэвээр байна.
+  bool _bookingFromServiceKeys = false;
   String? _selectedOrderId;
   String? _selectedAppointmentId;
   String? _selectedWalkInOrderId;
@@ -222,9 +234,9 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   final navigatorKey = GlobalKey<NavigatorState>();
   final _shellKey = GlobalKey<CustomerShellState>();
 
-  /// Matches `CustomerShell`'s `destinations` order (Хайх · Захиалгууд · Түүх ·
-  /// Профайл).
-  static const _appointmentsTabIndex = 1;
+  /// Matches `CustomerShell`'s `destinations` order (Хайх · Захиалах ·
+  /// Захиалгууд · Түүх · Профайл).
+  static const _appointmentsTabIndex = 2;
 
   @override
   CustomerRoutePath get currentConfiguration {
@@ -248,6 +260,10 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             onNotificationsRequested: _openNotifications,
             destinations: [
               DiscoveryScreen(onBranchSelected: _selectBranch),
+              ServiceKeyPickerScreen(
+                repository: organizationRepository,
+                onBranchSelected: _selectServiceKeyBranch,
+              ),
               AppointmentsScreen(
                 onLoginRequested: _requestLogin,
                 onAppointmentSelected: _openAppointmentDetail,
@@ -287,6 +303,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               errorMessage: organizationDetailController.message,
               onRetry: () => organizationDetailController.load(_selectedSlug!),
               onBack: _closeDetails,
+              onBook: _startBooking,
             ),
           ),
         if (_showLogin)
@@ -309,6 +326,10 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               repository: appointmentRepository,
               onAddVehicle: _openAddVehicle,
               onBack: _closeBooking,
+              lockCategories: _bookingFromServiceKeys,
+              initialCategoryIds: _bookingFromServiceKeys
+                  ? _resolveLockedCategoryIds(organization)
+                  : null,
               onUnauthenticated: () async {
                 await authController.clearConfirmedUnauthorized();
                 _showLogin = true;
@@ -354,14 +375,18 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           MaterialPage<void>(
             key: ValueKey('vehicle-detail-${_selectedVehicle!.id}'),
             child: VehicleDetailScreen(
-              vehicle: _selectedVehicle!,
-              appointments: _appointmentsForVehicle(_selectedVehicle!),
+              vehicle: _liveSelectedVehicle,
+              appointments: _appointmentsForVehicle(_liveSelectedVehicle),
               appointmentsLoading: appointmentsController.state.isLoading,
               onAppointmentSelected: _openAppointmentDetail,
-              orders: _ordersForVehicle(_selectedVehicle!),
+              orders: _ordersForVehicle(_liveSelectedVehicle),
               ordersLoading: historyController.state.isLoading,
               onOrderSelected: _openOrderDetail,
               onBack: _closeVehicleDetail,
+              onRefreshHur: () => _refreshSelectedVehicleFromHur(),
+              refreshingHur: vehiclesController.isRefreshing(
+                _selectedVehicle!.id,
+              ),
             ),
           ),
         if (_selectedAppointmentId != null)
@@ -486,11 +511,12 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _detailLocation = null;
     _preferredBranchId = null;
     _booking = false;
+    _bookingFromServiceKeys = false;
     notifyListeners();
   }
 
-  /// Explore одоо зөвхөн харах (browse) хэсэг тул энд захиалга эхлүүлэхгүй —
-  /// тухайн дарсан салбарынхаа мэдээллийг л дэлгэнэ.
+  /// Explore-с салбар дарахад дэлгэрэнгүй мэдээллийг нь дэлгэнэ; тэндээс
+  /// "Цаг захиалах" товчоор `_startBooking` дуудагдаж захиалга эхэлнэ.
   void _selectBranch(Organization organization, Branch branch) {
     _selectedSlug = organization.slug;
     _detailLocation = discoveryController.nearMeLocation;
@@ -499,8 +525,59 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  /// Booking tab-ийн service-key picker-ээс "Үргэлжлүүлэх" дарахад
+  /// `_pendingServiceKeys`-д тохирох `_preferredBranchId` салбарын ангилалуудын
+  /// id-г олно (`BookingRequestScreen.initialCategoryIds`-д зориулав). Тухайн
+  /// салбар БҮГДийг нь санал болгодог гэдгийг `ServiceKeyPickerScreen`-ийн
+  /// жагсаалт аль хэдийн баталгаажуулсан тул хоосон буцах ёсгүй.
+  List<String> _resolveLockedCategoryIds(OrganizationDetail organization) {
+    final branchId = _preferredBranchId;
+    if (branchId == null) return const [];
+    final branch = organization.branches
+        .where((b) => b.id == branchId)
+        .toList(growable: false);
+    if (branch.isEmpty) return const [];
+    final keyIds = _pendingServiceKeys.map((k) => k.id).toSet();
+    return branch.first.categories
+        .where((c) => keyIds.contains(c.systemServiceKeyId))
+        .map((c) => c.id)
+        .toList(growable: false);
+  }
+
+  /// Cross-org үр дүнгийн жагсаалтаас нэг салбар сонгоход дуудагдана — тухайн
+  /// байгууллагыг ачаалаад шууд захиалгын дэлгэц рүү шилжинэ (дэлгэрэнгүй
+  /// танилцуулах алхамгүйгээр); сонгосон ажлын түлхүүрүүдэд тохирох
+  /// ангилалууд урьдчилан бөглөгдөж, түгжигдэнэ (`BookingRequestScreen.
+  /// lockCategories`) — тэдгээрийг энэ салбар БҮГДийг нь санал болгодог
+  /// гэдгийг үр дүнгийн жагсаалт дээр аль хэдийн баталгаажуулсан тул.
+  void _selectServiceKeyBranch(
+    Organization organization,
+    Branch branch,
+    List<ServiceKey> serviceKeys,
+  ) {
+    _pendingServiceKeys = serviceKeys;
+    _selectedSlug = organization.slug;
+    _detailLocation = null;
+    _preferredBranchId = branch.id;
+    _bookingFromServiceKeys = true;
+    _booking = true;
+    organizationDetailController.load(organization.slug);
+    notifyListeners();
+  }
+
+  /// Байгууллагын дэлгэрэнгүй хуудасны "Цаг захиалах" товчоор дуудагдана —
+  /// `_selectedSlug`/`_preferredBranchId` аль хэдийн тавигдсан тул зүгээр
+  /// `_booking`-ийг асаахад л `BookingRequestScreen` тухайн салбартайгаа
+  /// солигдоно. Global service-key блок арилсны дараа буцаан холбов
+  /// (COWORK.md D-093).
+  void _startBooking() {
+    _booking = true;
+    notifyListeners();
+  }
+
   void _closeBooking() {
     _booking = false;
+    _bookingFromServiceKeys = false;
     notifyListeners();
   }
 
@@ -548,6 +625,33 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   void _openVehicleDetail(Vehicle vehicle) {
     _selectedVehicle = vehicle;
     notifyListeners();
+  }
+
+  /// `_selectedVehicle` бол дэлгэц нээгдэх мөчийн зурагт хувилбар — HUR
+  /// шинэчлэлт `vehiclesController.state.vehicles`-д орж ирснийг харуулахын
+  /// тулд id-ээр амьд жагсаалтаас дахин олно (олдохгүй бол хуучин утгаараа).
+  Vehicle get _liveSelectedVehicle {
+    final id = _selectedVehicle?.id;
+    if (id == null) return _selectedVehicle!;
+    return vehiclesController.state.vehicles.firstWhere(
+      (v) => v.id == id,
+      orElse: () => _selectedVehicle!,
+    );
+  }
+
+  Future<void> _refreshSelectedVehicleFromHur() async {
+    final id = _selectedVehicle?.id;
+    if (id == null) return;
+    final error = await vehiclesController.refresh(id);
+    final context = navigatorKey?.currentContext;
+    final messenger = context == null ? null : ScaffoldMessenger.maybeOf(context);
+    if (error != null) {
+      messenger?.showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    messenger?.showSnackBar(
+      const SnackBar(content: Text('Машины мэдээлэл HUR-аас шинэчлэгдлээ.')),
+    );
   }
 
   List<Appointment> _appointmentsForVehicle(Vehicle vehicle) {

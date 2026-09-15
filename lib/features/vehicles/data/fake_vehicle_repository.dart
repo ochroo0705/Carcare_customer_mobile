@@ -97,4 +97,15 @@ class FakeVehicleRepository implements VehicleRepository {
       purpose: 'Суудал',
     );
   }
+
+  @override
+  Future<Vehicle> refreshFromHur(String id) async {
+    final index = _vehicles.indexWhere((vehicle) => vehicle.id == id);
+    if (index == -1) throw const NotFoundFailure();
+    // Fake refresh — reasserts the same fields (no real HUR to hit in tests),
+    // just enough for screens to exercise the loading/success round trip.
+    final refreshed = _vehicles[index];
+    _vehicles[index] = refreshed;
+    return refreshed;
+  }
 }

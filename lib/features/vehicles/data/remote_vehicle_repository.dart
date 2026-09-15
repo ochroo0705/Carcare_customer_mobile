@@ -78,4 +78,14 @@ class RemoteVehicleRepository implements VehicleRepository {
     );
     return parseVehicleLookupJson(json);
   }
+
+  @override
+  Future<Vehicle> refreshFromHur(String id) async {
+    final json = await _client.postJson('/vehicles/$id/refresh-hur', const {});
+    final value = json['vehicle'];
+    if (value is! Map) {
+      throw const UnexpectedFailure('Тээврийн хэрэгслийн хариу буруу байна.');
+    }
+    return VehicleDto.fromJson(Map<String, dynamic>.from(value)).toDomain();
+  }
 }

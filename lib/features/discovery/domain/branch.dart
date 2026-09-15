@@ -11,6 +11,7 @@ class Branch {
     this.latitude,
     this.longitude,
     this.distanceKm,
+    this.serviceKeyIds = const [],
   });
   final String id;
   final String name;
@@ -22,6 +23,10 @@ class Branch {
   /// Distance from the user, in km — only present when the list was fetched with
   /// the "near me" filter (`GET /orgs?lat&lng`). `null` otherwise.
   final double? distanceKm;
+
+  /// `SystemServiceKey.id`s this branch's categories are linked to — powers
+  /// the cross-org "what do you need done?" picker (`?serviceKey=` filter).
+  final List<String> serviceKeyIds;
 
   /// City · district, omitting either part when the API left it blank
   /// (`Branch.city`/`district` are optional server-side). Empty when both
@@ -48,6 +53,7 @@ class OrganizationFilter {
     this.radiusKm,
     this.openNow = false,
     this.weekend = false,
+    this.serviceKey = '',
   });
 
   final String query;
@@ -61,10 +67,13 @@ class OrganizationFilter {
   final bool openNow;
   // Амралтын өдөр (Бямба/Ням) аль нэгэнд ажилладаг салбартай байгууллага.
   final bool weekend;
+  // "Ямар ажил хийлгэх гэж байна?" — SystemServiceKey.id-аар шүүнэ, аль ч
+  // байгууллагад хамаарахгүй (Booking tab-ийн cross-org picker).
+  final String serviceKey;
 
   bool get hasNearMe => lat != null && lng != null;
   bool get hasTextFilters => query.isNotEmpty || city.isNotEmpty || district.isNotEmpty;
-  bool get isActive => hasTextFilters || hasNearMe || openNow || weekend;
+  bool get isActive => hasTextFilters || hasNearMe || openNow || weekend || serviceKey.isNotEmpty;
 }
 
 /// Салбарт санал болгож буй үйлчилгээний ангилал (booking v2) — шийдэгдсэн
@@ -74,11 +83,16 @@ class BranchServiceCategory {
     required this.id,
     required this.name,
     required this.durationMinutes,
+    required this.systemServiceKeyId,
   });
 
   final String id;
   final String name;
   final int durationMinutes;
+  // Cross-org "what job do you need done?" key this category maps to — lets
+  // a locked, category-first booking flow (from the Booking tab's multi-key
+  // picker) resolve which of a branch's categories to preselect.
+  final String systemServiceKeyId;
 }
 
 class BranchScheduleRule {
@@ -232,8 +246,17 @@ class BranchDetail {
   // summed duration, with real booked/available state). See BookingRequestScreen.
 
   BranchOpenStatus openStatusAt(DateTime now) {
-    final effective = effectiveScheduleAt(now);
-    if (!effective.isOpen) return BranchOpenStatus.closed;
+    final detail = effectiveScheduleDetailAt(now);
+    final effective = detail.rule;
+    // The "fallback" source means no exception/season/weekday rule matched
+    // at all — `isOpen: false` there just reflects missing data (no branch
+    // -level hours either), not an explicit "closed" answer. Don't conflate
+    // the two: report unknown instead of a false "closed".
+    if (!effective.isOpen) {
+      return detail.source == BranchScheduleSource.fallback
+          ? BranchOpenStatus.unknown
+          : BranchOpenStatus.closed;
+    }
     final opening = _parseClock(effective.openTime);
     final closing = _parseClock(effective.closeTime);
     if (opening == null || closing == null || opening == closing) {

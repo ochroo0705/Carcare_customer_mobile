@@ -532,6 +532,17 @@ class _ServerFilterChips extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
+        if (controller.serviceKey.isNotEmpty)
+          InputChip(
+            key: const ValueKey('discovery-service-key-chip'),
+            label: Text(
+              controller.serviceKeyName.isEmpty
+                  ? 'Сонгосон ажил'
+                  : controller.serviceKeyName,
+            ),
+            avatar: const Icon(Icons.build_outlined, size: 18),
+            onDeleted: () => controller.setServiceKey(''),
+          ),
         FilterChip(
           label: const Text('Ойролцоо'),
           avatar: _chipAvatar(

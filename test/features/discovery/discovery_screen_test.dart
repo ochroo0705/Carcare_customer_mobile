@@ -162,7 +162,7 @@ void main() {
     expect(branchCard, findsOneWidget);
   });
 
-  testWidgets('shows branches and opens a view-only detail page', (
+  testWidgets('shows branches and opens a branch detail page with booking', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -186,9 +186,9 @@ void main() {
     await tester.tap(sbdBranch);
     await tester.pumpAndSettle();
 
-    // Explore is view-only now — no booking entry point on this page, and
-    // only the tapped branch's own info renders (not its sibling branch).
-    expect(find.text('Цаг захиалах'), findsNothing);
+    // Only the tapped branch's own info renders (not its sibling branch),
+    // and the booking CTA is present (global service-key block resolved).
+    expect(find.text('Цаг захиалах'), findsOneWidget);
     expect(find.text('Сүхбаатар салбар'), findsOneWidget);
     expect(find.text('Баянзүрх салбар'), findsNothing);
     expect(find.text('1-р хороо, Олимпын гудамж 9'), findsOneWidget);

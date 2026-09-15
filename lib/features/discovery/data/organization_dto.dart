@@ -3,6 +3,18 @@ import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 
+List<ServiceKey> serviceKeysFromJson(Map<String, dynamic> json) {
+  final items = json['serviceKeys'];
+  if (items is! List) throw const UnexpectedFailure('API жагсаалт буруу байна.');
+  return items
+      .whereType<Map>()
+      .map((item) {
+        final map = Map<String, dynamic>.from(item);
+        return ServiceKey(id: _requiredString(map, 'id'), name: _requiredString(map, 'name'));
+      })
+      .toList(growable: false);
+}
+
 OrganizationPage organizationPageFromJson(Map<String, dynamic> json) {
   final items = json['orgs'];
   if (items is! List) throw const UnexpectedFailure('API жагсаалт буруу байна.');
@@ -55,6 +67,7 @@ OrganizationMapPage organizationMapPageFromJson(Map<String, dynamic> json) {
             latitude: _requiredDouble(Map<String, dynamic>.from(item), 'latitude'),
             longitude: _requiredDouble(Map<String, dynamic>.from(item), 'longitude'),
             distanceKm: _optionalDouble(item['distanceKm']),
+            serviceKeyIds: _stringList(item['serviceKeyIds']),
           ))
       .toList(growable: false);
   return OrganizationMapPage(
@@ -129,6 +142,7 @@ class BranchSummaryDto {
     this.latitude,
     this.longitude,
     this.distanceKm,
+    this.serviceKeyIds = const [],
   });
 
   factory BranchSummaryDto.fromJson(Map<String, dynamic> json) =>
@@ -140,6 +154,7 @@ class BranchSummaryDto {
         latitude: _optionalDouble(json['latitude']),
         longitude: _optionalDouble(json['longitude']),
         distanceKm: _optionalDouble(json['distanceKm']),
+        serviceKeyIds: _stringList(json['serviceKeyIds']),
       );
 
   final String id;
@@ -149,6 +164,7 @@ class BranchSummaryDto {
   final double? latitude;
   final double? longitude;
   final double? distanceKm;
+  final List<String> serviceKeyIds;
 
   Branch toDomain() => Branch(
     id: id,
@@ -158,6 +174,7 @@ class BranchSummaryDto {
     latitude: latitude,
     longitude: longitude,
     distanceKm: distanceKm,
+    serviceKeyIds: serviceKeyIds,
   );
 }
 
@@ -301,6 +318,7 @@ BranchServiceCategory _categoryFromJson(Map<String, dynamic> json) {
     id: _requiredString(json, 'id'),
     name: _requiredString(json, 'name'),
     durationMinutes: duration is num ? duration.toInt() : 30,
+    systemServiceKeyId: _requiredString(json, 'systemServiceKeyId'),
   );
 }
 

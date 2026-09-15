@@ -38,6 +38,10 @@ class FakeOrganizationRepository implements OrganizationRepository {
       final branches = organization.branches.where((branch) {
         if (current.city.isNotEmpty && branch.city != current.city) return false;
         if (current.district.isNotEmpty && branch.district != current.district) return false;
+        if (current.serviceKey.isNotEmpty &&
+            !branch.serviceKeyIds.contains(current.serviceKey)) {
+          return false;
+        }
         if (query.isEmpty || orgMatches) return true;
         return [branch.name, branch.city, branch.district]
             .any((value) => value.toLowerCase().contains(query));
@@ -90,6 +94,7 @@ class FakeOrganizationRepository implements OrganizationRepository {
         radiusKm: current.radiusKm,
         openNow: current.openNow,
         weekend: current.weekend,
+        serviceKey: current.serviceKey,
       ),
     );
     final markers = <OrganizationMapMarker>[];
@@ -115,6 +120,7 @@ class FakeOrganizationRepository implements OrganizationRepository {
           latitude: lat,
           longitude: lng,
           distanceKm: branch.distanceKm,
+          serviceKeyIds: branch.serviceKeyIds,
         ));
       }
     }
@@ -137,6 +143,19 @@ class FakeOrganizationRepository implements OrganizationRepository {
     }
     throw const NotFoundFailure('Байгууллага олдсонгүй.');
   }
+
+  @override
+  Future<List<ServiceKey>> getServiceKeys() async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (scenario == FakeOrganizationScenario.error) {
+      throw const ServerFailure('Ажлын төрлүүдийг ачаалж чадсангүй.');
+    }
+    return const [
+      ServiceKey(id: 'oil-change', name: 'Моторын тос солих'),
+      ServiceKey(id: 'tire-service', name: 'Дугуйны үйлчилгээ'),
+      ServiceKey(id: 'car-wash', name: 'Угаалга'),
+    ];
+  }
 }
 
 const _organizations = <Organization>[
@@ -151,12 +170,14 @@ const _organizations = <Organization>[
         district: 'Баянзүрх',
         latitude: 47.9187,
         longitude: 106.9684,
+        serviceKeyIds: ['oil-change', 'car-wash'],
       ),
       Branch(
         id: 'auto-doctor-sbd',
         name: 'Сүхбаатар салбар',
         city: 'Улаанбаатар',
         district: 'Сүхбаатар',
+        serviceKeyIds: ['car-wash'],
       ),
     ],
   ),
@@ -171,6 +192,7 @@ const _organizations = <Organization>[
         district: 'Хан-Уул',
         latitude: 47.8581,
         longitude: 106.7869,
+        serviceKeyIds: ['tire-service'],
       ),
     ],
   ),
@@ -207,6 +229,23 @@ const _organizationDetails = <OrganizationDetail>[
         closeTime: '19:00',
         latitude: 47.9187,
         longitude: 106.9684,
+        // Cross-org "юу хийлгэх гэж байна?" урсгалыг (Booking tab) туршихад
+        // зориулж — жагсаалт түвшний `serviceKeyIds: ['oil-change',
+        // 'car-wash']`-тэй нийцүүлсэн.
+        categories: [
+          BranchServiceCategory(
+            id: 'auto-doctor-bzd-oil-change',
+            name: 'Тос солих',
+            durationMinutes: 45,
+            systemServiceKeyId: 'oil-change',
+          ),
+          BranchServiceCategory(
+            id: 'auto-doctor-bzd-car-wash',
+            name: 'Угаалга',
+            durationMinutes: 60,
+            systemServiceKeyId: 'car-wash',
+          ),
+        ],
       ),
       BranchDetail(
         id: 'auto-doctor-sbd',

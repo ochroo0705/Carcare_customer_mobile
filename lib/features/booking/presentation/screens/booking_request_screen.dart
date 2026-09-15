@@ -23,6 +23,8 @@ class BookingRequestScreen extends StatefulWidget {
     required this.onBack,
     required this.onCompleted,
     required this.onUnauthenticated,
+    this.initialCategoryIds,
+    this.lockCategories = false,
     super.key,
   });
 
@@ -33,6 +35,14 @@ class BookingRequestScreen extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<CreatedAppointment> onCompleted;
   final VoidCallback onUnauthenticated;
+  /// Cross-org "юу хийлгэх гэж байна?" пикерээс (Booking tab) аль хэдийн
+  /// сонгогдсон ангилалуудын id — зөвхөн [lockCategories] үнэн үед хэрэглэгдэнэ.
+  final List<String>? initialCategoryIds;
+  /// Ангилалыг Booking tab-ийн пикер дээр аль хэдийн сонгосон тул энд дахин
+  /// сонгуулахгүй (зөвхөн товч тоймоор харуулна), мөн [initialBranchId]-аас
+  /// өөр салбар руу сольж болохгүй (тухайн салбар л сонгосон бүх ажлыг санал
+  /// болгодог гэдгийг үр дүнгийн жагсаалт дээр аль хэдийн баталгаажуулсан).
+  final bool lockCategories;
 
   @override
   State<BookingRequestScreen> createState() => _BookingRequestScreenState();
@@ -198,6 +208,9 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
         (widget.organization.branches.length == 1
             ? widget.organization.branches.single
             : null);
+    if (widget.lockCategories) {
+      _selectedCategoryIds.addAll(widget.initialCategoryIds ?? const []);
+    }
     final now = DateTime.now();
     _displayedMonth = DateTime(now.year, now.month);
     _vehiclesController = context.read<VehiclesController>();
@@ -253,7 +266,40 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
               selectedBranch: _selectedBranch,
               categoryCount: _allCategories.length,
             ),
-            if (_allCategories.isNotEmpty) ...[
+            if (widget.lockCategories) ...[
+              if (_selectedCategoryIds.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                GlassSurface(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Үйлчилгээ',
+                        style: Theme.of(context).textTheme.titleSmall
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final category in _allCategories)
+                            if (_selectedCategoryIds.contains(category.id))
+                              Chip(label: Text(category.name)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Нийт ойролцоогоор $_selectedDurationMinutes мин',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ] else if (_allCategories.isNotEmpty) ...[
               const SizedBox(height: 16),
               GlassSurface(
                 child: Column(
@@ -303,7 +349,10 @@ class _BookingRequestScreenState extends State<BookingRequestScreen> {
             // Харин байгууллагад ангилал огт байхгүй бол (сонгох зүйл алга)
             // энэ дүрэм хэрэглэгдэхгүй — эс бөгөөс салбар сонгох боломж
             // мөнхөд алга болно (сонгох ганц ч категори байхгүй тул).
-            if (widget.organization.branches.length > 1 &&
+            // `lockCategories` үед салбар аль хэдийн cross-org үр дүнгийн
+            // жагсаалт дээр баталгаажсан тул энэ хэсгийг огт харуулахгүй.
+            if (!widget.lockCategories &&
+                widget.organization.branches.length > 1 &&
                 (_allCategories.isEmpty ||
                     _selectedCategoryIds.isNotEmpty)) ...[
               const SizedBox(height: 16),

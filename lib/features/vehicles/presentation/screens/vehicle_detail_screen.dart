@@ -17,6 +17,8 @@ class VehicleDetailScreen extends StatelessWidget {
     this.orders = const [],
     this.ordersLoading = false,
     this.onOrderSelected,
+    this.onRefreshHur,
+    this.refreshingHur = false,
     super.key,
   });
 
@@ -28,6 +30,8 @@ class VehicleDetailScreen extends StatelessWidget {
   final List<ServiceOrder> orders;
   final bool ordersLoading;
   final ValueChanged<String>? onOrderSelected;
+  final VoidCallback? onRefreshHur;
+  final bool refreshingHur;
 
   @override
   Widget build(BuildContext context) {
@@ -46,6 +50,21 @@ class VehicleDetailScreen extends StatelessWidget {
       appBar: AppBar(
         leading: BackButton(onPressed: onBack),
         title: const Text('Машины дэлгэрэнгүй'),
+        actions: [
+          if (onRefreshHur != null)
+            IconButton(
+              key: const ValueKey('vehicle-refresh-hur'),
+              tooltip: 'HUR-аас шинэчлэх',
+              onPressed: refreshingHur ? null : onRefreshHur,
+              icon: refreshingHur
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh_rounded),
+            ),
+        ],
       ),
       body: AppShellBackground(
         child: SafeArea(

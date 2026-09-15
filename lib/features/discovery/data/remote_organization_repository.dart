@@ -37,6 +37,7 @@ class RemoteOrganizationRepository implements OrganizationRepository {
     }
     if (current.openNow) query['openNow'] = '1';
     if (current.weekend) query['weekend'] = '1';
+    if (current.serviceKey.isNotEmpty) query['serviceKey'] = current.serviceKey;
     final path = '/orgs?${Uri(queryParameters: query).query}';
     final json = await _client.getJson(path);
     return organizationPageFromJson(json);
@@ -64,6 +65,7 @@ class RemoteOrganizationRepository implements OrganizationRepository {
     }
     if (current.openNow) query['openNow'] = '1';
     if (current.weekend) query['weekend'] = '1';
+    if (current.serviceKey.isNotEmpty) query['serviceKey'] = current.serviceKey;
     final json = await _client.getJson(
       '/orgs/map?${Uri(queryParameters: query).query}',
     );
@@ -82,5 +84,17 @@ class RemoteOrganizationRepository implements OrganizationRepository {
     ).toDomain();
     _detailCache[slug] = detail;
     return detail;
+  }
+
+  List<ServiceKey>? _serviceKeysCache;
+
+  @override
+  Future<List<ServiceKey>> getServiceKeys() async {
+    final cached = _serviceKeysCache;
+    if (cached != null) return cached;
+    final json = await _client.getJson('/service-keys');
+    final keys = serviceKeysFromJson(json);
+    _serviceKeysCache = keys;
+    return keys;
   }
 }

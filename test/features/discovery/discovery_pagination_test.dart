@@ -72,6 +72,9 @@ class _ScriptedRepository implements OrganizationRepository {
   @override
   Future<OrganizationDetail> getOrganization(String slug) =>
       throw UnimplementedError();
+
+  @override
+  Future<List<ServiceKey>> getServiceKeys() async => const [];
 }
 
 void main() {

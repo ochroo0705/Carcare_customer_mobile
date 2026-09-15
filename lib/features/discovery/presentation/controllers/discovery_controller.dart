@@ -101,6 +101,12 @@ class DiscoveryController extends ChangeNotifier {
   String _query = '';
   String _city = '';
   String _district = '';
+  // Cross-org "юу хийлгэх гэж байна?" сонголт (Booking tab-ийн service-key
+  // picker-ээс ирнэ) — SystemServiceKey.id-аар шүүнэ. Нэрийг тусад нь
+  // хадгалсан нь тухайн дэлгэц дахин серверээс жагсаалт татахгүйгээр active
+  // filter chip дээр харуулахын тулд (id өөрөө хэрэглэгчид утгагүй).
+  String _serviceKey = '';
+  String _serviceKeyName = '';
   // Booking v2 серверийн шүүлт. Зай/эрэмбийн логик backend дээр — "ойролцоо"
   // асаахад координатыг серверт дамжуулж, салбар БҮРД distanceKm ирж, ойроор
   // эрэмбэлэгдэнэ (radius дамжуулахгүй тул юу ч хасахгүй). "Одоо нээлттэй" мөн
@@ -135,6 +141,8 @@ class DiscoveryController extends ChangeNotifier {
   String get query => _query;
   String get city => _city;
   String get district => _district;
+  String get serviceKey => _serviceKey;
+  String get serviceKeyName => _serviceKeyName;
   bool get nearMe => _nearMe;
   bool get openNow => _openNow;
   bool get weekend => _weekend;
@@ -166,7 +174,8 @@ class DiscoveryController extends ChangeNotifier {
       _district.isNotEmpty ||
       _nearMe ||
       _openNow ||
-      _weekend;
+      _weekend ||
+      _serviceKey.isNotEmpty;
 
   OrganizationFilter? get _serverFilter {
     // radius дамжуулахгүй — сервер бүх салбарт зай онооно, ойроор эрэмбэлнэ.
@@ -176,10 +185,15 @@ class DiscoveryController extends ChangeNotifier {
         lng: _lng,
         openNow: _openNow,
         weekend: _weekend,
+        serviceKey: _serviceKey,
       );
     }
-    if (_openNow || _weekend) {
-      return OrganizationFilter(openNow: _openNow, weekend: _weekend);
+    if (_openNow || _weekend || _serviceKey.isNotEmpty) {
+      return OrganizationFilter(
+        openNow: _openNow,
+        weekend: _weekend,
+        serviceKey: _serviceKey,
+      );
     }
     return null;
   }
@@ -310,6 +324,19 @@ class DiscoveryController extends ChangeNotifier {
     return true;
   }
 
+  /// Sets (or clears, with an empty [id]) the cross-org service-key filter
+  /// — used by the Booking tab's picker to hand off into a pre-filtered
+  /// Discovery. [name] is the display label only, not sent to the server.
+  Future<void> setServiceKey(String id, {String name = ''}) async {
+    if (_serviceKey == id) return;
+    _serviceKey = id;
+    _serviceKeyName = id.isEmpty ? '' : name;
+    _invalidateMapForFilterChange();
+    _invalidateCurrentResults();
+    notifyListeners();
+    await load();
+  }
+
   void clearFilters() {
     if (!hasActiveFilters) return;
     _query = '';
@@ -318,6 +345,8 @@ class DiscoveryController extends ChangeNotifier {
     _nearMe = false;
     _openNow = false;
     _weekend = false;
+    _serviceKey = '';
+    _serviceKeyName = '';
     _lat = null;
     _lng = null;
     _invalidateMapForFilterChange();
@@ -371,6 +400,7 @@ class DiscoveryController extends ChangeNotifier {
           !filter.hasNearMe &&
           !filter.openNow &&
           !filter.weekend &&
+          filter.serviceKey.isEmpty &&
           filter.page == 1) {
         await _cache.writeOrganizations(organizations);
         _lastUnfiltered = organizations;
@@ -492,6 +522,7 @@ class DiscoveryController extends ChangeNotifier {
         filter.radiusKm == null ? '' : filter.radiusKm,
         filter.openNow,
         filter.weekend,
+        filter.serviceKey,
       ].join('|');
 
   void _invalidateMapForFilterChange() {
@@ -531,6 +562,7 @@ class DiscoveryController extends ChangeNotifier {
       radiusKm: base?.radiusKm,
       openNow: _openNow,
       weekend: _weekend,
+      serviceKey: _serviceKey,
     );
   }
 

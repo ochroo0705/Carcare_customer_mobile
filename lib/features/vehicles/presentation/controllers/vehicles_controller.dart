@@ -12,10 +12,13 @@ class VehiclesController extends ChangeNotifier {
   final CacheStore _cache;
   VehiclesState _state = const VehiclesState();
   final Set<String> _deletingIds = {};
+  final Set<String> _refreshingIds = {};
 
   VehiclesState get state => _state;
 
   bool isDeleting(String id) => _deletingIds.contains(id);
+
+  bool isRefreshing(String id) => _refreshingIds.contains(id);
 
   Future<void> load() async {
     _state = VehiclesState(
@@ -80,6 +83,34 @@ class VehiclesController extends ChangeNotifier {
       return 'Тодорхойгүй алдаа гарлаа.';
     } finally {
       _deletingIds.remove(id);
+      notifyListeners();
+    }
+  }
+
+  /// Машины дэлгэрэнгүй дэлгэцээс гар аргаар HUR-аас дахин татна — амжилттай
+  /// бол `_state.vehicles` доторх тухайн машиныг шинэ утгаар СОЛИНО (жагсаалт
+  /// дахин ачаалахгүй), алдаатай бол мессежийг буцаана.
+  Future<String?> refresh(String id) async {
+    if (_refreshingIds.contains(id)) return null;
+    _refreshingIds.add(id);
+    notifyListeners();
+    try {
+      final updated = await _repository.refreshFromHur(id);
+      _state = VehiclesState(
+        status: _state.status,
+        vehicles: [
+          for (final v in _state.vehicles) if (v.id == id) updated else v,
+        ],
+        isFromCache: _state.isFromCache,
+      );
+      await _cache.writeVehicles(_state.vehicles);
+      return null;
+    } on AppFailure catch (failure) {
+      return failure.message;
+    } catch (_) {
+      return 'Тодорхойгүй алдаа гарлаа.';
+    } finally {
+      _refreshingIds.remove(id);
       notifyListeners();
     }
   }

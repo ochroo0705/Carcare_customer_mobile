@@ -10,6 +10,17 @@ abstract interface class OrganizationRepository {
     OrganizationFilter? filter,
   });
   Future<OrganizationDetail> getOrganization(String slug);
+
+  /// Active `SystemServiceKey`s — the platform-wide "what do you need done?"
+  /// options for the cross-org Booking tab picker (`OrganizationFilter.serviceKey`).
+  Future<List<ServiceKey>> getServiceKeys();
+}
+
+class ServiceKey {
+  const ServiceKey({required this.id, required this.name});
+
+  final String id;
+  final String name;
 }
 
 class MapViewport {
@@ -38,6 +49,7 @@ class OrganizationMapMarker {
     this.city,
     this.district,
     this.distanceKm,
+    this.serviceKeyIds = const [],
   });
 
   final String id;
@@ -50,6 +62,7 @@ class OrganizationMapMarker {
   final double latitude;
   final double longitude;
   final double? distanceKm;
+  final List<String> serviceKeyIds;
 
   Organization toOrganization() => Organization(
     slug: orgSlug,
@@ -64,6 +77,7 @@ class OrganizationMapMarker {
         latitude: latitude,
         longitude: longitude,
         distanceKm: distanceKm,
+        serviceKeyIds: serviceKeyIds,
       ),
     ],
   );
