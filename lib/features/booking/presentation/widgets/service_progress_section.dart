@@ -4,14 +4,23 @@ import 'package:carcare_customer_mobile/features/booking/domain/service_progress
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart'
     show ServiceOrderItemKind, ServiceOrderItemKindUi;
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/widgets/diagnostic_report_row.dart';
 import 'package:flutter/material.dart';
 
 /// Customer-facing read-only view of the repair progress created from an
 /// appointment. Payment status stays in its own section on the detail page.
 class ServiceProgressSection extends StatelessWidget {
-  const ServiceProgressSection({required this.progress, super.key});
+  const ServiceProgressSection({
+    required this.progress,
+    this.onReportSelected,
+    super.key,
+  });
 
   final AppointmentServiceProgress progress;
+  // Ажил дуусахаас өмнө ч (жиш: захиалга гараад дараа нь оношилгоо хийгдвэл)
+  // тайлан бэлэн болмогц энд харагдана — `service_order_detail_screen.dart`-
+  // тай ижил зарчим, зөвхөн дууссан захиалгаар хязгаарлахгүй.
+  final ValueChanged<String>? onReportSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -110,6 +119,24 @@ class ServiceProgressSection extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             _StatusHistoryList(entries: progress.statusHistory),
+          ],
+          if (progress.reports.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 10),
+            Text(
+              'Оношилгооны тайлан',
+              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 8),
+            for (final report in progress.reports)
+              DiagnosticReportRow(
+                key: ValueKey('appointment-progress-report-${report.id}'),
+                report: report,
+                onTap: onReportSelected == null
+                    ? null
+                    : () => onReportSelected!(report.id),
+              ),
           ],
         ],
       ),

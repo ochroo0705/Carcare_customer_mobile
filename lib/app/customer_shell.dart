@@ -2,6 +2,7 @@ import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,14 +13,12 @@ class CustomerShell extends StatefulWidget {
     required this.destinations,
     required this.onLoginRequested,
     required this.onNotificationsRequested,
-    required this.onOpenMap,
     super.key,
   });
 
   final List<Widget> destinations;
   final VoidCallback onLoginRequested;
   final VoidCallback onNotificationsRequested;
-  final VoidCallback onOpenMap;
 
   @override
   State<CustomerShell> createState() => CustomerShellState();
@@ -65,6 +64,8 @@ class CustomerShellState extends State<CustomerShell>
     final account = context.select<AuthController, Account?>((c) => c.account);
     final unreadNotificationCount = context
         .select<NotificationsController, int>((c) => c.unreadCount);
+    final discoveryMapView = context
+        .select<DiscoveryController, bool>((c) => c.mapView);
     return LayoutBuilder(
       builder: (context, constraints) {
         final useRail = constraints.maxWidth >= 720;
@@ -75,33 +76,42 @@ class CustomerShellState extends State<CustomerShell>
             children: widget.destinations,
           ),
         );
+        // Map mode wants the whole screen (search/filters/notifications/
+        // list-toggle/zoom/locate-me all float on top of the map itself —
+        // see DiscoveryScreen), so the shell's own AppBar (and its FAB,
+        // below) step aside for it entirely rather than eating space above
+        // the map.
+        final isDiscoveryMap =
+            _selectedIndex == _discoveryIndex && discoveryMapView;
         return Scaffold(
-          appBar: AppBar(
-            title: const CarCareBrand(compact: true),
-            actions: [
-              _ThemeModeMenu(controller: themeController),
-              if (account != null)
-                _NotificationBell(
-                  unreadCount: unreadNotificationCount,
-                  onTap: widget.onNotificationsRequested,
+          appBar: isDiscoveryMap
+              ? null
+              : AppBar(
+                  title: const CarCareBrand(compact: true),
+                  actions: [
+                    _ThemeModeMenu(controller: themeController),
+                    if (account != null)
+                      _NotificationBell(
+                        unreadCount: unreadNotificationCount,
+                        onTap: widget.onNotificationsRequested,
+                      ),
+                    if (account case final account?)
+                      _AvatarButton(
+                        account: account,
+                        onTap: () => _selectDestination(_profileIndex),
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: TextButton.icon(
+                          key: const ValueKey('shell-login'),
+                          onPressed: widget.onLoginRequested,
+                          icon: const Icon(Icons.person_outline, size: 19),
+                          label: const Text('Нэвтрэх'),
+                        ),
+                      ),
+                  ],
                 ),
-              if (account case final account?)
-                _AvatarButton(
-                  account: account,
-                  onTap: () => _selectDestination(_profileIndex),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: TextButton.icon(
-                    key: const ValueKey('shell-login'),
-                    onPressed: widget.onLoginRequested,
-                    icon: const Icon(Icons.person_outline, size: 19),
-                    label: const Text('Нэвтрэх'),
-                  ),
-                ),
-            ],
-          ),
           body: useRail
               ? Row(
                   children: [
@@ -142,9 +152,9 @@ class CustomerShellState extends State<CustomerShell>
                   ],
                 )
               : content,
-          floatingActionButton: _selectedIndex == _discoveryIndex
+          floatingActionButton: (_selectedIndex == _discoveryIndex && !isDiscoveryMap)
               ? FloatingActionButton.extended(
-                  key: const ValueKey('discovery-open-map'),
+                  key: const ValueKey('discovery-toggle-view'),
                   // This FAB never needs to Hero-fly anywhere, but the
                   // shell (and its FAB) stays mounted underneath pushed
                   // routes (login, org detail, ...); Scaffold's default FAB
@@ -152,9 +162,15 @@ class CustomerShellState extends State<CustomerShell>
                   // the old/new widget tree ("multiple heroes share the same
                   // tag"). Disable the hero entirely to sidestep that.
                   heroTag: null,
-                  onPressed: widget.onOpenMap,
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('Газрын зураг'),
+                  onPressed: () => context
+                      .read<DiscoveryController>()
+                      .setMapView(!discoveryMapView),
+                  icon: Icon(
+                    discoveryMapView
+                        ? Icons.view_list_outlined
+                        : Icons.map_outlined,
+                  ),
+                  label: Text(discoveryMapView ? 'Жагсаалт' : 'Газрын зураг'),
                 )
               : null,
           bottomNavigationBar: useRail

@@ -3,6 +3,7 @@ import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
+import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:flutter/foundation.dart';
@@ -16,15 +17,81 @@ class AppointmentsController extends ChangeNotifier {
   AppointmentsState _state = const AppointmentsState();
   final Set<String> _cancellingIds = {};
 
+  String _searchQuery = '';
+  // Selected status label (`AppointmentStatusUi.localizedLabel` /
+  // `ServiceProgressStatusUi.localizedLabel`) — kept as a display-label
+  // rather than a typed enum so both tabs' filter share one shape. `null`
+  // means "all statuses". Single-select: choosing a new label replaces the
+  // previous one.
+  String? _selectedAppointmentStatus;
+  String? _selectedWalkInStatus;
+
   AppointmentsState get state => _state;
+
+  String get searchQuery => _searchQuery;
+  String? get selectedAppointmentStatus => _selectedAppointmentStatus;
+  String? get selectedWalkInStatus => _selectedWalkInStatus;
 
   bool isCancelling(String id) => _cancellingIds.contains(id);
 
+  void setSearchQuery(String query) {
+    if (_searchQuery == query) return;
+    _searchQuery = query;
+    notifyListeners();
+  }
+
+  /// Selecting the already-selected label clears the filter (tap again to
+  /// reset to "all").
+  void selectAppointmentStatus(String? label) {
+    _selectedAppointmentStatus = _selectedAppointmentStatus == label
+        ? null
+        : label;
+    notifyListeners();
+  }
+
+  void selectWalkInStatus(String? label) {
+    _selectedWalkInStatus = _selectedWalkInStatus == label ? null : label;
+    notifyListeners();
+  }
+
+  /// The status a card actually displays (serviceProgress status once a
+  /// linked order exists, otherwise the appointment's own workflow status) —
+  /// matches `_AppointmentCard`'s chip logic so the filter matches what the
+  /// user sees.
+  String _appointmentDisplayStatus(Appointment appointment) =>
+      appointment.serviceProgress?.status.localizedLabel ??
+      appointment.status.localizedLabel;
+
+  /// Distinct status labels available to filter by, computed from the
+  /// currently loaded (not yet status-filtered) list so chips don't disappear
+  /// once selected.
+  List<String> get availableAppointmentStatuses => {
+    for (final appointment in _state.appointments)
+      _appointmentDisplayStatus(appointment),
+  }.toList(growable: false);
+
+  List<String> get availableWalkInStatuses => {
+    for (final order in _state.walkInOrders) order.progress.status.localizedLabel,
+  }.toList(growable: false);
+
+  bool _matchesSearch(String haystack) {
+    final query = _searchQuery.trim().toLowerCase();
+    return query.isEmpty || haystack.toLowerCase().contains(query);
+  }
+
   /// `sortedAppointments`-той ижил "бүрэн дуусаад бүрэн төлөгдсөн" хамгаалалт
-  /// (харах: тэдгээрийн доод коммент) — walk-in захиалгад ч мөн адил
-  /// хэрэглэнэ.
+  /// (харах: түүний доод коммент) — walk-in захиалгад ч мөн адил хэрэглэнэ.
+  /// Мөн ижил хайлт/төлвийн шүүлтүүрийг хэрэглэнэ.
   List<WalkInOrder> get visibleWalkInOrders => _state.walkInOrders
       .where((order) => !order.progress.isSettled)
+      .where(
+        (order) => _matchesSearch('${order.tenantName} ${order.branchName}'),
+      )
+      .where(
+        (order) =>
+            _selectedWalkInStatus == null ||
+            order.progress.status.localizedLabel == _selectedWalkInStatus,
+      )
       .toList(growable: false);
 
   /// Active хүсэлтүүдийг ойрын цагаар нь, эцсийн төлөвүүдийг сүүлийн өөрчлөлт
@@ -33,10 +100,22 @@ class AppointmentsController extends ChangeNotifier {
   /// (server /api/v1/app/appointments аль хэдийн шүүсэн байх ёстой; энэ нь
   /// зөвхөн кэшлэгдсэн хуучин датаны хамгаалалт). Repository-ийн буцаасан
   /// list нь unmodifiable байж болох тул энд заавал хуулж байж sort хийнэ.
+  /// Хайлт/төлвийн шүүлтүүр (search bar, status chips) мөн энд хэрэгжинэ.
   List<Appointment> get sortedAppointments {
-    final visible = _state.appointments.where(
-      (appointment) => appointment.serviceProgress?.isSettled != true,
-    );
+    final visible = _state.appointments
+        .where((appointment) => appointment.serviceProgress?.isSettled != true)
+        .where(
+          (appointment) => _matchesSearch(
+            '${appointment.tenantName} ${appointment.branchName} '
+            '${appointment.vehiclePlate ?? ''}',
+          ),
+        )
+        .where(
+          (appointment) =>
+              _selectedAppointmentStatus == null ||
+              _appointmentDisplayStatus(appointment) ==
+                  _selectedAppointmentStatus,
+        );
     final active =
         visible.where((appointment) => appointment.status.isActive).toList()
           ..sort((a, b) => a.requestedAt.compareTo(b.requestedAt));
@@ -88,6 +167,9 @@ class AppointmentsController extends ChangeNotifier {
   Future<void> reset() async {
     _state = const AppointmentsState();
     _cancellingIds.clear();
+    _searchQuery = '';
+    _selectedAppointmentStatus = null;
+    _selectedWalkInStatus = null;
     notifyListeners();
     await _cache.clearAppointments();
   }

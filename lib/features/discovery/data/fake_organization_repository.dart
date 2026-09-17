@@ -156,6 +156,18 @@ class FakeOrganizationRepository implements OrganizationRepository {
       ServiceKey(id: 'car-wash', name: 'Угаалга'),
     ];
   }
+
+  @override
+  Future<List<BranchTagOption>> getBranchTags() async {
+    if (delay > Duration.zero) await Future<void>.delayed(delay);
+    if (scenario == FakeOrganizationScenario.error) {
+      throw const ServerFailure('Шошгыг ачаалж чадсангүй.');
+    }
+    return const [
+      BranchTagOption(id: 'car-wash-tag', name: 'Угаалгын газар'),
+      BranchTagOption(id: 'tire-shop-tag', name: 'Дугуй засвар'),
+    ];
+  }
 }
 
 const _organizations = <Organization>[

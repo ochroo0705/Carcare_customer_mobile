@@ -9,6 +9,7 @@ import 'package:carcare_customer_mobile/features/discovery/domain/organization.d
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/map_location_limiter.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/location_permission_banner.dart';
+import 'package:carcare_customer_mobile/features/discovery/services/device_location_service.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/map_configuration_service.dart';
 import 'package:flutter/foundation.dart';
@@ -26,10 +27,12 @@ class DiscoveryMap extends StatefulWidget {
     required this.onShowList,
     required this.organizationDetailController,
     this.onViewportChanged,
+    this.refitSignal,
     this.height = 430,
     this.locationPermissionService =
         const PermissionHandlerLocationPermissionService(),
     this.mapConfigurationService = const NativeMapConfigurationService(),
+    this.deviceLocationService = const GeolocatorDeviceLocationService(),
     super.key,
   });
 
@@ -43,15 +46,25 @@ class DiscoveryMap extends StatefulWidget {
   // ачаална — жагсаалтын `Organization`/`Branch`-д эдгээр талбар алга.
   final OrganizationDetailController organizationDetailController;
   final ValueChanged<LatLngBounds>? onViewportChanged;
+  // Bumping this (e.g. DiscoveryController.mapRefitSignal) tells the map a
+  // search/filter change just produced new results, so it should recenter
+  // on them even though [onViewportChanged] otherwise disables auto-fit to
+  // avoid fighting the user's own panning/zooming.
+  final int? refitSignal;
   final double height;
   final LocationPermissionService locationPermissionService;
   final MapConfigurationService mapConfigurationService;
+  final DeviceLocationService deviceLocationService;
 
   @override
-  State<DiscoveryMap> createState() => _DiscoveryMapState();
+  State<DiscoveryMap> createState() => DiscoveryMapState();
 }
 
-class _DiscoveryMapState extends State<DiscoveryMap>
+/// Public so a parent screen can drive zoom/locate-me from its own custom
+/// buttons (e.g. a combined bottom-right control stack) via a `GlobalKey`,
+/// instead of Google Maps' own platform controls, which can't be
+/// repositioned or restyled.
+class DiscoveryMapState extends State<DiscoveryMap>
     with WidgetsBindingObserver {
   LocationAccessState? _locationAccessState;
   ({Organization organization, Branch branch})? _selected;
@@ -101,9 +114,17 @@ class _DiscoveryMapState extends State<DiscoveryMap>
   @override
   void didUpdateWidget(covariant DiscoveryMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Viewport-backed marker responses are incremental data updates. Fitting
-    // here would recenter the camera after every response and trigger another
-    // camera-idle request indefinitely.
+    if (widget.refitSignal != null && widget.refitSignal != oldWidget.refitSignal) {
+      _visibleBounds = null;
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _fitCameraToLocations(),
+      );
+      return;
+    }
+    // Viewport-backed marker responses are otherwise incremental data
+    // updates (plain panning/zooming). Fitting here would recenter the
+    // camera after every response and trigger another camera-idle request
+    // indefinitely.
     if (widget.onViewportChanged != null) return;
     if (oldWidget.hasActiveFilters == widget.hasActiveFilters &&
         _locationSignature(oldWidget.organizations) ==
@@ -202,6 +223,22 @@ class _DiscoveryMapState extends State<DiscoveryMap>
 
   Future<void> _openLocationSettings() async {
     await widget.locationPermissionService.openSettings();
+  }
+
+  void zoomIn() => _mapController?.animateCamera(CameraUpdate.zoomIn());
+
+  void zoomOut() => _mapController?.animateCamera(CameraUpdate.zoomOut());
+
+  /// Stand-in for Google Maps' own locate-me button, which (like the zoom
+  /// control) is pinned by the platform and can't be moved or restyled.
+  Future<void> locateMe() async {
+    final controller = _mapController;
+    if (controller == null) return;
+    final location = await widget.deviceLocationService.current();
+    if (location == null || !mounted) return;
+    await controller.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(location.lat, location.lng), 15),
+    );
   }
 
   Future<void> _updateVisibleRegion() async {
@@ -508,11 +545,17 @@ class _DiscoveryMapState extends State<DiscoveryMap>
                   mapToolbarEnabled: false,
                   myLocationEnabled:
                       _locationAccessState == LocationAccessState.granted,
-                  myLocationButtonEnabled:
-                      _locationAccessState == LocationAccessState.granted,
+                  // Same story as zoomControlsEnabled — pinned bottom-right
+                  // by the platform, replaced by a custom button.
+                  myLocationButtonEnabled: false,
                   compassEnabled: false,
                   scrollGesturesEnabled: true,
-                  zoomControlsEnabled: true,
+                  // The platform's own zoom control is pinned to the
+                  // bottom-right by the SDK — no padding/position knob
+                  // moves it, and that corner is where the shell's map/list
+                  // toggle FAB sits. Use our own buttons instead, placed
+                  // wherever fits.
+                  zoomControlsEnabled: false,
                   buildingsEnabled: false,
                   rotateGesturesEnabled: false,
                   tiltGesturesEnabled: false,

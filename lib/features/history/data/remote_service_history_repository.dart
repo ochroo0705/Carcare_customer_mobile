@@ -27,6 +27,9 @@ class RemoteServiceHistoryRepository implements ServiceHistoryRepository {
     };
     if (filter.query.trim().isNotEmpty) query['q'] = filter.query.trim();
     if (filter.year != null) query['year'] = '${filter.year}';
+    if (filter.year != null && filter.month != null) {
+      query['month'] = '${filter.month}';
+    }
     final json = await _client.getJson('/orders?${Uri(queryParameters: query).query}');
     return serviceHistoryPageFromJson(json);
   }

@@ -15,7 +15,6 @@ import 'package:carcare_customer_mobile/features/devices/data/device_id_store.da
 import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_repository.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/screens/diagnostic_detail_screen.dart';
-import 'package:carcare_customer_mobile/features/diagnostics/presentation/screens/diagnostics_screen.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_detail_screen.dart';
@@ -27,7 +26,6 @@ import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
-import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_map_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/discovery_screen.dart';
@@ -218,7 +216,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   String? _selectedOrderId;
   String? _selectedAppointmentId;
   String? _selectedWalkInOrderId;
-  bool _showDiagnostics = false;
   String? _selectedDiagnosticId;
   String? _paymentAppointmentId;
   AppointmentPayment? _paymentInitial;
@@ -228,7 +225,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   bool _showNotifications = false;
   bool _wasAuthenticated = false;
   bool _disposed = false;
-  bool _showMap = false;
 
   @override
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -256,10 +252,12 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           child: CustomerShell(
             key: _shellKey,
             onLoginRequested: _requestLogin,
-            onOpenMap: _openMap,
             onNotificationsRequested: _openNotifications,
             destinations: [
-              DiscoveryScreen(onBranchSelected: _selectBranch),
+              DiscoveryScreen(
+                onBranchSelected: _selectBranch,
+                onNotificationsRequested: _openNotifications,
+              ),
               ServiceKeyPickerScreen(
                 repository: organizationRepository,
                 onBranchSelected: _selectServiceKeyBranch,
@@ -274,7 +272,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               HistoryScreen(
                 onLoginRequested: _requestLogin,
                 onOrderSelected: _openOrderDetail,
-                onDiagnosticsRequested: _openDiagnostics,
+                diagnosticsRepository: diagnosticsRepository,
+                onDiagnosticReportSelected: _openDiagnosticDetail,
               ),
               ProfileScreen(
                 onLoginRequested: _requestLogin,
@@ -284,14 +283,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             ],
           ),
         ),
-        if (_showMap)
-          MaterialPage<void>(
-            key: const ValueKey('discovery-map'),
-            child: DiscoveryMapScreen(
-              onBranchSelected: _selectBranch,
-              onBack: _closeMap,
-            ),
-          ),
         if (_selectedSlug != null)
           MaterialPage<void>(
             key: ValueKey('organization-$_selectedSlug'),
@@ -327,6 +318,14 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               onAddVehicle: _openAddVehicle,
               onBack: _closeBooking,
               lockCategories: _bookingFromServiceKeys,
+              // Discover-ийн салбарын дэлгэрэнгүйгээс ("Цаг захиалах" →
+              // `_startBooking`) ирсэн бол салбарыг ТҮГЖИНЭ — категори
+              // сонгоход өөр (тохирох) салбар руу чимээгүйхэн шилжихээс
+              // сэргийлнэ (web-ийн ижил тусгаарлалттай, харах: carcare.mn
+              // app/(app)/org/[slug]/page.tsx). Service-key урсгал
+              // (`_bookingFromServiceKeys`) эсвэл урьдчилан сонгосон
+              // салбаргүй (шууд deep-link) үед хэрэглэгдэхгүй.
+              lockBranch: !_bookingFromServiceKeys && _preferredBranchId != null,
               initialCategoryIds: _bookingFromServiceKeys
                   ? _resolveLockedCategoryIds(organization)
                   : null,
@@ -398,6 +397,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               onBack: _closeAppointmentDetail,
               onPay: (appointment) =>
                   _openPayment(appointment.id, appointment.payment),
+              onReportSelected: _openDiagnosticDetail,
             ),
           ),
         if (_selectedWalkInOrderId != null)
@@ -406,6 +406,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             child: WalkInOrderDetailScreen(
               orderId: _selectedWalkInOrderId!,
               onBack: _closeWalkInOrderDetail,
+              onReportSelected: _openDiagnosticDetail,
             ),
           ),
         if (_paymentAppointmentId != null)
@@ -449,15 +450,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               onReportSelected: _openDiagnosticDetail,
             ),
           ),
-        if (_showDiagnostics)
-          MaterialPage<void>(
-            key: const ValueKey('diagnostics'),
-            child: DiagnosticsScreen(
-              repository: diagnosticsRepository,
-              onBack: _closeDiagnostics,
-              onReportSelected: _openDiagnosticDetail,
-            ),
-          ),
         if (_selectedDiagnosticId != null)
           MaterialPage<void>(
             key: ValueKey('diagnostic-detail-$_selectedDiagnosticId'),
@@ -480,8 +472,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           _closePayment();
         } else if (_selectedDiagnosticId != null) {
           _closeDiagnosticDetail();
-        } else if (_showDiagnostics) {
-          _closeDiagnostics();
         } else if (_selectedOrderId != null) {
           _closeOrderDetail();
         } else if (_showAddVehicle) {
@@ -498,8 +488,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           _closeBooking();
         } else if (_selectedSlug != null) {
           _closeDetails();
-        } else if (_showMap) {
-          _closeMap();
         }
       },
     );
@@ -577,16 +565,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   void _closeBooking() {
     _booking = false;
     _bookingFromServiceKeys = false;
-    notifyListeners();
-  }
-
-  void _openMap() {
-    _showMap = true;
-    notifyListeners();
-  }
-
-  void _closeMap() {
-    _showMap = false;
     notifyListeners();
   }
 
@@ -764,7 +742,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _selectedOrderId = null;
     _selectedAppointmentId = null;
     _selectedWalkInOrderId = null;
-    _showDiagnostics = false;
     _selectedDiagnosticId = null;
     _paymentAppointmentId = null;
     _paymentInitial = null;
@@ -790,16 +767,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
 
   void _closeWalkInOrderDetail() {
     _selectedWalkInOrderId = null;
-    notifyListeners();
-  }
-
-  void _openDiagnostics() {
-    _showDiagnostics = true;
-    notifyListeners();
-  }
-
-  void _closeDiagnostics() {
-    _showDiagnostics = false;
     notifyListeners();
   }
 

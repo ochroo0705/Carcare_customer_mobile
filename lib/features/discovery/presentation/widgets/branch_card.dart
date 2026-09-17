@@ -40,7 +40,24 @@ class BranchCard extends StatelessWidget {
                   style: Theme.of(context).textTheme.titleMedium
                       ?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                const SizedBox(height: 2),
+                // Бизнесийн төрлийн шошго (жиш: "Угаалгын газар") — нэрийн
+                // яг доор, тухайн салбар "ямар газар вэ" гэдгийг эхлээд
+                // харуулна (хаяг/зайнаас илүү тэргүүлэх ач холбогдолтой тул).
+                // Олон шошготой бол ердийн текстээр таслалаар нэгтгэнэ — chip
+                // биш, гарчгийн мөр өнгөлөг/түгжрэлтэй болохоос сэргийлнэ.
+                if (branch.tags.isNotEmpty) ...[
+                  const SizedBox(height: 1),
+                  Text(
+                    branch.tags.map((t) => t.name).join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 3),
                 Text(
                   organization.name,
                   maxLines: 1,

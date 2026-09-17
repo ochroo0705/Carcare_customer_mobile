@@ -107,6 +107,11 @@ class DiscoveryController extends ChangeNotifier {
   // filter chip дээр харуулахын тулд (id өөрөө хэрэглэгчид утгагүй).
   String _serviceKey = '';
   String _serviceKeyName = '';
+  // Бизнесийн төрлийн шошго (BranchTag.id) шүүлт — discovery-г "Угаалгын
+  // газар" гэх мэт бизнесийн төрлөөр шүүнэ. Нэрийг тусад нь хадгалсан нь
+  // serviceKey-тэй адил шалтгаанаар (id хэрэглэгчид утгагүй).
+  String _tag = '';
+  String _tagName = '';
   // Booking v2 серверийн шүүлт. Зай/эрэмбийн логик backend дээр — "ойролцоо"
   // асаахад координатыг серверт дамжуулж, салбар БҮРД distanceKm ирж, ойроор
   // эрэмбэлэгдэнэ (radius дамжуулахгүй тул юу ч хасахгүй). "Одоо нээлттэй" мөн
@@ -127,6 +132,8 @@ class DiscoveryController extends ChangeNotifier {
   String? _mapRequestKey;
   String? _mapInFlightKey;
   _MapCoverage? _mapCoverage;
+  int _mapRefitSignal = 0;
+  List<Organization> _mapFallbackOrganizations = const [];
   OrganizationMapPage _mapPage = const OrganizationMapPage(
     markers: [],
     count: 0,
@@ -136,13 +143,45 @@ class DiscoveryController extends ChangeNotifier {
   bool _mapLoading = false;
   bool _mapLoaded = false;
   String? _mapError;
+  List<BranchTagOption> _tagOptions = const [];
+  bool _tagOptionsLoaded = false;
+  // Discover-ийн анхны төлөв нь газрын зураг (2026-09-17 өөрчлөлт) — жагсаалт
+  // хэвээр нэг товчны зайд байдаг тул fallback шаардлага
+  // (CUSTOMER_FLUTTER_PRINCIPLES.md §3.4) хэвээр биелнэ.
+  bool _mapView = true;
 
   DiscoveryState get state => _state;
+  bool get mapView => _mapView;
+
+  void setMapView(bool value) {
+    if (_mapView == value) return;
+    _mapView = value;
+    notifyListeners();
+  }
   String get query => _query;
   String get city => _city;
   String get district => _district;
   String get serviceKey => _serviceKey;
   String get serviceKeyName => _serviceKeyName;
+  String get tag => _tag;
+  String get tagName => _tagName;
+  List<BranchTagOption> get tagOptions => _tagOptions;
+
+  /// Lazily fetches the platform-wide business-type tag chips for the filter
+  /// row. Safe to call repeatedly — only the first call actually hits the
+  /// network (mirrors the repository's own in-memory cache).
+  Future<void> loadTagOptions() async {
+    if (_tagOptionsLoaded) return;
+    try {
+      final tags = await _repository.getBranchTags();
+      _tagOptions = tags;
+      _tagOptionsLoaded = true;
+      notifyListeners();
+    } catch (_) {
+      // Chip row simply stays empty on failure — not worth surfacing a
+      // dedicated error state for an optional, secondary filter.
+    }
+  }
   bool get nearMe => _nearMe;
   bool get openNow => _openNow;
   bool get weekend => _weekend;
@@ -154,6 +193,20 @@ class DiscoveryController extends ChangeNotifier {
   bool get mapLoaded => _mapLoaded;
   String? get mapError => _mapError;
   bool get mapTruncated => _mapPage.truncated;
+  /// Bumped whenever the unbounded organization list (`load()`) refreshes —
+  /// the map widget uses a change here to recenter the camera on the new
+  /// results, so a search that matches something outside the current
+  /// viewport gets found (via a fresh pan) rather than just reporting
+  /// "nothing here". Deliberately not tied to the viewport-scoped map fetch
+  /// itself — that one's often slower and would otherwise still be
+  /// centered on the *old* area when it resolves.
+  int get mapRefitSignal => _mapRefitSignal;
+  /// The map's fallback organizations while `mapLoaded` is false — the most
+  /// recently *completed* filtered load, held steady through the blank
+  /// window `state.organizations` passes through on every keystroke (see
+  /// _invalidateCurrentResults), so the map keeps showing its current view
+  /// instead of flashing empty on every filter change.
+  List<Organization> get mapFallbackOrganizations => _mapFallbackOrganizations;
   OrganizationFilter get currentFilter => _serverFilterForPage(1);
   bool get hasNextPage => _state.pagination.hasNext;
   /// Location snapshot used for the active near-me result. This is kept out of
@@ -175,7 +228,8 @@ class DiscoveryController extends ChangeNotifier {
       _nearMe ||
       _openNow ||
       _weekend ||
-      _serviceKey.isNotEmpty;
+      _serviceKey.isNotEmpty ||
+      _tag.isNotEmpty;
 
   OrganizationFilter? get _serverFilter {
     // radius дамжуулахгүй — сервер бүх салбарт зай онооно, ойроор эрэмбэлнэ.
@@ -186,13 +240,15 @@ class DiscoveryController extends ChangeNotifier {
         openNow: _openNow,
         weekend: _weekend,
         serviceKey: _serviceKey,
+        tag: _tag,
       );
     }
-    if (_openNow || _weekend || _serviceKey.isNotEmpty) {
+    if (_openNow || _weekend || _serviceKey.isNotEmpty || _tag.isNotEmpty) {
       return OrganizationFilter(
         openNow: _openNow,
         weekend: _weekend,
         serviceKey: _serviceKey,
+        tag: _tag,
       );
     }
     return null;
@@ -337,6 +393,18 @@ class DiscoveryController extends ChangeNotifier {
     await load();
   }
 
+  /// Sets (or clears, with an empty [id]) the business-type tag filter
+  /// (e.g. "Угаалгын газар"). [name] is the display label only.
+  Future<void> setTag(String id, {String name = ''}) async {
+    if (_tag == id) return;
+    _tag = id;
+    _tagName = id.isEmpty ? '' : name;
+    _invalidateMapForFilterChange();
+    _invalidateCurrentResults();
+    notifyListeners();
+    await load();
+  }
+
   void clearFilters() {
     if (!hasActiveFilters) return;
     _query = '';
@@ -347,6 +415,8 @@ class DiscoveryController extends ChangeNotifier {
     _weekend = false;
     _serviceKey = '';
     _serviceKeyName = '';
+    _tag = '';
+    _tagName = '';
     _lat = null;
     _lng = null;
     _invalidateMapForFilterChange();
@@ -394,6 +464,21 @@ class DiscoveryController extends ChangeNotifier {
         pagination: result.pagination,
         facets: result.facets,
       );
+      if (!append) {
+        // `state.organizations` gets blanked to `[]` the instant a filter
+        // changes (see _invalidateCurrentResults) so a slow, stale response
+        // can never render as if it matched the new query — but the map
+        // uses this list as its own fallback while `mapLoaded` is false
+        // (see _invalidateMapForFilterChange), and blanking there just
+        // means every keystroke flashes an empty map. Keep the map's own
+        // copy holding the *previous* good result until this fresh one
+        // actually lands, instead of following that blank.
+        _mapFallbackOrganizations = organizations;
+        // Bump the refit signal too, so the camera can recenter on a match
+        // as soon as this (fast, ~350ms) list refresh lands, without
+        // waiting on the slower viewport-scoped map fetch.
+        _mapRefitSignal++;
+      }
       // Зөвхөн шүүлтгүй эхний хуудсыг offline cache-д хадгална (шүүсэн дэд
       // жагсаалт болон нэмэлт хуудсууд cache-ийг бохирдуулахгүй).
       if (!filter.hasTextFilters &&
@@ -401,6 +486,7 @@ class DiscoveryController extends ChangeNotifier {
           !filter.openNow &&
           !filter.weekend &&
           filter.serviceKey.isEmpty &&
+          filter.tag.isEmpty &&
           filter.page == 1) {
         await _cache.writeOrganizations(organizations);
         _lastUnfiltered = organizations;
@@ -523,6 +609,7 @@ class DiscoveryController extends ChangeNotifier {
         filter.openNow,
         filter.weekend,
         filter.serviceKey,
+        filter.tag,
       ].join('|');
 
   void _invalidateMapForFilterChange() {
@@ -533,6 +620,22 @@ class DiscoveryController extends ChangeNotifier {
     _mapCoverage = null;
     _mapLoading = false;
     _mapError = null;
+    // The old viewport-scoped markers are for the PREVIOUS filter — showing
+    // them a moment longer looks like nothing happened. Drop back to the
+    // unbounded, already-filtered organization list (same idea as the web
+    // client's `mapMarkers ?? markers` fallback — see carcare.mn's
+    // discover-client.tsx) until a fresh viewport-scoped fetch lands.
+    //
+    // Deliberately NOT re-requesting markers for the *old* viewport here:
+    // that was tried and caused a worse bug — an immediate re-fetch at a
+    // now-stale viewport can resolve (empty, if the new match is off
+    //-screen) *before* the camera has had a chance to recenter via
+    // `mapRefitSignal` in load(), permanently showing "no locations" even
+    // though the correct, post-pan fetch would have found it moments
+    // later. The camera refit itself (triggered by load()'s result) drives
+    // the map's own onCameraIdle → onViewportChanged → requestMapMarkers
+    // chain with the *new*, correct viewport instead.
+    _mapLoaded = false;
   }
 
   void _invalidateCurrentResults() {
@@ -563,6 +666,7 @@ class DiscoveryController extends ChangeNotifier {
       openNow: _openNow,
       weekend: _weekend,
       serviceKey: _serviceKey,
+      tag: _tag,
     );
   }
 

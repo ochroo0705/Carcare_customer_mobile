@@ -32,6 +32,7 @@ class AppointmentDetailScreen extends StatefulWidget {
     required this.organizationRepository,
     required this.onBack,
     required this.onPay,
+    this.onReportSelected,
     super.key,
   });
 
@@ -46,6 +47,10 @@ class AppointmentDetailScreen extends StatefulWidget {
   /// Opens the fee-payment screen for [appointment]. Wired by the router, the
   /// same way the appointments list does it.
   final ValueChanged<Appointment> onPay;
+
+  /// Opens a diagnostic report's detail screen. Same callback the history
+  /// screens use — wired by the router to the shared diagnostics detail page.
+  final ValueChanged<String>? onReportSelected;
 
   @override
   State<AppointmentDetailScreen> createState() =>
@@ -129,6 +134,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen>
               onPay: appointment.canPayFee
                   ? () => widget.onPay(appointment)
                   : null,
+              onReportSelected: widget.onReportSelected,
             ),
             (null, true) => const SkeletonDetail(),
             (null, false) => _NotFound(onBack: widget.onBack),
@@ -178,6 +184,7 @@ class _AppointmentDetailBody extends StatelessWidget {
     required this.onRefresh,
     this.onCancel,
     this.onPay,
+    this.onReportSelected,
   });
 
   final Appointment appointment;
@@ -186,6 +193,7 @@ class _AppointmentDetailBody extends StatelessWidget {
   final Future<void> Function() onRefresh;
   final VoidCallback? onCancel;
   final VoidCallback? onPay;
+  final ValueChanged<String>? onReportSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -296,7 +304,10 @@ class _AppointmentDetailBody extends StatelessWidget {
         ],
           if (appointment.serviceProgress != null) ...[
             const SizedBox(height: 14),
-            ServiceProgressSection(progress: appointment.serviceProgress!),
+            ServiceProgressSection(
+              progress: appointment.serviceProgress!,
+              onReportSelected: onReportSelected,
+            ),
           ],
           if (onCancel != null) ...[
           const SizedBox(height: 14),

@@ -15,6 +15,19 @@ List<ServiceKey> serviceKeysFromJson(Map<String, dynamic> json) {
       .toList(growable: false);
 }
 
+List<BranchTagOption> branchTagsFromJson(Map<String, dynamic> json) =>
+    _tagOptionList(json['tags']);
+
+List<BranchTagOption> _tagOptionList(Object? value) => value is List
+    ? value
+        .whereType<Map>()
+        .map((item) {
+          final map = Map<String, dynamic>.from(item);
+          return BranchTagOption(id: _requiredString(map, 'id'), name: _requiredString(map, 'name'));
+        })
+        .toList(growable: false)
+    : const [];
+
 OrganizationPage organizationPageFromJson(Map<String, dynamic> json) {
   final items = json['orgs'];
   if (items is! List) throw const UnexpectedFailure('API жагсаалт буруу байна.');
@@ -68,6 +81,7 @@ OrganizationMapPage organizationMapPageFromJson(Map<String, dynamic> json) {
             longitude: _requiredDouble(Map<String, dynamic>.from(item), 'longitude'),
             distanceKm: _optionalDouble(item['distanceKm']),
             serviceKeyIds: _stringList(item['serviceKeyIds']),
+            tagIds: _stringList(item['tagIds']),
           ))
       .toList(growable: false);
   return OrganizationMapPage(
@@ -143,6 +157,7 @@ class BranchSummaryDto {
     this.longitude,
     this.distanceKm,
     this.serviceKeyIds = const [],
+    this.tags = const [],
   });
 
   factory BranchSummaryDto.fromJson(Map<String, dynamic> json) =>
@@ -155,6 +170,7 @@ class BranchSummaryDto {
         longitude: _optionalDouble(json['longitude']),
         distanceKm: _optionalDouble(json['distanceKm']),
         serviceKeyIds: _stringList(json['serviceKeyIds']),
+        tags: _tagOptionList(json['tags']),
       );
 
   final String id;
@@ -165,6 +181,7 @@ class BranchSummaryDto {
   final double? longitude;
   final double? distanceKm;
   final List<String> serviceKeyIds;
+  final List<BranchTagOption> tags;
 
   Branch toDomain() => Branch(
     id: id,
@@ -175,6 +192,7 @@ class BranchSummaryDto {
     longitude: longitude,
     distanceKm: distanceKm,
     serviceKeyIds: serviceKeyIds,
+    tags: tags,
   );
 }
 

@@ -98,7 +98,7 @@ class _UnauthenticatedPrompt extends StatelessWidget {
   );
 }
 
-class _AppointmentsBody extends StatelessWidget {
+class _AppointmentsBody extends StatefulWidget {
   const _AppointmentsBody({
     required this.controller,
     required this.onAppointmentSelected,
@@ -112,27 +112,344 @@ class _AppointmentsBody extends StatelessWidget {
   final ValueChanged<String> onWalkInOrderSelected;
 
   @override
+  State<_AppointmentsBody> createState() => _AppointmentsBodyState();
+}
+
+class _AppointmentsBodyState extends State<_AppointmentsBody>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  late final TextEditingController _searchController;
+  final LayerLink _filterButtonLink = LayerLink();
+  OverlayEntry? _filterOverlay;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _searchController = TextEditingController(
+      text: widget.controller.searchQuery,
+    );
+  }
+
+  @override
+  void dispose() {
+    _closeStatusFilterOverlay();
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final state = controller.state;
-    return switch (state.status) {
-      AppointmentsStatus.initial || AppointmentsStatus.loading => Semantics(
+    final state = widget.controller.state;
+    if (state.status == AppointmentsStatus.initial ||
+        state.status == AppointmentsStatus.loading) {
+      return Semantics(
         container: true,
         liveRegion: true,
         label: 'Захиалгуудыг ачаалж байна',
         child: const SkeletonCardList(),
-      ),
-      AppointmentsStatus.error => _ErrorView(
+      );
+    }
+    if (state.status == AppointmentsStatus.error) {
+      return _ErrorView(
         message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
-        onRetry: controller.load,
+        onRetry: widget.controller.load,
+      );
+    }
+    if (state.status == AppointmentsStatus.empty) {
+      return const _EmptyAppointments();
+    }
+    return Column(
+      children: [
+        if (state.isFromCache)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
+            child: OfflineBanner(
+              message:
+                  'Сүлжээгүй байна — сүүлд ачаалсан захиалгуудыг харуулж байна',
+              semanticsLabel:
+                  'Сүлжээгүй байна. Сүүлд ачаалсан захиалгуудын жагсаалтыг харуулж байна.',
+              retryKey: const ValueKey('appointments-offline-retry'),
+              onRetry: widget.controller.load,
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  key: const ValueKey('appointments-search'),
+                  controller: _searchController,
+                  onChanged: widget.controller.setSearchQuery,
+                  textInputAction: TextInputAction.search,
+                  decoration: InputDecoration(
+                    hintText: 'Хайх (байгууллага, салбар, улсын дугаар)',
+                    prefixIcon: const Icon(Icons.search_rounded),
+                    suffixIcon: widget.controller.searchQuery.isEmpty
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () {
+                              _searchController.clear();
+                              widget.controller.setSearchQuery('');
+                            },
+                          ),
+                    isDense: true,
+                    filled: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              CompositedTransformTarget(
+                link: _filterButtonLink,
+                child: AnimatedBuilder(
+                  animation: _tabController,
+                  builder: (context, _) {
+                    final hasActive = _tabController.index == 0
+                        ? widget.controller.selectedAppointmentStatus != null
+                        : widget.controller.selectedWalkInStatus != null;
+                    return _FilterButton(
+                      key: const ValueKey('appointments-filter-button'),
+                      activeCount: hasActive ? 1 : 0,
+                      onTap: _toggleStatusFilterOverlay,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: TabBar(
+            key: const ValueKey('appointments-tab-bar'),
+            controller: _tabController,
+            tabs: const [
+              Tab(text: 'Цагийн захиалгууд'),
+              Tab(text: 'Засварын захиалгууд'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _AppointmentsOnlyList(
+                controller: widget.controller,
+                onAppointmentSelected: widget.onAppointmentSelected,
+                onPaymentRequested: widget.onPaymentRequested,
+              ),
+              _WalkInOrdersOnlyList(
+                controller: widget.controller,
+                onWalkInOrderSelected: widget.onWalkInOrderSelected,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _toggleStatusFilterOverlay() {
+    if (_filterOverlay != null) {
+      _closeStatusFilterOverlay();
+      return;
+    }
+    final overlay = Overlay.of(context);
+    final entry = OverlayEntry(
+      builder: (overlayContext) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _closeStatusFilterOverlay,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _filterButtonLink,
+            showWhenUnlinked: false,
+            targetAnchor: Alignment.bottomRight,
+            followerAnchor: Alignment.topRight,
+            offset: const Offset(0, 8),
+            child: Align(
+              alignment: Alignment.topRight,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(16),
+                color: Theme.of(overlayContext).colorScheme.surface,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: AnimatedBuilder(
+                      animation: Listenable.merge([
+                        widget.controller,
+                        _tabController,
+                      ]),
+                      builder: (context, _) {
+                        final isAppointmentsTab = _tabController.index == 0;
+                        return _StatusFilterOptions(
+                          available: isAppointmentsTab
+                              ? widget.controller.availableAppointmentStatuses
+                              : widget.controller.availableWalkInStatuses,
+                          selected: isAppointmentsTab
+                              ? widget.controller.selectedAppointmentStatus
+                              : widget.controller.selectedWalkInStatus,
+                          onSelect: (label) {
+                            if (isAppointmentsTab) {
+                              widget.controller.selectAppointmentStatus(label);
+                            } else {
+                              widget.controller.selectWalkInStatus(label);
+                            }
+                            _closeStatusFilterOverlay();
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
-      AppointmentsStatus.empty => const _EmptyAppointments(),
-      AppointmentsStatus.data => _AppointmentsList(
-        controller: controller,
-        onAppointmentSelected: onAppointmentSelected,
-        onPaymentRequested: onPaymentRequested,
-        onWalkInOrderSelected: onWalkInOrderSelected,
+    );
+    _filterOverlay = entry;
+    overlay.insert(entry);
+  }
+
+  void _closeStatusFilterOverlay() {
+    _filterOverlay?.remove();
+    _filterOverlay = null;
+  }
+}
+
+class _FilterButton extends StatelessWidget {
+  const _FilterButton({
+    required this.activeCount,
+    required this.onTap,
+    super.key,
+  });
+
+  final int activeCount;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasActive = activeCount > 0;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Badge(
+      isLabelVisible: hasActive,
+      label: Text('$activeCount'),
+      child: Material(
+        color: hasActive
+            ? colorScheme.primaryContainer
+            : colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Icon(
+              Icons.tune_rounded,
+              color: hasActive ? colorScheme.onPrimaryContainer : null,
+            ),
+          ),
+        ),
       ),
-    };
+    );
+  }
+}
+
+class _StatusFilterOptions extends StatelessWidget {
+  const _StatusFilterOptions({
+    required this.available,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final List<String> available;
+  final String? selected;
+
+  /// Passing `null` clears the filter ("Бүгд").
+  final ValueChanged<String?> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    if (available.isEmpty) {
+      return Text(
+        'Шүүх төлөв алга.',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      );
+    }
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _StatusFilterOption(
+          key: const ValueKey('status-filter-option-all'),
+          label: 'Бүгд',
+          isSelected: selected == null,
+          onTap: () => onSelect(null),
+        ),
+        for (final label in available)
+          _StatusFilterOption(
+            key: ValueKey('status-filter-option-$label'),
+            label: label,
+            isSelected: selected == label,
+            onTap: () => onSelect(label),
+          ),
+      ],
+    );
+  }
+}
+
+class _StatusFilterOption extends StatelessWidget {
+  const _StatusFilterOption({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    super.key,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                  color: isSelected ? colorScheme.primary : null,
+                ),
+              ),
+            ),
+            if (isSelected)
+              Icon(Icons.check_rounded, color: colorScheme.primary, size: 20),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -208,80 +525,77 @@ class _EmptyAppointments extends StatelessWidget {
   );
 }
 
-class _AppointmentsList extends StatelessWidget {
-  const _AppointmentsList({
+class _NoFilterResults extends StatelessWidget {
+  const _NoFilterResults();
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: Padding(
+      padding: const EdgeInsets.all(32),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.search_off_rounded,
+            size: 52,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Илэрц олдсонгүй',
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Хайлт эсвэл төлвийн шүүлтүүрээ өөрчилж үзээрэй.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _AppointmentsOnlyList extends StatelessWidget {
+  const _AppointmentsOnlyList({
     required this.controller,
     required this.onAppointmentSelected,
     required this.onPaymentRequested,
-    required this.onWalkInOrderSelected,
   });
 
   final AppointmentsController controller;
   final ValueChanged<String> onAppointmentSelected;
   final ValueChanged<Appointment> onPaymentRequested;
-  final ValueChanged<String> onWalkInOrderSelected;
 
   @override
   Widget build(BuildContext context) {
     final appointments = controller.sortedAppointments;
-    final walkInOrders = controller.visibleWalkInOrders;
-    final isFromCache = controller.state.isFromCache;
-    final offset = isFromCache ? 1 : 0;
-    // Захиалгагүй (walk-in) захиалгууд Appointment жагсаалтын дараа, тусдаа
-    // гарчигтай хэсэгт харагдана — веб талын account/page.tsx-ийн
-    // "Засварын захиалгууд"
-    // хэсэгтэй ижил зарчим.
-    final appointmentHeaderIndex = offset;
-    final appointmentStartIndex = appointmentHeaderIndex + 1;
-    final walkInHeaderIndex = appointmentStartIndex + appointments.length;
-    final itemCount =
-        walkInHeaderIndex + (walkInOrders.isNotEmpty ? 1 + walkInOrders.length : 0);
+    if (appointments.isEmpty) return const _NoFilterResults();
     return RefreshIndicator(
       onRefresh: controller.load,
       child: ListView.separated(
-        key: const PageStorageKey('appointments-list'),
-        padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
-        itemCount: itemCount,
-        separatorBuilder: (_, index) => SizedBox(height: index == 0 ? 18 : 12),
+        key: const PageStorageKey('appointments-only-list'),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        itemCount: appointments.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
         itemBuilder: (context, index) {
-          if (isFromCache && index == 0) {
-            return OfflineBanner(
-              message:
-                  'Сүлжээгүй байна — сүүлд ачаалсан захиалгуудыг харуулж байна',
-              semanticsLabel: 'Сүлжээгүй байна. Сүүлд ачаалсан захиалгуудын жагсаалтыг харуулж байна.',
-              retryKey: const ValueKey('appointments-offline-retry'),
-              onRetry: controller.load,
-            );
-          }
-          if (index == appointmentHeaderIndex) {
-            return const _TimeAppointmentsHeader();
-          }
-          if (index < walkInHeaderIndex) {
-            final appointment = appointments[index - appointmentStartIndex];
-            return RiseIn(
-              index: index - appointmentStartIndex,
-              child: _AppointmentCard(
-                appointment: appointment,
-                isCancelling: controller.isCancelling(appointment.id),
-                onTap: () => onAppointmentSelected(appointment.id),
-                onCancel: appointment.status.canCancel
-                    ? () => _confirmCancel(context, appointment)
-                    : null,
-                onPaymentTap: appointment.canPayFee
-                    ? () => onPaymentRequested(appointment)
-                    : null,
-              ),
-            );
-          }
-          if (index == walkInHeaderIndex) {
-            return const _WalkInOrdersHeader();
-          }
-          final order = walkInOrders[index - walkInHeaderIndex - 1];
+          final appointment = appointments[index];
           return RiseIn(
-            index: index - offset,
-            child: _WalkInOrderCard(
-              order: order,
-              onTap: () => onWalkInOrderSelected(order.progress.id),
+            index: index,
+            child: _AppointmentCard(
+              appointment: appointment,
+              isCancelling: controller.isCancelling(appointment.id),
+              onTap: () => onAppointmentSelected(appointment.id),
+              onCancel: appointment.status.canCancel
+                  ? () => _confirmCancel(context, controller, appointment)
+                  : null,
+              onPaymentTap: appointment.canPayFee
+                  ? () => onPaymentRequested(appointment)
+                  : null,
             ),
           );
         },
@@ -291,6 +605,7 @@ class _AppointmentsList extends StatelessWidget {
 
   Future<void> _confirmCancel(
     BuildContext context,
+    AppointmentsController controller,
     Appointment appointment,
   ) async {
     final confirmed = await showDialog<bool>(
@@ -319,34 +634,39 @@ class _AppointmentsList extends StatelessWidget {
   }
 }
 
-class _TimeAppointmentsHeader extends StatelessWidget {
-  const _TimeAppointmentsHeader();
+class _WalkInOrdersOnlyList extends StatelessWidget {
+  const _WalkInOrdersOnlyList({
+    required this.controller,
+    required this.onWalkInOrderSelected,
+  });
+
+  final AppointmentsController controller;
+  final ValueChanged<String> onWalkInOrderSelected;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 6),
-    child: Text(
-      'Цагийн захиалгууд',
-      style: Theme.of(
-        context,
-      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
-    ),
-  );
-}
-
-class _WalkInOrdersHeader extends StatelessWidget {
-  const _WalkInOrdersHeader();
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(top: 6),
-    child: Text(
-      'Засварын захиалгууд',
-      style: Theme.of(
-        context,
-      ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final walkInOrders = controller.visibleWalkInOrders;
+    if (walkInOrders.isEmpty) return const _NoFilterResults();
+    return RefreshIndicator(
+      onRefresh: controller.load,
+      child: ListView.separated(
+        key: const PageStorageKey('walk-in-orders-only-list'),
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        itemCount: walkInOrders.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        itemBuilder: (context, index) {
+          final order = walkInOrders[index];
+          return RiseIn(
+            index: index,
+            child: _WalkInOrderCard(
+              order: order,
+              onTap: () => onWalkInOrderSelected(order.progress.id),
+            ),
+          );
+        },
+      ),
+    );
+  }
 }
 
 /// Appointment-гүй (ажилтан шууд үүсгэсэн) захиалгын карт — цуцлах/хураамж

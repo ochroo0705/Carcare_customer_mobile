@@ -17,11 +17,13 @@ class WalkInOrderDetailScreen extends StatelessWidget {
   const WalkInOrderDetailScreen({
     required this.orderId,
     required this.onBack,
+    this.onReportSelected,
     super.key,
   });
 
   final String orderId;
   final VoidCallback onBack;
+  final ValueChanged<String>? onReportSelected;
 
   WalkInOrder? _find(AppointmentsController controller) {
     for (final order in controller.state.walkInOrders) {
@@ -50,6 +52,7 @@ class WalkInOrderDetailScreen extends StatelessWidget {
             (final WalkInOrder order, _) => _WalkInOrderDetailBody(
               order: order,
               onRefresh: controller.load,
+              onReportSelected: onReportSelected,
             ),
             (null, true) => const SkeletonDetail(),
             (null, false) => _NotFound(onBack: onBack),
@@ -61,10 +64,15 @@ class WalkInOrderDetailScreen extends StatelessWidget {
 }
 
 class _WalkInOrderDetailBody extends StatelessWidget {
-  const _WalkInOrderDetailBody({required this.order, required this.onRefresh});
+  const _WalkInOrderDetailBody({
+    required this.order,
+    required this.onRefresh,
+    this.onReportSelected,
+  });
 
   final WalkInOrder order;
   final Future<void> Function() onRefresh;
+  final ValueChanged<String>? onReportSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +102,10 @@ class _WalkInOrderDetailBody extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          ServiceProgressSection(progress: order.progress),
+          ServiceProgressSection(
+            progress: order.progress,
+            onReportSelected: onReportSelected,
+          ),
         ],
       ),
     );

@@ -37,6 +37,9 @@ class CachingOrganizationRepository implements OrganizationRepository {
   Future<List<ServiceKey>> getServiceKeys() => _delegate.getServiceKeys();
 
   @override
+  Future<List<BranchTagOption>> getBranchTags() => _delegate.getBranchTags();
+
+  @override
   Future<OrganizationDetail> getOrganization(String slug) async {
     final cached = await _cache.readOrganizationDetail(slug);
     if (cached != null && DateTime.now().difference(cached.cachedAt) < ttl) {

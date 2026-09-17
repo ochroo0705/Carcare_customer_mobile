@@ -38,6 +38,7 @@ class RemoteOrganizationRepository implements OrganizationRepository {
     if (current.openNow) query['openNow'] = '1';
     if (current.weekend) query['weekend'] = '1';
     if (current.serviceKey.isNotEmpty) query['serviceKey'] = current.serviceKey;
+    if (current.tag.isNotEmpty) query['tag'] = current.tag;
     final path = '/orgs?${Uri(queryParameters: query).query}';
     final json = await _client.getJson(path);
     return organizationPageFromJson(json);
@@ -66,6 +67,7 @@ class RemoteOrganizationRepository implements OrganizationRepository {
     if (current.openNow) query['openNow'] = '1';
     if (current.weekend) query['weekend'] = '1';
     if (current.serviceKey.isNotEmpty) query['serviceKey'] = current.serviceKey;
+    if (current.tag.isNotEmpty) query['tag'] = current.tag;
     final json = await _client.getJson(
       '/orgs/map?${Uri(queryParameters: query).query}',
     );
@@ -87,6 +89,7 @@ class RemoteOrganizationRepository implements OrganizationRepository {
   }
 
   List<ServiceKey>? _serviceKeysCache;
+  List<BranchTagOption>? _branchTagsCache;
 
   @override
   Future<List<ServiceKey>> getServiceKeys() async {
@@ -96,5 +99,15 @@ class RemoteOrganizationRepository implements OrganizationRepository {
     final keys = serviceKeysFromJson(json);
     _serviceKeysCache = keys;
     return keys;
+  }
+
+  @override
+  Future<List<BranchTagOption>> getBranchTags() async {
+    final cached = _branchTagsCache;
+    if (cached != null) return cached;
+    final json = await _client.getJson('/branch-tags');
+    final tags = branchTagsFromJson(json);
+    _branchTagsCache = tags;
+    return tags;
   }
 }

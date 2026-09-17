@@ -25,6 +25,7 @@ class BookingRequestScreen extends StatefulWidget {
     required this.onUnauthenticated,
     this.initialCategoryIds,
     this.lockCategories = false,
+    this.lockBranch = false,
     super.key,
   });
 
@@ -45,6 +46,14 @@ class BookingRequestScreen extends StatefulWidget {
   /// өөр салбар руу сольж болохгүй (тухайн салбар л сонгосон бүх ажлыг санал
   /// болгодог гэдгийг үр дүнгийн жагсаалт дээр аль хэдийн баталгаажуулсан).
   final bool lockCategories;
+
+  /// Discover-ийн салбарын дэлгэрэнгүйгээс тодорхой салбар сонгож ирсэн бол
+  /// (харах: [initialBranchId]) байгууллага/салбарын сонголтыг ТҮГЖИНЭ —
+  /// хэрэглэгч зөвхөн ангилал, огноо/цагаа сонгоно. [lockCategories]-ийн
+  /// эсрэг тэнхлэг: тэнд ангилал түгжигдэж салбар (тохирох хүрээнд) чөлөөтэй,
+  /// энд салбар түгжигдэж ангилал чөлөөтэй. Хоёул `false`-той адилтгах
+  /// боломжгүй (харилцан үл шүтэлцээтэй урсгалууд).
+  final bool lockBranch;
 
   @override
   State<BookingRequestScreen> createState() => _BookingRequestScreenState();
@@ -97,16 +106,25 @@ class _BookingRequestScreenState extends State<BookingRequestScreen>
   /// (хоосон categoryIds-тэй захиалга илгээх нь хэрэглэгчийн санаачилгагүйгээр
   /// урсгалын утгыг өөрчилнө тул блоклоно).
   bool get _lockedFlowBlocked =>
-      widget.lockCategories &&
-      (_lockedBranchMissing ||
-          (_selectedCategoryIds.isEmpty &&
-              (widget.initialCategoryIds?.isNotEmpty ?? false)));
+      ((widget.lockCategories || widget.lockBranch) && _lockedBranchMissing) ||
+      (widget.lockCategories &&
+          _selectedCategoryIds.isEmpty &&
+          (widget.initialCategoryIds?.isNotEmpty ?? false));
 
-  /// Байгууллагын БҮХ салбарт байгаа ангиллууд (давхардалгүй, нэрээр
-  /// эрэмбэлэгдсэн) — категори/салбар аль алиныг нь эхлээд сонгож болох
-  /// "сольж болдог" сонголтын жагсаалт. Нэг tenant-ийн хүрээнд тул нэршлийн
-  /// зөрчил (өөр байгууллагын ижил төстэй нэртэй ангилал) үүсэхгүй.
+  /// [lockBranch] үед зөвхөн ТУХАЙН (түгжигдсэн) салбарын ангиллууд — эс
+  /// бөгөөс байгууллагын өөр салбарт байгаа (энэ салбараас хассан ч)
+  /// ангилал энд гарч, сонговол [_toggleCategory] өмнө нь салбарыг чимээгүй
+  /// сольдог байсан (харах: [lockBranch] doc). Бусад тохиолдолд (категори
+  /// эхэлж сонгогдоно, салбар хараахан тодорхойгүй) байгууллагын БҮХ
+  /// салбарт байгаа ангиллын нэгдэл (давхардалгүй, нэрээр эрэмбэлэгдсэн).
   List<BranchServiceCategory> get _allCategories {
+    if (widget.lockBranch) {
+      final categories = <BranchServiceCategory>[
+        ...(_selectedBranch?.categories ?? const <BranchServiceCategory>[]),
+      ];
+      categories.sort((a, b) => a.name.compareTo(b.name));
+      return categories;
+    }
     final byId = <String, BranchServiceCategory>{};
     for (final branch in widget.organization.branches) {
       for (final category in branch.categories) {
@@ -211,13 +229,18 @@ class _BookingRequestScreenState extends State<BookingRequestScreen>
       } else {
         _selectedCategoryIds.remove(categoryId);
       }
-      final compatible = _compatibleBranches;
-      final stillValid =
-          _selectedBranch != null &&
-          compatible.any((b) => b.id == _selectedBranch!.id);
-      if (!stillValid) {
-        _selectedBranch = compatible.length == 1 ? compatible.single : null;
-        _selectedDate = null;
+      // `lockBranch` үед `_selectedBranch` хэзээ ч солигдохгүй/хоослогдохгүй
+      // — `_allCategories` аль хэдийн тухайн салбарын ангиллаар хязгаарлагдсан
+      // тул сонгосон ангилал бүр аяндаа тохирно.
+      if (!widget.lockBranch) {
+        final compatible = _compatibleBranches;
+        final stillValid =
+            _selectedBranch != null &&
+            compatible.any((b) => b.id == _selectedBranch!.id);
+        if (!stillValid) {
+          _selectedBranch = compatible.length == 1 ? compatible.single : null;
+          _selectedDate = null;
+        }
       }
       _selectedSlot = null;
       _availability = null;
@@ -247,9 +270,17 @@ class _BookingRequestScreenState extends State<BookingRequestScreen>
     // блоклоно.
     _selectedBranch =
         preferredBranch ??
-        (!widget.lockCategories && widget.organization.branches.length == 1
+        (!widget.lockCategories &&
+                !widget.lockBranch &&
+                widget.organization.branches.length == 1
             ? widget.organization.branches.single
             : null);
+    // `lockBranch` үед `initialBranchId`-аар өгсөн салбар олдохгүй бол
+    // (устсан/буруу) `lockCategories`-ийн адил зарчмаар аюулгүй орлуулагч
+    // байхгүй тул блоклоно — доор `_lockedFlowBlocked`.
+    if (widget.lockBranch && preferredBranch == null) {
+      _lockedBranchMissing = true;
+    }
     if (widget.lockCategories) {
       final requestedCategoryIds = widget.initialCategoryIds ?? const [];
       final branch = _selectedBranch;
@@ -422,10 +453,12 @@ class _BookingRequestScreenState extends State<BookingRequestScreen>
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            _selectedCategoryIds.isEmpty
-                                ? 'Хэрэгтэй үйлчилгээгээ сонгоно уу (нэг буюу хэд) — доорх '
-                                      'салбарын сонголт үүнд тохируулан шүүгдэнэ.'
-                                : 'Нийт ойролцоогоор $_selectedDurationMinutes мин',
+                            _selectedCategoryIds.isNotEmpty
+                                ? 'Нийт ойролцоогоор $_selectedDurationMinutes мин'
+                                : widget.lockBranch
+                                    ? 'Хэрэгтэй үйлчилгээгээ сонгоно уу (нэг буюу хэд).'
+                                    : 'Хэрэгтэй үйлчилгээгээ сонгоно уу (нэг буюу хэд) — доорх '
+                                          'салбарын сонголт үүнд тохируулан шүүгдэнэ.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(
                                   color: Theme.of(context)
@@ -463,8 +496,11 @@ class _BookingRequestScreenState extends State<BookingRequestScreen>
                   // энэ дүрэм хэрэглэгдэхгүй — эс бөгөөс салбар сонгох боломж
                   // мөнхөд алга болно (сонгох ганц ч категори байхгүй тул).
                   // `lockCategories` үед салбар аль хэдийн cross-org үр дүнгийн
-                  // жагсаалт дээр баталгаажсан тул энэ хэсгийг огт харуулахгүй.
+                  // жагсаалт дээр баталгаажсан, `lockBranch` үед discover-ийн
+                  // салбарын дэлгэрэнгүйгээс сонгосон хэвээр байх ёстой тул
+                  // хоёуланд нь энэ хэсгийг огт харуулахгүй.
                   if (!widget.lockCategories &&
+                      !widget.lockBranch &&
                       widget.organization.branches.length > 1 &&
                       (_allCategories.isEmpty ||
                           _selectedCategoryIds.isNotEmpty)) ...[

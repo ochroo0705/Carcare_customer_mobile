@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart'
     show ServiceOrderItemKind;
 
@@ -150,6 +151,7 @@ class AppointmentServiceProgress {
     this.vehicleYear,
     this.statusHistory = const [],
     this.scheduledReturnAt,
+    this.reports = const [],
   });
 
   final String id;
@@ -183,6 +185,9 @@ class AppointmentServiceProgress {
   // `OrderTimeBooking` row, not `scheduledAt` (the order's original booking
   // time). Null for every other status.
   final DateTime? scheduledReturnAt;
+  // Ажил дуусахаас өмнө ч бэлэн болмогц шууд харагдана — захиалгын төлвөөр
+  // шүүгддэггүй (жиш: захиалга гараад дараа нь оношилгоо хийгдэж болно).
+  final List<DiagnosticReportSummary> reports;
 
   int get completedItemCount =>
       items.where((item) => item.status.isCompleted).length;

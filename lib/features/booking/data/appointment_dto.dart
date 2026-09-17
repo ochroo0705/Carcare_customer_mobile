@@ -4,6 +4,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_paym
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
+import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart'
     show ServiceOrderItemKind, serviceOrderItemKindFromApi;
 
@@ -180,6 +181,28 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
 
   final vehicle = _optionalMap(json['vehicle']);
 
+  final reports = <DiagnosticReportSummary>[];
+  final rawReports = json['reports'];
+  if (rawReports is List) {
+    for (final rawReport in rawReports) {
+      final report = _optionalMap(rawReport);
+      final reportId = report == null ? null : _optionalString(report['id']);
+      final createdAt = report == null
+          ? null
+          : _optionalDateTime(report['createdAt']);
+      if (report == null || reportId == null || createdAt == null) continue;
+      reports.add(
+        DiagnosticReportSummary(
+          id: reportId,
+          templateName: _optionalString(report['templateName']) ?? 'Тайлан',
+          type: _optionalString(report['type']) ?? '',
+          createdAt: createdAt,
+          mileageAtReport: _optionalNum(report['mileageAtReport'])?.toInt(),
+        ),
+      );
+    }
+  }
+
   final statusHistory = <OrderStatusHistoryEntry>[];
   final rawHistory = json['statusHistory'];
   if (rawHistory is List) {
@@ -238,6 +261,7 @@ AppointmentServiceProgress? serviceProgressFromJson(Object? value) {
     items: List.unmodifiable(items),
     statusHistory: List.unmodifiable(statusHistory),
     scheduledReturnAt: _optionalDateTime(json['scheduledReturnAt']),
+    reports: List.unmodifiable(reports),
   );
 }
 

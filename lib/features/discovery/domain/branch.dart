@@ -2,6 +2,16 @@ import 'dart:math' as math;
 
 enum BranchOpenStatus { open, closed, unknown }
 
+/// A platform-wide business-type label (e.g. "Угаалгын газар") a branch can
+/// carry — see `BranchTag` server-side. Shown directly on branch cards and
+/// used to drive the discovery tag filter chip row.
+class BranchTagOption {
+  const BranchTagOption({required this.id, required this.name});
+
+  final String id;
+  final String name;
+}
+
 class Branch {
   const Branch({
     required this.id,
@@ -12,6 +22,7 @@ class Branch {
     this.longitude,
     this.distanceKm,
     this.serviceKeyIds = const [],
+    this.tags = const [],
   });
   final String id;
   final String name;
@@ -27,6 +38,11 @@ class Branch {
   /// `SystemServiceKey.id`s this branch's categories are linked to — powers
   /// the cross-org "what do you need done?" picker (`?serviceKey=` filter).
   final List<String> serviceKeyIds;
+
+  /// Business-type labels this branch carries (e.g. "Угаалгын газар") —
+  /// shown directly on the branch card, and match the discovery tag filter
+  /// chip row (`?tag=` filter, see `/api/v1/app/branch-tags`).
+  final List<BranchTagOption> tags;
 
   /// City · district, omitting either part when the API left it blank
   /// (`Branch.city`/`district` are optional server-side). Empty when both
@@ -54,6 +70,7 @@ class OrganizationFilter {
     this.openNow = false,
     this.weekend = false,
     this.serviceKey = '',
+    this.tag = '',
   });
 
   final String query;
@@ -70,10 +87,14 @@ class OrganizationFilter {
   // "Ямар ажил хийлгэх гэж байна?" — SystemServiceKey.id-аар шүүнэ, аль ч
   // байгууллагад хамаарахгүй (Booking tab-ийн cross-org picker).
   final String serviceKey;
+  // Бизнесийн төрлийн шошго (BranchTag.id) — discovery-г бизнесийн төрлөөр
+  // шүүх хөнгөн шүүлтүүр (жиш: "Угаалгын газар").
+  final String tag;
 
   bool get hasNearMe => lat != null && lng != null;
   bool get hasTextFilters => query.isNotEmpty || city.isNotEmpty || district.isNotEmpty;
-  bool get isActive => hasTextFilters || hasNearMe || openNow || weekend || serviceKey.isNotEmpty;
+  bool get isActive =>
+      hasTextFilters || hasNearMe || openNow || weekend || serviceKey.isNotEmpty || tag.isNotEmpty;
 }
 
 /// Салбарт санал болгож буй үйлчилгээний ангилал (booking v2) — шийдэгдсэн

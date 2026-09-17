@@ -14,6 +14,10 @@ abstract interface class OrganizationRepository {
   /// Active `SystemServiceKey`s — the platform-wide "what do you need done?"
   /// options for the cross-org Booking tab picker (`OrganizationFilter.serviceKey`).
   Future<List<ServiceKey>> getServiceKeys();
+
+  /// Active `BranchTag`s — the platform-wide business-type labels (e.g.
+  /// "Угаалгын газар") for the discovery tag filter (`OrganizationFilter.tag`).
+  Future<List<BranchTagOption>> getBranchTags();
 }
 
 class ServiceKey {
@@ -50,6 +54,7 @@ class OrganizationMapMarker {
     this.district,
     this.distanceKm,
     this.serviceKeyIds = const [],
+    this.tagIds = const [],
   });
 
   final String id;
@@ -63,6 +68,7 @@ class OrganizationMapMarker {
   final double longitude;
   final double? distanceKm;
   final List<String> serviceKeyIds;
+  final List<String> tagIds;
 
   Organization toOrganization() => Organization(
     slug: orgSlug,

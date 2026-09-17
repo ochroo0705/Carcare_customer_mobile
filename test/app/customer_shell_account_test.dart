@@ -21,6 +21,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      // Discover opens on the map, which hides the shell's own AppBar (and
+      // with it the login button/avatar) to give the map the whole screen —
+      // switch to the list to reach them.
+      await tester.tap(find.byKey(const ValueKey('discovery-map-list-toggle')));
+      await tester.pumpAndSettle();
+
       expect(find.byKey(const ValueKey('shell-login')), findsOneWidget);
       expect(find.byKey(const ValueKey('shell-avatar')), findsNothing);
 

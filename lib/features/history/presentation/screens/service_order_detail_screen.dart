@@ -1,12 +1,12 @@
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
-import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_item.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/widgets/diagnostic_report_row.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/widgets/service_order_status_chip.dart';
 import 'package:flutter/material.dart';
 
@@ -241,7 +241,7 @@ class _DetailBody extends StatelessWidget {
             child: Column(
               children: [
                 for (final report in detail.reports)
-                  _ReportRow(
+                  DiagnosticReportRow(
                     report: report,
                     onTap: onReportSelected == null
                         ? null
@@ -252,55 +252,6 @@ class _DetailBody extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-}
-
-class _ReportRow extends StatelessWidget {
-  const _ReportRow({required this.report, this.onTap});
-
-  final DiagnosticReportSummary report;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final date =
-        '${report.createdAt.year}.${report.createdAt.month.toString().padLeft(2, '0')}.${report.createdAt.day.toString().padLeft(2, '0')}';
-    final subtitle = report.mileageAtReport != null
-        ? '$date · ${report.mileageAtReport} км'
-        : date;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          children: [
-            Icon(Icons.assignment_outlined, size: 18, color: scheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    report.templateName,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-            if (onTap != null)
-              Icon(Icons.chevron_right_rounded, color: scheme.onSurfaceVariant),
-          ],
-        ),
-      ),
     );
   }
 }

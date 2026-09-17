@@ -17,11 +17,14 @@ class HistoryFilter {
   const HistoryFilter({
     this.query = '',
     this.year,
+    this.month,
     this.page = 1,
     this.pageSize = 20,
   });
   final String query;
   final int? year;
+  // Зөвхөн [year]-тэй хамт утгатай (1-12) — оноос тусад нь ялгамжтай биш.
+  final int? month;
   final int page;
   final int pageSize;
 }

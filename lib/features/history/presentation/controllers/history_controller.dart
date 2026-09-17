@@ -14,30 +14,47 @@ class HistoryController extends ChangeNotifier {
   final CacheStore _cache;
   HistoryState _state = const HistoryState();
   String _query = '';
-  int? _year;
+  // "Бүх он" сонголт байхгүй — үргэлж тодорхой жил сонгогдсон байна, анхны
+  // утга нь одоогийн жил.
+  int _year = DateTime.now().year;
   Timer? _debounce;
   int _generation = 0;
 
   String get query => _query;
-  int? get year => _year;
+  int get year => _year;
+
+  /// Жилийн сонголтод харуулах жагсаалт — серверээс ирсэн бодит өгөгдөлтэй
+  /// жилүүд, одоогийн жил хэзээ ч дутахгүйн тулд түүнийг мөн эхэнд нэмнэ
+  /// (тухайн жилд захиалга байхгүй байсан ч сонгогдсон хэвээр байх ёстой).
+  List<int> get availableYears {
+    final years = {_year, ..._state.availableYears}.toList()
+      ..sort((a, b) => b.compareTo(a));
+    return years;
+  }
+
   bool get hasNextPage =>
       _state.pagination.hasNext || _state.cancelledPagination.hasNext;
 
+  // Хайлт бичих зуур `_state`-ийг шууд цэвэрлэхгүй (өмнө нь ингэж байсан нь
+  // status-ыг `initial`-руу шидэж, харагдаж буй жагсаалт/хайлтын мөрийг бүр
+  // mount-оос нь хассан — гар товчлуур (keyboard) үсэг бүр дээр хаагдах
+  // алдааны шалтгаан байсан). `load()` өөрөө debounce дууссаны дараа
+  // status-оо `loading` болгоно; хайлтын мөр unmount болохгүй байхын тулд
+  // `_AppointmentHistoryTab` (`history_screen.dart`) хайлтын мөрийг
+  // switch-ийн гадна байрлуулсан.
   void setQuery(String value) {
-    _query = value.trim();
+    final trimmed = value.trim();
+    if (_query == trimmed) return;
+    _query = trimmed;
     _generation++;
     _debounce?.cancel();
-    _state = HistoryState(availableYears: _state.availableYears);
-    notifyListeners();
     _debounce = Timer(const Duration(milliseconds: 350), load);
   }
 
-  void setYear(int? value) {
+  void setYear(int value) {
     if (_year == value) return;
     _year = value;
     _generation++;
-    _state = HistoryState(availableYears: _state.availableYears);
-    notifyListeners();
     load();
   }
 
@@ -69,13 +86,17 @@ class HistoryController extends ChangeNotifier {
       _state = HistoryState(
         status: HistoryStatus.loading,
         orders: _state.orders,
+        cancelledAppointments: _state.cancelledAppointments,
+        availableYears: _state.availableYears,
       );
     }
     notifyListeners();
     try {
       final result = await _repository.getServiceHistory(filter: filter);
       if (generation != _generation) return;
-      final orders = append ? [..._state.orders, ...result.orders] : result.orders;
+      final orders = append
+          ? [..._state.orders, ...result.orders]
+          : result.orders;
       final cancelledAppointments = append
           ? [..._state.cancelledAppointments, ...result.cancelledAppointments]
           : result.cancelledAppointments;
@@ -90,7 +111,10 @@ class HistoryController extends ChangeNotifier {
         availableYears: result.availableYears,
         page: requestedPage,
       );
-      if (!append && _query.isEmpty && _year == null) {
+      // "Шүүлтгүй" төлөв гэдгийг индикатор болгож кэшлэнэ — жил үргэлж
+      // сонгогдсон байдаг тул одоогийн жилийг л анхны (default) төлөв гэж
+      // үзнэ.
+      if (!append && _query.isEmpty && _year == DateTime.now().year) {
         await _cache.writeServiceOrders(orders);
       }
     } on FeatureUnavailableFailure {
@@ -153,6 +177,8 @@ class HistoryController extends ChangeNotifier {
   /// cached service history.
   Future<void> reset() async {
     _state = const HistoryState();
+    _query = '';
+    _year = DateTime.now().year;
     notifyListeners();
     await _cache.clearServiceOrders();
   }
