@@ -202,14 +202,4 @@ class AppointmentServiceProgress {
   /// давхар шалгаж, кэшлэгдсэн хуучин датаг найдваргүй харуулахаас сэргийлнэ).
   bool get isSettled =>
       status.isCompleted && paymentStatus == OrderPaymentStatus.paid;
-
-  /// Тооцоолсон дуусах хугацаанаас хэтэрсэн ч ажил хараахан дуусаагүй эсэх.
-  /// Хойшлогдсон (postponed) захиалгад хуучин таамаг хамааралгүй болсон тул
-  /// хэзээ ч "хожимдсон" гэж тооцохгүй — шинэ буцах цаг үүнийг орлоно (D-081).
-  bool get isDelayed =>
-      !status.isCompleted &&
-      status != ServiceProgressStatus.cancelled &&
-      status != ServiceProgressStatus.postponed &&
-      expectedFinishAt != null &&
-      expectedFinishAt!.isBefore(DateTime.now());
 }

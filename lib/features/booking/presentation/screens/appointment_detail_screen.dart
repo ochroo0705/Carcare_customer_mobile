@@ -128,7 +128,7 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen>
               organizationRepository: widget.organizationRepository,
               isCancelling: controller.isCancelling(appointment.id),
               onRefresh: controller.load,
-              onCancel: appointment.status.canCancel
+              onCancel: appointment.canCancel
                   ? () => _confirmCancel(context, controller, appointment)
                   : null,
               onPay: appointment.canPayFee
@@ -234,11 +234,17 @@ class _AppointmentDetailBody extends StatelessWidget {
                 label: 'Цаг',
                 value: _formatDateTime(appointment.requestedAt),
               ),
-              if (appointment.categoryName != null)
+              // Захиалга үүсмэгц `ServiceProgressSection` бодит үйлчилгээний
+              // жагсаалтыг харуулдаг тул энэ мөр давхцаж, хоцрогдсон болно
+              // (appointments_screen.dart-ийн ижил нөхцөл).
+              if (appointment.serviceProgress == null &&
+                  appointment.categoryNames.isNotEmpty)
                 _DetailRow(
                   icon: Icons.construction_outlined,
-                  label: 'Ангилал',
-                  value: appointment.categoryName!,
+                  label: appointment.categoryNames.length > 1
+                      ? 'Ангиллууд'
+                      : 'Ангилал',
+                  value: appointment.categoryNames.join(' · '),
                 ),
               if (appointment.vehiclePlate != null)
                 _DetailRow(
@@ -256,14 +262,18 @@ class _AppointmentDetailBody extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 14),
-        _BranchInfoCard(
-          tenantSlug: appointment.tenantSlug,
-          branchName: appointment.branchName,
-          repository: organizationRepository,
-        ),
+        // Хэсгүүдийн дараалал: юу болж байна → юу хийх ёстой → хаашаа
+        // очих. Явц (ServiceProgressSection) нь захиалга үүссэний дараа энэ
+        // хуудсыг нээх БАРАГ цорын ганц шалтгаан тул салбарын лавлах
+        // мэдээллээс дээр байна; хураамжийн сэрэмжлүүлэг нь богино бөгөөд
+        // мөнгөтэй холбоотой үйлдэл учир хамгийн дээр үлдэнэ (урт явцын
+        // картын доор дарагдвал анзаарагдахгүй өнгөрөх эрсдэлтэй).
+        //
+        // Зай: нэг бүлгийн дотор 16, бүлэг хооронд 24 (4px scale — харах:
+        // CUSTOMER_FLUTTER_DESIGN_SYSTEM.md). Бүх хэсэг ижил GlassSurface
+        // chrome-той тул зай нь эрэмбийг илэрхийлэх цорын ганц хэрэгсэл.
         if (onPay != null) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -299,21 +309,37 @@ class _AppointmentDetailBody extends StatelessWidget {
         // хүртэл PENDING хэвээр. Хоёрыг андуурахгүйн тулд төлбөрийг тусад нь
         // тэмдэглэнэ.
         if (appointment.payment?.status == AppointmentFeeStatus.paid) ...[
-          const SizedBox(height: 14),
+          const SizedBox(height: 16),
           _FeePaidBadge(key: ValueKey('detail-fee-paid-${appointment.id}')),
         ],
-          if (appointment.serviceProgress != null) ...[
-            const SizedBox(height: 14),
-            ServiceProgressSection(
-              progress: appointment.serviceProgress!,
-              onReportSelected: onReportSelected,
-            ),
-          ],
-          if (onCancel != null) ...[
-          const SizedBox(height: 14),
+        if (appointment.serviceProgress != null) ...[
+          const SizedBox(height: 24),
+          ServiceProgressSection(
+            progress: appointment.serviceProgress!,
+            onReportSelected: onReportSelected,
+          ),
+        ],
+        const SizedBox(height: 24),
+        _BranchInfoCard(
+          tenantSlug: appointment.tenantSlug,
+          branchName: appointment.branchName,
+          repository: organizationRepository,
+        ),
+        if (onCancel != null) ...[
+          const SizedBox(height: 24),
+          // Цуцлах нь эргэлт буцалтгүй үйлдэл тул аюулын өнгөөр ялгана.
+          // Үүнгүйгээр энэ нь салбарын картын сүүлчийн "Газрын зураг дээр
+          // харах" OutlinedButton-той яг ижил харагдана — дээр нь шууд
+          // залгаа байрладаг тул андуурч дарах бодит эрсдэл үүснэ.
           OutlinedButton.icon(
             key: ValueKey('detail-cancel-${appointment.id}'),
             onPressed: isCancelling ? null : onCancel,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.red,
+              side: BorderSide(
+                color: AppColors.red.withValues(alpha: isCancelling ? 0.2 : 0.5),
+              ),
+            ),
             icon: isCancelling
                 ? const SizedBox.square(
                     dimension: 16,

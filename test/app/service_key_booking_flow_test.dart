@@ -2,7 +2,9 @@ import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
 import 'package:carcare_customer_mobile/app/app.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
 import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -138,6 +140,54 @@ void main() {
       expect(
         find.byKey(const ValueKey('service-key-result-khurd-khud')),
         findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'backing out of booking returns to the picker, not the organization '
+    'detail screen the flow skipped',
+    (tester) async {
+      await tester.pumpWidget(
+        CarCareCustomerApp(
+          organizationRepository: FakeOrganizationRepository(
+            delay: Duration.zero,
+          ),
+          authRepository: _AuthedRepo(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Захиалах'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('service-key-add')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('service-key-tire-service')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('service-key-apply')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(
+        find.byKey(const ValueKey('service-key-result-khurd-khud')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BookingRequestScreen), findsOneWidget);
+      // The skipped detail screen must never enter the stack, otherwise the
+      // pop below surfaces it.
+      expect(find.byType(OrganizationDetailScreen), findsNothing);
+
+      // System back (Android gesture / hardware button) goes through
+      // PopNavigatorRouterDelegateMixin.popRoute.
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BookingRequestScreen), findsNothing);
+      expect(find.byType(OrganizationDetailScreen), findsNothing);
+      // Back on the picker with the selection still applied.
+      expect(
+        find.byKey(const ValueKey('service-key-result-khurd-khud')),
+        findsOneWidget,
       );
     },
   );

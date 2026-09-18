@@ -4,11 +4,77 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_stat
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/widgets/service_order_status_chip.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
+import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+/// Resolves everything this page shows from the controllers themselves, given
+/// only the vehicle's id.
+///
+/// It used to take the vehicle, its appointments, its orders and two loading
+/// flags as constructor arguments, which meant `CustomerRouterDelegate` had to
+/// listen to three controllers and rebuild the **entire** page stack whenever
+/// any of them changed — every tab, on every appointment reload. Reading them
+/// here confines that rebuild to this page. Same pattern as
+/// `AppointmentDetailScreen` (D-027).
 class VehicleDetailScreen extends StatelessWidget {
   const VehicleDetailScreen({
+    required this.vehicleId,
+    required this.fallbackVehicle,
+    required this.onBack,
+    this.onAppointmentSelected,
+    this.onOrderSelected,
+    this.onRefreshHur,
+    super.key,
+  });
+
+  final String vehicleId;
+
+  /// Shown if the id is no longer in the list — a delete completing while this
+  /// page is open must not throw, it just leaves the last known values up
+  /// until the page is popped.
+  final Vehicle fallbackVehicle;
+
+  final VoidCallback onBack;
+  final ValueChanged<String>? onAppointmentSelected;
+  final ValueChanged<String>? onOrderSelected;
+  final VoidCallback? onRefreshHur;
+
+  @override
+  Widget build(BuildContext context) {
+    final vehicles = context.watch<VehiclesController>();
+    final appointments = context.watch<AppointmentsController>();
+    final history = context.watch<HistoryController>();
+    final vehicle = vehicles.state.vehicles.firstWhere(
+      (v) => v.id == vehicleId,
+      orElse: () => fallbackVehicle,
+    );
+    final plate = vehicle.plate.trim().toUpperCase();
+
+    return _VehicleDetailView(
+      vehicle: vehicle,
+      onBack: onBack,
+      appointments: appointments.state.appointments
+          .where((a) => a.vehiclePlate?.trim().toUpperCase() == plate)
+          .toList(growable: false),
+      appointmentsLoading: appointments.state.isLoading,
+      onAppointmentSelected: onAppointmentSelected,
+      orders: history.state.orders
+          .where((o) => o.vehiclePlate?.trim().toUpperCase() == plate)
+          .toList(growable: false),
+      ordersLoading: history.state.isLoading,
+      onOrderSelected: onOrderSelected,
+      onRefreshHur: onRefreshHur,
+      refreshingHur: vehicles.isRefreshing(vehicleId),
+    );
+  }
+}
+
+class _VehicleDetailView extends StatelessWidget {
+  const _VehicleDetailView({
     required this.vehicle,
     required this.onBack,
     this.appointments = const [],
@@ -19,7 +85,6 @@ class VehicleDetailScreen extends StatelessWidget {
     this.onOrderSelected,
     this.onRefreshHur,
     this.refreshingHur = false,
-    super.key,
   });
 
   final Vehicle vehicle;
@@ -365,10 +430,10 @@ class _AppointmentsSection extends StatelessWidget {
                                   ),
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (sorted[i].categoryName != null) ...[
+                            if (sorted[i].categoryNames.isNotEmpty) ...[
                               const SizedBox(height: 2),
                               Text(
-                                sorted[i].categoryName!,
+                                sorted[i].categoryNames.join(' · '),
                                 style: Theme.of(context).textTheme.bodySmall
                                     ?.copyWith(
                                       color: Theme.of(context)

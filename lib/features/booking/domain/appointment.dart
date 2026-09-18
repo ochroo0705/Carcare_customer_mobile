@@ -11,7 +11,7 @@ class Appointment {
     required this.tenantSlug,
     required this.branchName,
     this.note,
-    this.categoryName,
+    this.categoryNames = const [],
     this.vehiclePlate,
     this.payment,
     this.serviceProgress,
@@ -24,7 +24,12 @@ class Appointment {
   final String tenantSlug;
   final String branchName;
   final String? note;
-  final String? categoryName;
+
+  /// Захиалсан бүх үйлчилгээний ангилал (booking v2). Backend-ийн
+  /// `categories` массиваас ирнэ; хуучин ганц `category`-г зөвхөн fallback-д
+  /// ашиглана (харах: CUSTOMER_API_CONTRACT.md — "new clients should read
+  /// `categories`"). Ангилалгүй захиалгад хоосон.
+  final List<String> categoryNames;
   final String? vehiclePlate;
 
   /// The QPay booking fee for this appointment, or `null` if none is
@@ -48,6 +53,21 @@ class Appointment {
       payment != null &&
       payment!.status != AppointmentFeeStatus.paid;
 
+  /// Цуцлах товчийг харуулах эсэх — UI-ийн цорын ганц эх сурвалж.
+  ///
+  /// `status.canCancel` нь ЗӨВХӨН төлөв шалгадаг тул шууд бүү ашигла:
+  /// ажилтан баталгаажуулж ServiceOrder үүсгэсний дараа ч `CONFIRMED` хэвээр
+  /// байх тул тэр нь `true` буцаана. Тэр үед цуцлах нь утгагүй — засвар аль
+  /// хэдийн эхэлсэн байж болох ба appointment-ийг цуцлахад холбогдох
+  /// ServiceOrder ХӨНДӨГДӨХГҮЙ: үйлчлүүлэгч цуцалсан гэж бодох ч ажил үргэлжилж,
+  /// ажилтанд төөрөгдүүлсэн мэдэгдэл очно.
+  ///
+  /// `serviceProgress` нь захиалга үүссэн үед л ирдэг (харах: түүний тайлбар),
+  /// тиймээс түүнийг байхгүй байхыг шаардана. Offline cache-д `serviceProgress`
+  /// байхгүй байж болох тул энэ нь зөвхөн UX-ийн урьдчилсан шалгалт —
+  /// эцсийн шийдвэр server дээр (харах: `remote_appointment_repository.dart`).
+  bool get canCancel => status.canCancel && serviceProgress == null;
+
   Appointment copyWith({
     AppointmentStatus? status,
     DateTime? requestedAt,
@@ -61,7 +81,7 @@ class Appointment {
     tenantSlug: tenantSlug,
     branchName: branchName,
     note: note,
-    categoryName: categoryName,
+    categoryNames: categoryNames,
     vehiclePlate: vehiclePlate,
     payment: payment ?? this.payment,
     serviceProgress: serviceProgress ?? this.serviceProgress,

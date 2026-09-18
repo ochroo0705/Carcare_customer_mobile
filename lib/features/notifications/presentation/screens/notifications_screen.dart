@@ -9,9 +9,18 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class NotificationsScreen extends StatelessWidget {
-  const NotificationsScreen({required this.onBack, super.key});
+  const NotificationsScreen({
+    required this.onBack,
+    required this.onOpen,
+    super.key,
+  });
 
   final VoidCallback onBack;
+
+  /// Deep-links the tapped notification (router wiring decides where, from the
+  /// same `data` map a push tap carries). A notification with nothing routable
+  /// — a broadcast, say — simply stays on this screen.
+  final void Function(AppNotification notification) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +30,10 @@ class NotificationsScreen extends StatelessWidget {
         leading: BackButton(onPressed: onBack),
         title: const Text('Мэдэгдэл'),
         actions: [
-          if (controller.state.notifications.any((n) => !n.isRead))
+          // The server's unread total, not the loaded page's: with more than
+          // one page of notifications the unread ones can all sit below the
+          // first page, which would show a bell badge with no way to clear it.
+          if (controller.unreadCount > 0)
             TextButton(
               onPressed: controller.markAllRead,
               child: const Text('Бүгдийг уншсан'),
@@ -29,16 +41,20 @@ class NotificationsScreen extends StatelessWidget {
         ],
       ),
       body: AppShellBackground(
-        child: SafeArea(top: false, child: _Body(controller: controller)),
+        child: SafeArea(
+          top: false,
+          child: _Body(controller: controller, onOpen: onOpen),
+        ),
       ),
     );
   }
 }
 
 class _Body extends StatelessWidget {
-  const _Body({required this.controller});
+  const _Body({required this.controller, required this.onOpen});
 
   final NotificationsController controller;
+  final void Function(AppNotification notification) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +72,10 @@ class _Body extends StatelessWidget {
         title: 'Тун удахгүй',
         message: 'Мэдэгдлийн жагсаалт удахгүй нэмэгдэнэ.',
       ),
-      NotificationsStatus.data => _NotificationsList(controller: controller),
+      NotificationsStatus.data => _NotificationsList(
+        controller: controller,
+        onOpen: onOpen,
+      ),
     };
   }
 }
@@ -120,9 +139,10 @@ class _EmptyNotifications extends StatelessWidget {
 }
 
 class _NotificationsList extends StatelessWidget {
-  const _NotificationsList({required this.controller});
+  const _NotificationsList({required this.controller, required this.onOpen});
 
   final NotificationsController controller;
+  final void Function(AppNotification notification) onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -139,9 +159,12 @@ class _NotificationsList extends StatelessWidget {
             index: index,
             child: _NotificationCard(
               notification: notification,
-              onTap: notification.isRead
-                  ? null
-                  : () => controller.markRead(notification.id),
+              // Read rows stay tappable — opening the thing a notification is
+              // about is useful long after it has been read.
+              onTap: () {
+                if (!notification.isRead) controller.markRead(notification.id);
+                onOpen(notification);
+              },
             ),
           );
         },

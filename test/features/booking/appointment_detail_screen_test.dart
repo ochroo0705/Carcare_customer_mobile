@@ -88,7 +88,9 @@ void main() {
 
     expect(find.text('Инфосистемс'), findsOneWidget);
     expect(find.text('Үндсэн салбар'), findsOneWidget);
-    expect(find.text('Тоормос'), findsOneWidget); // category
+    // Захиалга үүсээгүй (seed-1-д serviceProgress байхгүй) тул ангиллууд
+    // хэвээр харагдана — booking v2-ын бүх ангилал, ганцхан нэг биш.
+    expect(find.text('Тоормос · Тос солих'), findsOneWidget);
     controller.dispose();
   });
 
@@ -252,6 +254,164 @@ void main() {
     expect(find.byKey(const ValueKey('detail-show-on-maps')), findsOneWidget);
     expect(find.byKey(const ValueKey('detail-call')), findsOneWidget);
     expect(find.byKey(const ValueKey('detail-copy-phone')), findsOneWidget);
+    controller.dispose();
+  });
+
+  testWidgets(
+    'drops the category row once a service order exists, and shows the real '
+    'start time instead of any estimate',
+    (tester) async {
+      final appointment = Appointment(
+        id: 'apt-started',
+        status: AppointmentStatus.confirmed,
+        requestedAt: DateTime(2026, 10, 1, 10),
+        tenantName: 'Auto Doctor Service',
+        tenantSlug: 'auto-doctor',
+        branchName: 'Баянзүрх салбар',
+        categoryNames: const ['Тоормос', 'Тос солих'],
+        serviceProgress: AppointmentServiceProgress(
+          id: 'order-2',
+          number: 'A-101',
+          status: ServiceProgressStatus.inProgress,
+          startedAt: DateTime(2026, 10, 1, 14, 20),
+          scheduledAt: DateTime(2026, 10, 1, 10),
+          estimatedDurationMinutes: 90,
+          // Аль хэдийн хэтэрсэн таамаг — өмнө нь улаан "хожимдож байна"
+          // анхааруулга гаргадаг байсан нөхцөл.
+          expectedFinishAt: DateTime(2026, 10, 1, 12),
+          items: const [
+            AppointmentServiceItemProgress(
+              id: 'item-1',
+              name: 'Тос солих',
+              status: ServiceProgressStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+      final controller = AppointmentsController(
+        _OneAppointmentRepo(appointment),
+      );
+      await controller.load();
+
+      await _pump(tester, controller, 'apt-started');
+
+      // Захиалга үүссэн тул ангиллын мөр алга — доорх item жагсаалт орлоно.
+      expect(find.text('Тоормос · Тос солих'), findsNothing);
+      expect(find.text('Ангилал'), findsNothing);
+      expect(find.text('Ангиллууд'), findsNothing);
+
+      // Бодит эхэлсэн цаг харагдана, товлосон огноо түүнд байраа тавина.
+      expect(find.text('Ажил эхэлсэн: 2026.10.01 14:20'), findsOneWidget);
+      expect(find.textContaining('Товлосон огноо'), findsNothing);
+
+      // Таамаг болон хожимдлын анхааруулга бүрмөсөн алга.
+      expect(find.textContaining('Ойролцоо хугацаа'), findsNothing);
+      expect(find.textContaining('Дуусах хугацаа'), findsNothing);
+      expect(find.textContaining('Дуусах ёстой байсан'), findsNothing);
+      expect(find.text('Төлөвлөснөөс хожимдож байна'), findsNothing);
+      controller.dispose();
+    },
+  );
+
+  testWidgets('keeps the scheduled date while the work has not started', (
+    tester,
+  ) async {
+    final appointment = Appointment(
+      id: 'apt-scheduled',
+      status: AppointmentStatus.confirmed,
+      requestedAt: DateTime(2026, 10, 1, 10),
+      tenantName: 'Auto Doctor Service',
+      tenantSlug: 'auto-doctor',
+      branchName: 'Баянзүрх салбар',
+      serviceProgress: AppointmentServiceProgress(
+        id: 'order-3',
+        number: 'A-102',
+        status: ServiceProgressStatus.scheduled,
+        scheduledAt: DateTime(2026, 10, 2, 9, 30),
+        items: const [],
+      ),
+    );
+    final controller = AppointmentsController(_OneAppointmentRepo(appointment));
+    await controller.load();
+
+    await _pump(tester, controller, 'apt-scheduled');
+
+    expect(find.text('Товлосон огноо: 2026.10.02 09:30'), findsOneWidget);
+    expect(find.textContaining('Ажил эхэлсэн'), findsNothing);
+    controller.dispose();
+  });
+
+  testWidgets(
+    'puts the service progress above the branch info card, and marks cancel '
+    'as destructive',
+    (tester) async {
+      // Бүх хэсгийг нэг дор build хийлгэхийн тулд өндөр viewport — ListView
+      // нь lazy тул анхдагч 800x600 дээр доод картууд build хийгдэхгүй.
+      tester.view.physicalSize = const Size(1200, 3600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      final appointment = Appointment(
+        id: 'apt-order',
+        status: AppointmentStatus.confirmed,
+        requestedAt: DateTime(2026, 10, 1, 10),
+        tenantName: 'Auto Doctor Service',
+        tenantSlug: 'auto-doctor',
+        branchName: 'Баянзүрх салбар',
+        serviceProgress: AppointmentServiceProgress(
+          id: 'order-4',
+          number: 'A-103',
+          status: ServiceProgressStatus.inProgress,
+          startedAt: DateTime(2026, 10, 1, 14, 20),
+          items: const [
+            AppointmentServiceItemProgress(
+              id: 'item-1',
+              name: 'Тос солих',
+              status: ServiceProgressStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+      final controller = AppointmentsController(
+        _OneAppointmentRepo(appointment),
+      );
+      await controller.load();
+
+      await _pump(tester, controller, 'apt-order');
+
+      final progressY = tester
+          .getTopLeft(find.byKey(const ValueKey('appointment-progress')))
+          .dy;
+      final branchY = tester
+          .getTopLeft(find.text('Байршил ба цагийн хуваарь'))
+          .dy;
+      expect(
+        progressY,
+        lessThan(branchY),
+        reason: 'Явц нь салбарын лавлах мэдээллээс дээр байх ёстой',
+      );
+      controller.dispose();
+    },
+  );
+
+  testWidgets('styles the cancel button with the danger colour', (
+    tester,
+  ) async {
+    final controller = await _loadedController();
+
+    // seed-2 нь PENDING, захиалгагүй — цуцлах товч харагдана.
+    await _pump(tester, controller, 'seed-2');
+
+    final button = tester.widget<OutlinedButton>(
+      find.byKey(const ValueKey('detail-cancel-seed-2')),
+    );
+    expect(
+      button.style?.foregroundColor?.resolve(<WidgetState>{}),
+      AppColors.red,
+      reason:
+          'Эргэлт буцалтгүй үйлдэл нь салбарын картын энгийн OutlinedButton-'
+          'оос өнгөөрөө ялгарах ёстой',
+    );
     controller.dispose();
   });
 }

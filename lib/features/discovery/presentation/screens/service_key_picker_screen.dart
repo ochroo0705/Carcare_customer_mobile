@@ -24,7 +24,11 @@ class ServiceKeyPickerScreen extends StatefulWidget {
   });
 
   final OrganizationRepository repository;
-  final void Function(Organization organization, Branch branch, List<ServiceKey> serviceKeys)
+  final void Function(
+    Organization organization,
+    Branch branch,
+    List<ServiceKey> serviceKeys,
+  )
   onBranchSelected;
 
   @override
@@ -122,14 +126,15 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
     }
   }
 
-  List<ServiceKey> get _selectedKeys => _keys
-      .where((k) => _selectedIds.contains(k.id))
-      .toList(growable: false);
+  List<ServiceKey> get _selectedKeys =>
+      _keys.where((k) => _selectedIds.contains(k.id)).toList(growable: false);
 
   void _applySelection(Set<String> ids) {
-    setState(() => _selectedIds
-      ..clear()
-      ..addAll(ids));
+    setState(
+      () => _selectedIds
+        ..clear()
+        ..addAll(ids),
+    );
     _loadResults();
   }
 
@@ -171,14 +176,6 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
                       'Ямар ажил хийлгэх гэж байна?',
                       style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Ажлын төрлөө сонгоход тэдгээрийг БҮГДийг нь гүйцэтгэдэг '
-                      'салбарууд доор харагдана.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
                     ),
                     const SizedBox(height: 14),
                     _TagsBar(
@@ -288,23 +285,17 @@ class _TagsBar extends StatelessWidget {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        if (keys.isEmpty)
-          Text(
-            'Ажлын төрөл сонгоогүй байна.',
-            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
-          )
-        else
-          for (final key in keys)
-            Chip(
-              key: ValueKey('service-key-tag-${key.id}'),
-              label: Text(key.name),
-              onDeleted: () => onRemove(key.id),
-              deleteIcon: const Icon(Icons.close, size: 16),
-              deleteIconColor: scheme.onSurfaceVariant,
-              visualDensity: VisualDensity.compact,
-              backgroundColor: scheme.primary.withValues(alpha: 0.1),
-              side: BorderSide(color: scheme.primary.withValues(alpha: 0.3)),
-            ),
+        for (final key in keys)
+          Chip(
+            key: ValueKey('service-key-tag-${key.id}'),
+            label: Text(key.name),
+            onDeleted: () => onRemove(key.id),
+            deleteIcon: const Icon(Icons.close, size: 16),
+            deleteIconColor: scheme.onSurfaceVariant,
+            visualDensity: VisualDensity.compact,
+            backgroundColor: scheme.primary.withValues(alpha: 0.1),
+            side: BorderSide(color: scheme.primary.withValues(alpha: 0.3)),
+          ),
         ActionChip(
           key: const ValueKey('service-key-add'),
           avatar: const Icon(Icons.add_rounded, size: 16),
@@ -382,9 +373,8 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                   Expanded(
                     child: Text(
                       'Ажлын төрөл сонгох',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ),
                   IconButton(
@@ -480,7 +470,9 @@ class _ApplyBar extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
     decoration: BoxDecoration(
       color: Theme.of(context).scaffoldBackgroundColor,
-      border: Border(top: BorderSide(color: CarCareTheme.of(context).glassBorder)),
+      border: Border(
+        top: BorderSide(color: CarCareTheme.of(context).glassBorder),
+      ),
     ),
     child: SizedBox(
       width: double.infinity,

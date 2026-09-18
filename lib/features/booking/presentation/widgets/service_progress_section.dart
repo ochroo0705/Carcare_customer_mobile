@@ -71,8 +71,7 @@ class ServiceProgressSection extends StatelessWidget {
             ),
           ],
           if ((progress.startedAt == null && progress.scheduledAt != null) ||
-              progress.estimatedDurationMinutes != null ||
-              progress.expectedFinishAt != null ||
+              progress.startedAt != null ||
               (progress.status == ServiceProgressStatus.postponed &&
                   progress.scheduledReturnAt != null)) ...[
             const SizedBox(height: 10),
@@ -349,8 +348,14 @@ class _ProgressItemRow extends StatelessWidget {
   }
 }
 
-/// Хугацааны тооцоолол — item-completion хувиас тусад нь харуулна (эх
-/// tооцоолол болон одоогийн таамаг өөр өөр зүйл учир андуурч болохгүй).
+/// Хугацааны БОДИТ баримтууд — item-completion хувиас тусад нь харуулна.
+///
+/// Урьдчилсан таамаг (`estimatedDurationMinutes`, `expectedFinishAt`) болон
+/// тэдгээрээс гарах "хожимдож байна" анхааруулгыг зориудаар харуулахгүй:
+/// үйлчлүүлэгчид улаанаар харагдах таамаг нь ажилтны хяналтаас гадуурх
+/// шалтгаанаар байнга зөрдөг тул батлагдаагүй амлалт мэт сэтгэгдэл төрүүлж
+/// байв. Оронд нь эхэлсэн/товлосон/буцах гэсэн баримтуудыг л харуулна.
+/// Талбарууд нь model/DTO-д хэвээр (API contract өөрчлөгдөөгүй).
 class _TimingInfo extends StatelessWidget {
   const _TimingInfo({required this.progress});
 
@@ -361,27 +366,14 @@ class _TimingInfo extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final isPostponed = progress.status == ServiceProgressStatus.postponed;
-    final delayed = progress.isDelayed;
-    final color = delayed ? AppColors.red : muted;
 
     final parts = <String>[];
-    // Хараахан эхлээгүй ажлын товлосон огноог л харуулна — эхэлмэгц
-    // Ойролцоо хугацаа/Дуусах хугацаа хамааралтай болно.
-    if (progress.startedAt == null && progress.scheduledAt != null) {
+    // Хараахан эхлээгүй бол товлосон огноо, эхэлсэн бол бодит эхэлсэн цаг —
+    // хоёулаа зэрэг утгатай байх тохиолдол байхгүй тул харилцан орлоно.
+    if (progress.startedAt != null) {
+      parts.add('Ажил эхэлсэн: ${_formatDateTime(progress.startedAt!)}');
+    } else if (progress.scheduledAt != null) {
       parts.add('Товлосон огноо: ${_formatDateTime(progress.scheduledAt!)}');
-    }
-    if (progress.estimatedDurationMinutes != null) {
-      parts.add('Ойролцоо хугацаа: ${_formatEstimatedMinutes(progress.estimatedDurationMinutes!)}');
-    }
-    // Хойшлогдсон үед хуучин "дуусах хугацаа"-ны таамаг цаашид хамааралгүй —
-    // шинэ буцах цаг (доор) үүнийг орлоно, тул хожимдсон анхааруулгыг
-    // харуулахгүй (isDelayed-ийн model-level шүүлттэй давхар хамгаалалт).
-    if (!isPostponed && progress.expectedFinishAt != null) {
-      parts.add(
-        delayed
-            ? 'Дуусах ёстой байсан: ${_formatDateTime(progress.expectedFinishAt!)}'
-            : 'Дуусах хугацаа: ${_formatDateTime(progress.expectedFinishAt!)}',
-      );
     }
 
     return Column(
@@ -392,21 +384,7 @@ class _TimingInfo extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2),
             child: Text(
               part,
-              style: textTheme.bodySmall?.copyWith(
-                color: color,
-                fontWeight: delayed ? FontWeight.w700 : null,
-              ),
-            ),
-          ),
-        if (delayed)
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              'Төлөвлөснөөс хожимдож байна',
-              style: textTheme.bodySmall?.copyWith(
-                color: AppColors.red,
-                fontWeight: FontWeight.w700,
-              ),
+              style: textTheme.bodySmall?.copyWith(color: muted),
             ),
           ),
         // Засвар үргэлжлэх цаг — хойшлогдсон үеийн хамгийн чухал мэдээлэл тул тод, том,
@@ -425,14 +403,6 @@ class _TimingInfo extends StatelessWidget {
       ],
     );
   }
-}
-
-String _formatEstimatedMinutes(int totalMinutes) {
-  final hours = totalMinutes ~/ 60;
-  final minutes = totalMinutes % 60;
-  if (hours > 0 && minutes > 0) return '$hours ц $minutes мин';
-  if (hours > 0) return '$hours ц';
-  return '$minutes мин';
 }
 
 String _formatDateTime(DateTime value) =>

@@ -254,6 +254,15 @@ class DiscoveryMapState extends State<DiscoveryMap>
     }
   }
 
+  /// Сонгосон салбарын картыг хаана. Газрын зураг дээрх хоосон хэсэгт
+  /// хүрэхэд (`GoogleMap.onTap`) болон картын өөрийн хаах товчинд хоёуланд
+  /// хэрэглэгдэнэ. `onTap` нь пин эсвэл кластер дээрх хүрэлтэнд ажиллахгүй
+  /// тул өөр пин дарахад карт хаагдалгүй тэр салбар руу шилжинэ.
+  void _dismissSelection() {
+    if (_selected == null) return;
+    setState(() => _selected = null);
+  }
+
   Future<void> _handleClusterTap(Cluster cluster) async {
     final controller = _mapController;
     if (controller == null || _mapLoadState != _MapLoadState.ready) return;
@@ -520,6 +529,7 @@ class DiscoveryMapState extends State<DiscoveryMap>
                   key: ValueKey('discovery-map-$_mapInstance'),
                   onMapCreated: _onMapCreated,
                   onCameraIdle: _updateVisibleRegion,
+                  onTap: (_) => _dismissSelection(),
                   style: Theme.of(context).brightness == Brightness.dark
                       ? _darkMapStyle
                       : _lightMapStyle,
@@ -584,7 +594,7 @@ class DiscoveryMapState extends State<DiscoveryMap>
                   organization: visibleSelection.organization,
                   branch: visibleSelection.branch,
                   detailController: widget.organizationDetailController,
-                  onClose: () => setState(() => _selected = null),
+                  onClose: _dismissSelection,
                   onDetails: () => widget.onBranchSelected(
                     visibleSelection!.organization,
                     visibleSelection.branch,

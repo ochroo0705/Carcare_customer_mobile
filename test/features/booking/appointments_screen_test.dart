@@ -29,7 +29,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Цаг'));
+    await tester.tap(find.text('Захиалгууд'));
     await tester.pumpAndSettle();
     expect(find.text('Захиалгаа харахын тулд нэвтэрнэ үү'), findsOneWidget);
 
@@ -45,11 +45,23 @@ void main() {
     await tester.tap(find.text('Нэвтрэх →'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Миний захиалгууд'), findsOneWidget);
+    expect(find.byKey(const ValueKey('appointments-tab-bar')), findsOneWidget);
     expect(find.text('Инфосистемс'), findsWidgets);
     expect(find.text('Тэсо Моторс'), findsOneWidget);
     expect(find.text('Баталгаажсан'), findsOneWidget);
     expect(find.text('Хүлээгдэж буй'), findsOneWidget);
+
+    // The cancelled seed appointment sorts last and sits below the fold in
+    // the test viewport — the list is a lazily-built ListView, so it isn't
+    // in the tree until scrolled into view.
+    await tester.scrollUntilVisible(
+      find.text('Цуцалсан'),
+      200,
+      scrollable: find.descendant(
+        of: find.byKey(const PageStorageKey('appointments-only-list')),
+        matching: find.byType(Scrollable),
+      ),
+    );
     expect(find.text('Цуцалсан'), findsOneWidget);
   });
 
@@ -65,7 +77,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Цаг'));
+    await tester.tap(find.text('Захиалгууд'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('appointments-login')));
     await tester.pumpAndSettle();
@@ -82,6 +94,16 @@ void main() {
     final cancelButton = find.byKey(const ValueKey('cancel-seed-2'));
     await tester.ensureVisible(cancelButton);
     await tester.pumpAndSettle();
+    // Эргэлт буцалтгүй үйлдэл — дэлгэрэнгүй хуудастай ижил аюулын өнгө
+    // (харах: appointment_detail_screen_test.dart).
+    expect(
+      tester
+          .widget<TextButton>(cancelButton)
+          .style
+          ?.foregroundColor
+          ?.resolve(<WidgetState>{}),
+      AppColors.red,
+    );
     await tester.tap(cancelButton);
     await tester.pumpAndSettle();
     expect(find.text('Захиалга цуцлах уу?'), findsOneWidget);
@@ -126,6 +148,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Миний захиалгууд'), findsOneWidget);
+    expect(find.byKey(const ValueKey('appointments-tab-bar')), findsOneWidget);
   });
 }

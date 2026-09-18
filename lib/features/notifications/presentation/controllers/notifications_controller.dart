@@ -25,25 +25,29 @@ class NotificationsController extends ChangeNotifier {
 
   NotificationsState get state => _state;
 
-  int get unreadCount =>
-      _state.notifications.where((notification) => !notification.isRead).length;
+  /// The server's unread total, not a count over the loaded page — the list
+  /// is capped at one page while unread notifications are never pruned.
+  int get unreadCount => _state.unreadCount;
 
   Future<void> load() async {
     final requestId = ++_loadRequestId;
     _state = NotificationsState(
       status: NotificationsStatus.loading,
       notifications: _state.notifications,
+      unreadCount: _state.unreadCount,
     );
     notifyListeners();
     NotificationsState result;
     try {
-      final notifications = (await _repository.getNotifications()).toList()
+      final page = await _repository.getNotifications();
+      final notifications = page.items.toList()
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       result = NotificationsState(
         status: notifications.isEmpty
             ? NotificationsStatus.empty
             : NotificationsStatus.data,
         notifications: notifications,
+        unreadCount: page.unreadCount,
       );
     } on FeatureUnavailableFailure {
       // Real API build: no notifications-list endpoint yet (D-014). The in-app
@@ -111,6 +115,14 @@ class NotificationsController extends ChangeNotifier {
       message: body ?? '',
       createdAt: DateTime.now(),
       isRead: false,
+      // Keep the routable ids so a tap on this row deep-links exactly like a
+      // tap on the banner itself (fake mode; in a real build the row is
+      // replaced by the server's own copy on the `load()` below).
+      data: {
+        for (final entry in data.entries)
+          if (entry.value is String && (entry.value as String).isNotEmpty)
+            entry.key: entry.value as String,
+      },
     );
     try {
       await _repository.addExternal(notification);

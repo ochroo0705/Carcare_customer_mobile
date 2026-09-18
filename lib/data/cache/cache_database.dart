@@ -65,7 +65,13 @@ class CachedAppointments extends Table {
   TextColumn get tenantSlug => text()();
   TextColumn get branchName => text()();
   TextColumn get note => text().nullable()();
+  /// Хуучин (v5 ба өмнөх) мөрүүдийн ганц ангилал. Шинэ бичилт бүр
+  /// `categoryNamesJson`-г бөглөдөг тул зөвхөн уншихад fallback болж үлдэв —
+  /// Drift багана хасахыг дэмждэггүй, бас хуучин кэшийг алдахаас сэргийлнэ.
   TextColumn get categoryName => text().nullable()();
+
+  /// JSON array of category names (booking v2 — олон ангилалт захиалга).
+  TextColumn get categoryNamesJson => text().nullable()();
   TextColumn get vehiclePlate => text().nullable()();
   DateTimeColumn get cachedAt => dateTime()();
 
@@ -126,7 +132,7 @@ class CacheDatabase extends _$CacheDatabase {
   CacheDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -150,6 +156,13 @@ class CacheDatabase extends _$CacheDatabase {
       if (from < 5) {
         await m.addColumn(cachedVehicles, cachedVehicles.serviceCount);
         await m.addColumn(cachedVehicles, cachedVehicles.diagnosisCount);
+      }
+      // v6 (booking v2): нэг захиалгад олон ангилал. Хуучин мөрийн ганц
+      // `categoryName` хэвээр уншигдана (_appointmentFromRow-ийн fallback),
+      // тул энд өгөгдөл нүүлгэх шаардлагагүй — дараагийн амжилттай load
+      // бүрэн олонлогийг дарж бичнэ.
+      if (from < 6) {
+        await m.addColumn(cachedAppointments, cachedAppointments.categoryNamesJson);
       }
     },
   );

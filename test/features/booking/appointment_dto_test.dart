@@ -79,6 +79,10 @@ void main() {
       'tenant': {'name': 'Инфосистемс', 'slug': 'infosystems'},
       'branch': {'name': 'Үндсэн салбар'},
       'category': {'name': 'Тоормос'},
+      'categories': [
+        {'id': 'c1', 'name': 'Тоормос'},
+        {'id': 'c2', 'name': 'Тос солих'},
+      ],
       'accountVehicle': {'plate': '1234УБА'},
     }).toDomain();
 
@@ -87,7 +91,7 @@ void main() {
     expect(appointment.tenantName, 'Инфосистемс');
     expect(appointment.tenantSlug, 'infosystems');
     expect(appointment.branchName, 'Үндсэн салбар');
-    expect(appointment.categoryName, 'Тоормос');
+    expect(appointment.categoryNames, ['Тоормос', 'Тос солих']);
     expect(appointment.vehiclePlate, '1234УБА');
     expect(appointment.note, 'Тэмдэглэл');
   });
@@ -104,7 +108,7 @@ void main() {
     }).toDomain();
 
     expect(appointment.status, AppointmentStatus.confirmed);
-    expect(appointment.categoryName, isNull);
+    expect(appointment.categoryNames, isEmpty);
     expect(appointment.vehiclePlate, isNull);
   });
 

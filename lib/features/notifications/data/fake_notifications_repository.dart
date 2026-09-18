@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notification_type.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/notifications_page.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
 
 /// Customer notification-list API нийтлэгдээгүй тул одоогоор fake-only.
@@ -39,8 +40,10 @@ class FakeNotificationsRepository implements NotificationsRepository {
   ];
 
   @override
-  Future<List<AppNotification>> getNotifications() async =>
-      List.unmodifiable(_notifications);
+  Future<NotificationsPage> getNotifications() async => NotificationsPage(
+    items: List.unmodifiable(_notifications),
+    unreadCount: _notifications.where((n) => !n.isRead).length,
+  );
 
   @override
   Future<void> markRead(String id) async {

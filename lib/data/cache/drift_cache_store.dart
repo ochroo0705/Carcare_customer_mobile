@@ -340,7 +340,13 @@ CachedAppointmentsCompanion _appointmentToCompanion(
   tenantSlug: appointment.tenantSlug,
   branchName: appointment.branchName,
   note: Value(appointment.note),
-  categoryName: Value(appointment.categoryName),
+  // Хуучин ганц баганыг эхний ангиллаар бөглөж үлдээв: v6-аас өмнөх код
+  // ажиллуулсан төхөөрөмж рүү буцаж downgrade хийвэл ядаж нэг ангилал
+  // харагдана (кэш бол үнэний эх сурвалж биш ч хоосон харагдахаас дээр).
+  categoryName: Value(
+    appointment.categoryNames.isEmpty ? null : appointment.categoryNames.first,
+  ),
+  categoryNamesJson: Value(jsonEncode(appointment.categoryNames)),
   vehiclePlate: Value(appointment.vehiclePlate),
   cachedAt: cachedAt,
 );
@@ -356,9 +362,28 @@ Appointment _appointmentFromRow(CachedAppointmentRow row) => Appointment(
   tenantSlug: row.tenantSlug,
   branchName: row.branchName,
   note: row.note,
-  categoryName: row.categoryName,
+  categoryNames: _categoryNamesFromRow(row),
   vehiclePlate: row.vehiclePlate,
 );
+
+/// v6-аас өмнө кэшлэгдсэн мөрөнд `categoryNamesJson` байхгүй — тэр үед хуучин
+/// ганц `categoryName` баганыг ашиглана. JSON эвдэрсэн бол мөр бүхэлдээ
+/// алдагдахаас сэргийлж мөн адил fallback руу унана.
+List<String> _categoryNamesFromRow(CachedAppointmentRow row) {
+  final raw = row.categoryNamesJson;
+  if (raw != null) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        return List.unmodifiable(decoded.whereType<String>());
+      }
+    } on FormatException {
+      // fall through to the legacy column
+    }
+  }
+  final legacy = row.categoryName;
+  return legacy == null ? const [] : List.unmodifiable([legacy]);
+}
 
 // --- ServiceOrder <-> row ---------------------------------------------------
 

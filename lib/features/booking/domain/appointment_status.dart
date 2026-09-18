@@ -25,6 +25,10 @@ extension AppointmentStatusUi on AppointmentStatus {
   bool get isActive =>
       this == AppointmentStatus.pending || this == AppointmentStatus.confirmed;
 
+  /// ЗӨВХӨН төлвийн шалгалт. UI-д ШУУД БҮҮ АШИГЛА — `Appointment.canCancel`-ыг
+  /// хэрэглэ. Ажилтан баталгаажуулж ServiceOrder үүсгэсний дараа ч төлөв
+  /// `CONFIRMED` хэвээр тул энэ нь `true` буцаасаар байх ба цуцлах товч
+  /// буруугаар харагдана (харах: `Appointment.canCancel`-ийн тайлбар).
   bool get canCancel => isActive;
 
   String get localizedLabel => switch (this) {

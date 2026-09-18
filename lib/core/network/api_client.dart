@@ -63,6 +63,26 @@ class ApiClient {
     }
   }
 
+  /// JSON object body-той PATCH endpoint дуудна.
+  Future<Map<String, dynamic>> patchJson(
+    String path,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      final response = await _dio.patch<Object?>(
+        path,
+        data: body,
+        options: await _options(),
+      );
+      final data = response.data;
+      if (data is! Map) throw const UnexpectedFailure();
+      return Map<String, dynamic>.from(data);
+    } on DioException catch (error) {
+      await _handleUnauthorized(error);
+      throw _mapDioFailure(error);
+    }
+  }
+
   /// JSON object буцаадаг DELETE endpoint дуудна.
   Future<Map<String, dynamic>> deleteJson(String path) async {
     try {

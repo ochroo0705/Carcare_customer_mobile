@@ -23,7 +23,7 @@ import 'package:carcare_customer_mobile/features/discovery/data/remote_organizat
 import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/data/remote_service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
-import 'package:carcare_customer_mobile/features/notifications/data/unavailable_notifications_repository.dart';
+import 'package:carcare_customer_mobile/features/notifications/data/remote_notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/onboarding/data/onboarding_store.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/remote_vehicle_repository.dart';
@@ -113,9 +113,8 @@ void main() async {
           ),
         );
   // History now has a real `/api/v1/app/orders` endpoint (web commit
-  // `79f0e9e`) — wire the remote repo against it. Notifications still have no
-  // published endpoint (D-014), so that one stays on the honest "coming soon"
-  // repo against the real API. Fake seeds stay for fake mode and tests.
+  // `79f0e9e`) — wire the remote repo against it. Fake seeds stay for fake
+  // mode and tests.
   final historyRepository = AppEnvironment.useFakeApi
       ? FakeServiceHistoryRepository()
       : RemoteServiceHistoryRepository(
@@ -134,9 +133,18 @@ void main() async {
             onUnauthorized: sessionStore.clear,
           ),
         );
+  // Notifications are served by `/api/v1/app/notifications` (D-014 superseded).
+  // `UnavailableNotificationsRepository` is kept, unwired, for a build that
+  // has to point at a server predating those routes.
   final notificationsRepository = AppEnvironment.useFakeApi
       ? FakeNotificationsRepository()
-      : const UnavailableNotificationsRepository();
+      : RemoteNotificationsRepository(
+          ApiClient(
+            baseUrl: AppEnvironment.apiBaseUrl,
+            accessTokenProvider: sessionStore.readToken,
+            onUnauthorized: sessionStore.clear,
+          ),
+        );
   runApp(
     CarCareCustomerApp(
       organizationRepository: organizationRepository,

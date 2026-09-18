@@ -142,8 +142,16 @@ class _AppointmentsBodyState extends State<_AppointmentsBody>
   @override
   Widget build(BuildContext context) {
     final state = widget.controller.state;
+    // Only blank the page when there is nothing to show. `load()` carries the
+    // previous appointments through `loading` (see AppointmentsController),
+    // so a refresh — cancelling an appointment, a push arriving — can keep
+    // the list on screen. Swapping in the skeleton instead would unmount the
+    // search field and the tab bar below with it, which reads as the whole
+    // page flashing. In-flight cancels already show their own row spinner.
     if (state.status == AppointmentsStatus.initial ||
-        state.status == AppointmentsStatus.loading) {
+        (state.status == AppointmentsStatus.loading &&
+            state.appointments.isEmpty &&
+            state.walkInOrders.isEmpty)) {
       return Semantics(
         container: true,
         liveRegion: true,
@@ -590,7 +598,7 @@ class _AppointmentsOnlyList extends StatelessWidget {
               appointment: appointment,
               isCancelling: controller.isCancelling(appointment.id),
               onTap: () => onAppointmentSelected(appointment.id),
-              onCancel: appointment.status.canCancel
+              onCancel: appointment.canCancel
                   ? () => _confirmCancel(context, controller, appointment)
                   : null,
               onPaymentTap: appointment.canPayFee
@@ -807,10 +815,16 @@ class _AppointmentCard extends StatelessWidget {
             Text(_formatDateTime(appointment.requestedAt)),
           ],
         ),
-        if (appointment.categoryName != null) ...[
+        // Захиалга (ServiceOrder) үүсмэгц доорх явцын хэсэг бодит
+        // үйлчилгээ бүрийг статус/үнэтэй нь жагсаадаг тул ангиллын мөр
+        // илүүц болно — түүнээс ч илүү, захиалга анхны ангиллаас хальж
+        // өссөн байж болох тул төөрөгдүүлнэ. Захиалга үүсээгүй байхад л
+        // үйлчлүүлэгчид юу захиалснаа сануулах цорын ганц мөр хэвээр.
+        if (appointment.serviceProgress == null &&
+            appointment.categoryNames.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
-            'Ангилал: ${appointment.categoryName}',
+            appointment.categoryNames.join(' · '),
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -890,9 +904,15 @@ class _AppointmentCard extends StatelessWidget {
           const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerRight,
+            // Дэлгэрэнгүй хуудасны цуцлах товчтой ижил аюулын өнгө — нэг үйлдэл
+            // хоёр газар өөр өөр харагдах нь эрэмбийн дохиог сулруулна.
+            // Хэлбэрийг нь тэнцүүлээгүй (тэнд OutlinedButton.icon, энд компакт
+            // TextButton): картын доторх хоёрдогч үйлдэл нь хуудсын төгсгөлийн
+            // үйлдэлтэй ижил жин үүрэх ёсгүй.
             child: TextButton(
               key: ValueKey('cancel-${appointment.id}'),
               onPressed: isCancelling ? null : onCancel,
+              style: TextButton.styleFrom(foregroundColor: AppColors.red),
               child: isCancelling
                   ? const SizedBox.square(
                       dimension: 16,

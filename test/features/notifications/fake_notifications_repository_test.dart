@@ -5,21 +5,22 @@ void main() {
   test('lists the seeded notifications with mixed read state', () async {
     final repository = FakeNotificationsRepository();
 
-    final notifications = await repository.getNotifications();
+    final page = await repository.getNotifications();
 
-    expect(notifications, hasLength(3));
-    expect(notifications.where((n) => !n.isRead), hasLength(2));
+    expect(page.items, hasLength(3));
+    expect(page.items.where((n) => !n.isRead), hasLength(2));
+    expect(page.unreadCount, 2);
   });
 
   test('markRead flips a single notification to read', () async {
     final repository = FakeNotificationsRepository();
-    final target = (await repository.getNotifications()).firstWhere(
+    final target = (await repository.getNotifications()).items.firstWhere(
       (n) => !n.isRead,
     );
 
     await repository.markRead(target.id);
 
-    final updated = (await repository.getNotifications()).firstWhere(
+    final updated = (await repository.getNotifications()).items.firstWhere(
       (n) => n.id == target.id,
     );
     expect(updated.isRead, isTrue);
@@ -30,7 +31,8 @@ void main() {
 
     await repository.markAllRead();
 
-    final notifications = await repository.getNotifications();
-    expect(notifications.every((n) => n.isRead), isTrue);
+    final page = await repository.getNotifications();
+    expect(page.items.every((n) => n.isRead), isTrue);
+    expect(page.unreadCount, 0);
   });
 }

@@ -1,7 +1,8 @@
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/notifications_page.dart';
 
 abstract interface class NotificationsRepository {
-  Future<List<AppNotification>> getNotifications();
+  Future<NotificationsPage> getNotifications();
 
   Future<void> markRead(String id);
 

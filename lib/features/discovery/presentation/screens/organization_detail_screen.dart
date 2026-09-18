@@ -374,11 +374,14 @@ class _BranchInfoCard extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        _DetailLine(icon: Icons.place_outlined, text: branch.fullAddress),
-        const SizedBox(height: 9),
         _DetailLine(
-          icon: Icons.location_city_outlined,
-          text: branch.locationLabel,
+          icon: Icons.place_outlined,
+          // Хот/дүүрэг + хороо/хаяг нэг мөрөнд — өмнө нь тусдаа мөр, тусдаа
+          // дүрстэй байсан нь ижил төстэй мэдээллийг давхар харуулж байсан.
+          text: [
+            branch.locationLabel,
+            branch.fullAddress,
+          ].where((part) => part.trim().isNotEmpty).join(' · '),
         ),
         if (distanceLocation != null &&
             branch.distanceLabelFrom(

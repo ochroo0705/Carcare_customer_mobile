@@ -6,13 +6,13 @@ import 'package:flutter/material.dart';
 /// good → ногоон, warn → шар, bad → улаан.
 Color colorForTone(CheckTone tone) => switch (tone) {
   CheckTone.good => AppColors.green,
-  CheckTone.warn => const Color(0xFFF59E0B),
+  CheckTone.warn => AppColors.warning,
   CheckTone.bad => AppColors.red,
 };
 
 Color colorForSeverity(ReportSeverity severity) => switch (severity) {
   ReportSeverity.good => AppColors.green,
-  ReportSeverity.warn => const Color(0xFFF59E0B),
+  ReportSeverity.warn => AppColors.warning,
   ReportSeverity.bad => AppColors.red,
 };
 

@@ -138,7 +138,7 @@ void main() {
     expect(a.status, AppointmentStatus.pending);
     expect(a.requestedAt, now);
     expect(a.note, 'дугуй');
-    expect(a.categoryName, isNull);
+    expect(a.categoryNames, isEmpty);
     // The booking-fee payment is intentionally not cached.
     expect(a.payment, isNull);
   });

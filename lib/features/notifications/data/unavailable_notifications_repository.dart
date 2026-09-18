@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/notifications_page.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
 
 /// Notifications repository for **real API builds**, where no notifications
@@ -13,7 +14,7 @@ class UnavailableNotificationsRepository implements NotificationsRepository {
   const UnavailableNotificationsRepository();
 
   @override
-  Future<List<AppNotification>> getNotifications() async =>
+  Future<NotificationsPage> getNotifications() async =>
       throw const FeatureUnavailableFailure();
 
   @override

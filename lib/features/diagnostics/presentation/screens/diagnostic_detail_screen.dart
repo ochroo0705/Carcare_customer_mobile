@@ -4,10 +4,38 @@ import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostic_report_detail.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_repository.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/report_severity.dart';
+import 'package:carcare_customer_mobile/features/diagnostics/domain/template_schema.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/diagnostic_pdf_export.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/widgets/report_answers_view.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/widgets/severity_chip.dart';
 import 'package:flutter/material.dart';
+
+/// Схем даяар check зүйлсийн хариултыг тона (Хэвийн/Анхаарах/Солих)-оор
+/// тоолно — `_ToneFilterRow`-ийн сегмент бүрт тоо харуулахад ашиглана (web
+/// `report-answers.tsx`-ийн `filterOptions` тоолуурын адил зарчим).
+Map<CheckTone, int> _countByTone(TemplateSchema schema, ReportData data) {
+  final counts = {for (final tone in CheckTone.values) tone: 0};
+  void tally(Object? value) {
+    if (value is String && value.isNotEmpty) {
+      counts[checkOptionTone(value)] = counts[checkOptionTone(value)]! + 1;
+    }
+  }
+
+  for (final section in schema.sections) {
+    for (final item in section.items) {
+      if (item.type != 'check') continue;
+      final positions = item.positions;
+      if (positions == null) {
+        tally(data.entryFor(item.id).value);
+      } else {
+        for (final pos in positions) {
+          tally(data.entryFor(positionedKey(item.id, pos.code)).value);
+        }
+      }
+    }
+  }
+  return counts;
+}
 
 enum _DetailStatus { loading, data, error }
 
@@ -202,7 +230,11 @@ class _DetailBody extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        _ToneFilterRow(selected: toneFilter, onChanged: onToneFilterChanged),
+        _ToneFilterRow(
+          selected: toneFilter,
+          onChanged: onToneFilterChanged,
+          counts: _countByTone(detail.schema, detail.data),
+        ),
         const SizedBox(height: 12),
         ReportAnswersView(
           schema: detail.schema,
@@ -214,27 +246,72 @@ class _DetailBody extends StatelessWidget {
   }
 }
 
-/// Тайлангийн зүйлсийг тона (Хэвийн/Анхаарах/Солих)-оор шүүх сегмент товч —
-/// жагсаалтын дэлгэц дэх `ReportSeverity` шүүлттэй ижил хэлбэр, гэхдээ энд
-/// нэг check зүйл тус бүрийн хариулт дээр (`CheckTone`) ажиллана.
+/// Тайлангийн зүйлсийг тона (Хэвийн/Анхаарах/Солих)-оор шүүх chip мөр —
+/// тоотой шошго ("Анхаарах (12)") нэг мөрөнд багтахгүй тохиолдолд `Wrap`
+/// хоёр дахь мөр рүү зөөнө (өмнө нь `SegmentedButton` хэрэглэдэг байсан ч
+/// тэр нэг мөрөнд наалдмал бөгөөд тоотой урт шошго тасрахад хүргэдэг байсан).
 class _ToneFilterRow extends StatelessWidget {
-  const _ToneFilterRow({required this.selected, required this.onChanged});
+  const _ToneFilterRow({
+    required this.selected,
+    required this.onChanged,
+    required this.counts,
+  });
 
   final CheckTone? selected;
   final ValueChanged<CheckTone?> onChanged;
 
+  /// Тона тус бүрийн check хариултын тоо — chip шошго бүрт харуулна.
+  final Map<CheckTone, int> counts;
+
   @override
-  Widget build(BuildContext context) => SegmentedButton<CheckTone?>(
-    key: const ValueKey('diagnostic-detail-tone-filter'),
-    showSelectedIcon: false,
-    style: const ButtonStyle(visualDensity: VisualDensity.compact),
-    segments: const [
-      ButtonSegment(value: null, label: Text('Бүгд')),
-      ButtonSegment(value: CheckTone.good, label: Text('Хэвийн')),
-      ButtonSegment(value: CheckTone.warn, label: Text('Анхаарах')),
-      ButtonSegment(value: CheckTone.bad, label: Text('Солих')),
-    ],
-    selected: {selected},
-    onSelectionChanged: (values) => onChanged(values.first),
+  Widget build(BuildContext context) {
+    final total = counts.values.fold(0, (sum, count) => sum + count);
+    return Wrap(
+      key: const ValueKey('diagnostic-detail-tone-filter'),
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _ToneChip(
+          label: 'Бүгд ($total)',
+          isSelected: selected == null,
+          onTap: () => onChanged(null),
+        ),
+        _ToneChip(
+          label: 'Хэвийн (${counts[CheckTone.good]})',
+          isSelected: selected == CheckTone.good,
+          onTap: () => onChanged(CheckTone.good),
+        ),
+        _ToneChip(
+          label: 'Анхаарах (${counts[CheckTone.warn]})',
+          isSelected: selected == CheckTone.warn,
+          onTap: () => onChanged(CheckTone.warn),
+        ),
+        _ToneChip(
+          label: 'Солих (${counts[CheckTone.bad]})',
+          isSelected: selected == CheckTone.bad,
+          onTap: () => onChanged(CheckTone.bad),
+        ),
+      ],
+    );
+  }
+}
+
+class _ToneChip extends StatelessWidget {
+  const _ToneChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => FilterChip(
+    label: Text(label),
+    selected: isSelected,
+    onSelected: (_) => onTap(),
+    visualDensity: VisualDensity.compact,
   );
 }

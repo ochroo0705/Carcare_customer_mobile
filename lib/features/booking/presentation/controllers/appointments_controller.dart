@@ -17,6 +17,27 @@ class AppointmentsController extends ChangeNotifier {
   AppointmentsState _state = const AppointmentsState();
   final Set<String> _cancellingIds = {};
 
+  /// Fired after a cancel succeeds server-side. The router wires this to
+  /// `historyController.load()`.
+  ///
+  /// Why it exists: cancelling is a *terminal* transition, and History renders
+  /// a dedicated cancelled-appointments section of its own
+  /// (`ServiceHistoryRepository.getCancelledAppointments()` →
+  /// `ServiceHistoryPage.cancelledAppointments`, drawn by
+  /// `history_screen.dart`). Reloading only this controller makes the
+  /// appointment vanish from Appointments without ever appearing in History
+  /// until something unrelated reloads it.
+  ///
+  /// The staff-side terminal transitions (`appointment_rejected`,
+  /// `appointment_expired`, `appointment_no_show`) already reload both lists
+  /// via the router's `_reloadListsForPushType`; this is the local-action
+  /// equivalent of that same rule.
+  ///
+  /// Kept as a callback rather than a `HistoryController` reference so this
+  /// controller stays independent of the history feature — same pattern as
+  /// `AuthController.beforeSignOut`.
+  VoidCallback? onAppointmentCancelled;
+
   String _searchQuery = '';
   // Selected status label (`AppointmentStatusUi.localizedLabel` /
   // `ServiceProgressStatusUi.localizedLabel`) — kept as a display-label
@@ -198,6 +219,10 @@ class AppointmentsController extends ChangeNotifier {
     notifyListeners();
     try {
       await _repository.cancelAppointment(id);
+      // Fired before awaiting our own reload so History refreshes in parallel,
+      // and so it still fires if `load()` fails — the cancel already
+      // succeeded server-side, so History is stale either way.
+      onAppointmentCancelled?.call();
       await load();
       return null;
     } on AppFailure catch (failure) {

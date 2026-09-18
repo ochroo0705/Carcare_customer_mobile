@@ -38,6 +38,7 @@ import 'package:carcare_customer_mobile/features/history/presentation/controller
 import 'package:carcare_customer_mobile/features/history/presentation/screens/history_screen.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/screens/service_order_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
@@ -138,15 +139,23 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     );
     vehiclesController = VehiclesController(vehicleRepository, cache: cacheStore);
     historyController = HistoryController(historyRepository, cache: cacheStore);
+    // A customer cancelling their own appointment is a terminal transition, so
+    // it has to reconcile both lists exactly as the staff-side terminal pushes
+    // do in `_reloadListsForPushType` — History has its own cancelled-
+    // appointments section. Wired here rather than inside the controller so
+    // booking stays independent of history (cf. `beforeSignOut` above).
+    appointmentsController.onAppointmentCancelled = historyController.load;
     notificationsController = NotificationsController(notificationsRepository);
-    discoveryController.addListener(notifyListeners);
+    // Only controllers this delegate actually reads in `build()` are wired to
+    // `notifyListeners` — every one of them rebuilds the whole page stack.
+    // `discoveryController` and `notificationsController` are deliberately
+    // absent: the screens that show them read them through Provider, so
+    // subscribing here just rebuilt all five tabs on every search keystroke
+    // and every notification refresh.
     organizationDetailController.addListener(notifyListeners);
     authController.addListener(notifyListeners);
     authController.addListener(_onAuthChanged);
-    appointmentsController.addListener(notifyListeners);
-    vehiclesController.addListener(notifyListeners);
-    historyController.addListener(notifyListeners);
-    notificationsController.addListener(notifyListeners);
+
     WidgetsBinding.instance.addObserver(this);
     _tokenRefreshSubscription = remotePushService.onTokenRefresh.listen(
       _onTokenRefreshed,
@@ -283,7 +292,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
             ],
           ),
         ),
-        if (_selectedSlug != null)
+        // Booking tab-ийн service-key picker-ээс ирсэн урсгал дэлгэрэнгүй
+        // хуудсыг ЗОРИУДААР алгасдаг (`_selectServiceKeyBranch`), тиймээс
+        // түүнийг стек дээр ч тавихгүй — эс бөгөөс захиалгын дэлгэцээс буцахад
+        // хэрэглэгч огт үзээгүй дэлгэрэнгүй хуудас нээгдэнэ.
+        if (_selectedSlug != null && !_bookingFromServiceKeys)
           MaterialPage<void>(
             key: ValueKey('organization-$_selectedSlug'),
             child: OrganizationDetailScreen(
@@ -374,18 +387,12 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
           MaterialPage<void>(
             key: ValueKey('vehicle-detail-${_selectedVehicle!.id}'),
             child: VehicleDetailScreen(
-              vehicle: _liveSelectedVehicle,
-              appointments: _appointmentsForVehicle(_liveSelectedVehicle),
-              appointmentsLoading: appointmentsController.state.isLoading,
+              vehicleId: _selectedVehicle!.id,
+              fallbackVehicle: _selectedVehicle!,
               onAppointmentSelected: _openAppointmentDetail,
-              orders: _ordersForVehicle(_liveSelectedVehicle),
-              ordersLoading: historyController.state.isLoading,
               onOrderSelected: _openOrderDetail,
               onBack: _closeVehicleDetail,
               onRefreshHur: () => _refreshSelectedVehicleFromHur(),
-              refreshingHur: vehiclesController.isRefreshing(
-                _selectedVehicle!.id,
-              ),
             ),
           ),
         if (_selectedAppointmentId != null)
@@ -462,7 +469,10 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
         if (_showNotifications)
           MaterialPage<void>(
             key: const ValueKey('notifications'),
-            child: NotificationsScreen(onBack: _closeNotifications),
+            child: NotificationsScreen(
+              onBack: _closeNotifications,
+              onOpen: _openFromNotification,
+            ),
           ),
       ],
       onDidRemovePage: (page) {
@@ -499,6 +509,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _preferredBranchId = null;
     _booking = false;
     _bookingFromServiceKeys = false;
+    _pendingServiceKeys = const [];
     notifyListeners();
   }
 
@@ -562,16 +573,27 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  /// Service-key урсгалд дэлгэрэнгүй хуудас стек дээр байхгүй тул зөвхөн
+  /// `_booking`-ийг унагаах нь `_selectedSlug`-ийг үлдээж, дэлгэрэнгүй хуудсыг
+  /// эргүүлэн стек дээр тавих байсан. Тэр урсгалд бүрэн цэвэрлэж shell рүү
+  /// буцна; Explore-с ирсэн бол дэлгэрэнгүй хуудас рүү л буцна.
   void _closeBooking() {
+    if (_bookingFromServiceKeys) {
+      _closeDetails();
+      return;
+    }
     _booking = false;
-    _bookingFromServiceKeys = false;
     notifyListeners();
   }
 
   void _cancelLogin() {
     _showLogin = false;
-    _booking = false;
     authController.resetFlow();
+    if (_bookingFromServiceKeys) {
+      _closeDetails();
+      return;
+    }
+    _booking = false;
     notifyListeners();
   }
 
@@ -607,15 +629,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   /// `_selectedVehicle` бол дэлгэц нээгдэх мөчийн зурагт хувилбар — HUR
   /// шинэчлэлт `vehiclesController.state.vehicles`-д орж ирснийг харуулахын
   /// тулд id-ээр амьд жагсаалтаас дахин олно (олдохгүй бол хуучин утгаараа).
-  Vehicle get _liveSelectedVehicle {
-    final id = _selectedVehicle?.id;
-    if (id == null) return _selectedVehicle!;
-    return vehiclesController.state.vehicles.firstWhere(
-      (v) => v.id == id,
-      orElse: () => _selectedVehicle!,
-    );
-  }
-
   Future<void> _refreshSelectedVehicleFromHur() async {
     final id = _selectedVehicle?.id;
     if (id == null) return;
@@ -629,25 +642,6 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     messenger?.showSnackBar(
       const SnackBar(content: Text('Машины мэдээлэл HUR-аас шинэчлэгдлээ.')),
     );
-  }
-
-  List<Appointment> _appointmentsForVehicle(Vehicle vehicle) {
-    final plate = vehicle.plate.trim().toUpperCase();
-    return appointmentsController.state.appointments
-        .where(
-          (appointment) =>
-              appointment.vehiclePlate?.trim().toUpperCase() == plate,
-        )
-        .toList(growable: false);
-  }
-
-  List<ServiceOrder> _ordersForVehicle(Vehicle vehicle) {
-    final plate = vehicle.plate.trim().toUpperCase();
-    return historyController.state.orders
-        .where(
-          (order) => order.vehiclePlate?.trim().toUpperCase() == plate,
-        )
-        .toList(growable: false);
   }
 
   void _closeVehicleDetail() {
@@ -711,13 +705,32 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     if (_terminalPushTypes.contains(type)) {
       appointmentsController.load();
       historyController.load();
+      // `GET /api/v1/app/vehicles` embeds per-vehicle `_count`s of completed
+      // service orders and diagnostic reports, and `VehicleDetailScreen` is a
+      // StatelessWidget rendering whatever `VehiclesController` already holds
+      // — it never refetches. There is also no vehicle push type at all (the
+      // backend's NOTIFICATION_REGISTRY has none), so without this the counts
+      // stay stale until sign-out/in, a cache/error-driven connectivity
+      // reload, or a vehicle CRUD action. A terminal order push is exactly
+      // the event that invalidates them.
+      vehiclesController.load();
     } else if (_activeOnlyPushTypes.contains(type)) {
       appointmentsController.load();
     }
     // feedback_replied / broadcast_account / unknown: no list is affected.
   }
 
-  void _handleNotificationTap(Map<String, dynamic> data) {
+  /// A tap on a row of the in-app list. Routes through the same handler as a
+  /// push tap so both entry points land in the same place, but without the
+  /// fallback — the list is already open.
+  void _openFromNotification(AppNotification notification) {
+    _handleNotificationTap(notification.data, fromList: true);
+  }
+
+  void _handleNotificationTap(
+    Map<String, dynamic> data, {
+    bool fromList = false,
+  }) {
     final appointmentId = data['appointmentId'];
     if (appointmentId is String &&
         appointmentId.isNotEmpty &&
@@ -729,7 +742,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       return;
     }
     // No routable appointment (broadcast, missing id, or signed out): surface
-    // the in-app notifications list, where the message already landed.
+    // the in-app notifications list, where the message already landed. A tap
+    // that came from that list stays put instead — reopening it would be a
+    // no-op flash, and clearing overlays would close the screen the customer
+    // is looking at.
+    if (fromList) return;
     _clearOverlays();
     _openNotifications();
   }
@@ -953,14 +970,9 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _foregroundMessageSubscription.cancel();
     _connectivitySubscription.cancel();
     _notificationTapSubscription.cancel();
-    discoveryController.removeListener(notifyListeners);
     organizationDetailController.removeListener(notifyListeners);
     authController.removeListener(notifyListeners);
     authController.removeListener(_onAuthChanged);
-    appointmentsController.removeListener(notifyListeners);
-    vehiclesController.removeListener(notifyListeners);
-    historyController.removeListener(notifyListeners);
-    notificationsController.removeListener(notifyListeners);
     discoveryController.dispose();
     organizationDetailController.dispose();
     authController.dispose();

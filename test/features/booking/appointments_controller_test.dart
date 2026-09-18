@@ -43,6 +43,42 @@ void main() {
   );
 
   test(
+    'a successful cancel fires onAppointmentCancelled so History reconciles',
+    () async {
+      // Cancelling is a terminal transition and History renders its own
+      // cancelled-appointments section, so reloading only this controller
+      // leaves the appointment absent from both lists. The router wires this
+      // callback to `historyController.load()`.
+      final controller = AppointmentsController(FakeAppointmentRepository());
+      var fired = 0;
+      controller.onAppointmentCancelled = () => fired++;
+      await controller.load();
+      final target = controller.sortedAppointments.firstWhere(
+        (a) => a.status.canCancel,
+      );
+
+      final error = await controller.cancel(target.id);
+
+      expect(error, isNull);
+      expect(fired, 1);
+    },
+  );
+
+  test('a failed cancel does not fire onAppointmentCancelled', () async {
+    // Nothing changed server-side, so History is not stale and must not be
+    // refetched — otherwise every mistyped/stale id costs a needless reload.
+    final controller = AppointmentsController(FakeAppointmentRepository());
+    var fired = 0;
+    controller.onAppointmentCancelled = () => fired++;
+    await controller.load();
+
+    final error = await controller.cancel('does-not-exist');
+
+    expect(error, isNotNull);
+    expect(fired, 0);
+  });
+
+  test(
     'returns an error message instead of throwing for an unknown id',
     () async {
       final controller = AppointmentsController(FakeAppointmentRepository());

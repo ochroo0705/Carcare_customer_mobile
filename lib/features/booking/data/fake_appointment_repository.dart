@@ -40,7 +40,7 @@ class FakeAppointmentRepository implements AppointmentRepository {
       tenantName: 'Инфосистемс',
       tenantSlug: 'infosystems',
       branchName: 'Үндсэн салбар',
-      categoryName: 'Тоормос',
+      categoryNames: const ['Тоормос', 'Тос солих'],
     ),
     Appointment(
       id: 'seed-2',

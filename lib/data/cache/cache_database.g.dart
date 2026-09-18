@@ -983,8 +983,9 @@ class CachedVehicleRow extends DataClass
     capacity: capacity.present ? capacity.value : this.capacity,
     purpose: purpose.present ? purpose.value : this.purpose,
     serviceCount: serviceCount.present ? serviceCount.value : this.serviceCount,
-    diagnosisCount:
-        diagnosisCount.present ? diagnosisCount.value : this.diagnosisCount,
+    diagnosisCount: diagnosisCount.present
+        ? diagnosisCount.value
+        : this.diagnosisCount,
     cachedAt: cachedAt ?? this.cachedAt,
   );
   CachedVehicleRow copyWithCompanion(CachedVehiclesCompanion data) {
@@ -1000,9 +1001,7 @@ class CachedVehicleRow extends DataClass
       wheelPosition: data.wheelPosition.present
           ? data.wheelPosition.value
           : this.wheelPosition,
-      colorName: data.colorName.present
-          ? data.colorName.value
-          : this.colorName,
+      colorName: data.colorName.present ? data.colorName.value : this.colorName,
       capacity: data.capacity.present ? data.capacity.value : this.capacity,
       purpose: data.purpose.present ? data.purpose.value : this.purpose,
       serviceCount: data.serviceCount.present
@@ -1038,24 +1037,23 @@ class CachedVehicleRow extends DataClass
   }
 
   @override
-  int get hashCode =>
-      Object.hash(
-        position,
-        id,
-        plate,
-        make,
-        model,
-        year,
-        vin,
-        fuelType,
-        wheelPosition,
-        colorName,
-        capacity,
-        purpose,
-        serviceCount,
-        diagnosisCount,
-        cachedAt,
-      );
+  int get hashCode => Object.hash(
+    position,
+    id,
+    plate,
+    make,
+    model,
+    year,
+    vin,
+    fuelType,
+    wheelPosition,
+    colorName,
+    capacity,
+    purpose,
+    serviceCount,
+    diagnosisCount,
+    cachedAt,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1133,8 +1131,8 @@ class CachedVehiclesCompanion extends UpdateCompanion<CachedVehicleRow> {
        id = Value(id),
        plate = Value(plate),
        make = Value(make),
-    model = Value(model),
-    cachedAt = Value(cachedAt);
+       model = Value(model),
+       cachedAt = Value(cachedAt);
   static Insertable<CachedVehicleRow> custom({
     Expression<int>? position,
     Expression<String>? id,
@@ -1388,6 +1386,18 @@ class $CachedAppointmentsTable extends CachedAppointments
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _categoryNamesJsonMeta = const VerificationMeta(
+    'categoryNamesJson',
+  );
+  @override
+  late final GeneratedColumn<String> categoryNamesJson =
+      GeneratedColumn<String>(
+        'category_names_json',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _vehiclePlateMeta = const VerificationMeta(
     'vehiclePlate',
   );
@@ -1421,6 +1431,7 @@ class $CachedAppointmentsTable extends CachedAppointments
     branchName,
     note,
     categoryName,
+    categoryNamesJson,
     vehiclePlate,
     cachedAt,
   ];
@@ -1507,6 +1518,15 @@ class $CachedAppointmentsTable extends CachedAppointments
         ),
       );
     }
+    if (data.containsKey('category_names_json')) {
+      context.handle(
+        _categoryNamesJsonMeta,
+        categoryNamesJson.isAcceptableOrUnknown(
+          data['category_names_json']!,
+          _categoryNamesJsonMeta,
+        ),
+      );
+    }
     if (data.containsKey('vehicle_plate')) {
       context.handle(
         _vehiclePlateMeta,
@@ -1569,6 +1589,10 @@ class $CachedAppointmentsTable extends CachedAppointments
         DriftSqlType.string,
         data['${effectivePrefix}category_name'],
       ),
+      categoryNamesJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_names_json'],
+      ),
       vehiclePlate: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}vehicle_plate'],
@@ -1601,7 +1625,14 @@ class CachedAppointmentRow extends DataClass
   final String tenantSlug;
   final String branchName;
   final String? note;
+
+  /// Хуучин (v5 ба өмнөх) мөрүүдийн ганц ангилал. Шинэ бичилт бүр
+  /// `categoryNamesJson`-г бөглөдөг тул зөвхөн уншихад fallback болж үлдэв —
+  /// Drift багана хасахыг дэмждэггүй, бас хуучин кэшийг алдахаас сэргийлнэ.
   final String? categoryName;
+
+  /// JSON array of category names (booking v2 — олон ангилалт захиалга).
+  final String? categoryNamesJson;
   final String? vehiclePlate;
   final DateTime cachedAt;
   const CachedAppointmentRow({
@@ -1614,6 +1645,7 @@ class CachedAppointmentRow extends DataClass
     required this.branchName,
     this.note,
     this.categoryName,
+    this.categoryNamesJson,
     this.vehiclePlate,
     required this.cachedAt,
   });
@@ -1632,6 +1664,9 @@ class CachedAppointmentRow extends DataClass
     }
     if (!nullToAbsent || categoryName != null) {
       map['category_name'] = Variable<String>(categoryName);
+    }
+    if (!nullToAbsent || categoryNamesJson != null) {
+      map['category_names_json'] = Variable<String>(categoryNamesJson);
     }
     if (!nullToAbsent || vehiclePlate != null) {
       map['vehicle_plate'] = Variable<String>(vehiclePlate);
@@ -1653,6 +1688,9 @@ class CachedAppointmentRow extends DataClass
       categoryName: categoryName == null && nullToAbsent
           ? const Value.absent()
           : Value(categoryName),
+      categoryNamesJson: categoryNamesJson == null && nullToAbsent
+          ? const Value.absent()
+          : Value(categoryNamesJson),
       vehiclePlate: vehiclePlate == null && nullToAbsent
           ? const Value.absent()
           : Value(vehiclePlate),
@@ -1675,6 +1713,9 @@ class CachedAppointmentRow extends DataClass
       branchName: serializer.fromJson<String>(json['branchName']),
       note: serializer.fromJson<String?>(json['note']),
       categoryName: serializer.fromJson<String?>(json['categoryName']),
+      categoryNamesJson: serializer.fromJson<String?>(
+        json['categoryNamesJson'],
+      ),
       vehiclePlate: serializer.fromJson<String?>(json['vehiclePlate']),
       cachedAt: serializer.fromJson<DateTime>(json['cachedAt']),
     );
@@ -1692,6 +1733,7 @@ class CachedAppointmentRow extends DataClass
       'branchName': serializer.toJson<String>(branchName),
       'note': serializer.toJson<String?>(note),
       'categoryName': serializer.toJson<String?>(categoryName),
+      'categoryNamesJson': serializer.toJson<String?>(categoryNamesJson),
       'vehiclePlate': serializer.toJson<String?>(vehiclePlate),
       'cachedAt': serializer.toJson<DateTime>(cachedAt),
     };
@@ -1707,6 +1749,7 @@ class CachedAppointmentRow extends DataClass
     String? branchName,
     Value<String?> note = const Value.absent(),
     Value<String?> categoryName = const Value.absent(),
+    Value<String?> categoryNamesJson = const Value.absent(),
     Value<String?> vehiclePlate = const Value.absent(),
     DateTime? cachedAt,
   }) => CachedAppointmentRow(
@@ -1719,6 +1762,9 @@ class CachedAppointmentRow extends DataClass
     branchName: branchName ?? this.branchName,
     note: note.present ? note.value : this.note,
     categoryName: categoryName.present ? categoryName.value : this.categoryName,
+    categoryNamesJson: categoryNamesJson.present
+        ? categoryNamesJson.value
+        : this.categoryNamesJson,
     vehiclePlate: vehiclePlate.present ? vehiclePlate.value : this.vehiclePlate,
     cachedAt: cachedAt ?? this.cachedAt,
   );
@@ -1743,6 +1789,9 @@ class CachedAppointmentRow extends DataClass
       categoryName: data.categoryName.present
           ? data.categoryName.value
           : this.categoryName,
+      categoryNamesJson: data.categoryNamesJson.present
+          ? data.categoryNamesJson.value
+          : this.categoryNamesJson,
       vehiclePlate: data.vehiclePlate.present
           ? data.vehiclePlate.value
           : this.vehiclePlate,
@@ -1762,6 +1811,7 @@ class CachedAppointmentRow extends DataClass
           ..write('branchName: $branchName, ')
           ..write('note: $note, ')
           ..write('categoryName: $categoryName, ')
+          ..write('categoryNamesJson: $categoryNamesJson, ')
           ..write('vehiclePlate: $vehiclePlate, ')
           ..write('cachedAt: $cachedAt')
           ..write(')'))
@@ -1779,6 +1829,7 @@ class CachedAppointmentRow extends DataClass
     branchName,
     note,
     categoryName,
+    categoryNamesJson,
     vehiclePlate,
     cachedAt,
   );
@@ -1795,6 +1846,7 @@ class CachedAppointmentRow extends DataClass
           other.branchName == this.branchName &&
           other.note == this.note &&
           other.categoryName == this.categoryName &&
+          other.categoryNamesJson == this.categoryNamesJson &&
           other.vehiclePlate == this.vehiclePlate &&
           other.cachedAt == this.cachedAt);
 }
@@ -1810,6 +1862,7 @@ class CachedAppointmentsCompanion
   final Value<String> branchName;
   final Value<String?> note;
   final Value<String?> categoryName;
+  final Value<String?> categoryNamesJson;
   final Value<String?> vehiclePlate;
   final Value<DateTime> cachedAt;
   final Value<int> rowid;
@@ -1823,6 +1876,7 @@ class CachedAppointmentsCompanion
     this.branchName = const Value.absent(),
     this.note = const Value.absent(),
     this.categoryName = const Value.absent(),
+    this.categoryNamesJson = const Value.absent(),
     this.vehiclePlate = const Value.absent(),
     this.cachedAt = const Value.absent(),
     this.rowid = const Value.absent(),
@@ -1837,6 +1891,7 @@ class CachedAppointmentsCompanion
     required String branchName,
     this.note = const Value.absent(),
     this.categoryName = const Value.absent(),
+    this.categoryNamesJson = const Value.absent(),
     this.vehiclePlate = const Value.absent(),
     required DateTime cachedAt,
     this.rowid = const Value.absent(),
@@ -1858,6 +1913,7 @@ class CachedAppointmentsCompanion
     Expression<String>? branchName,
     Expression<String>? note,
     Expression<String>? categoryName,
+    Expression<String>? categoryNamesJson,
     Expression<String>? vehiclePlate,
     Expression<DateTime>? cachedAt,
     Expression<int>? rowid,
@@ -1872,6 +1928,7 @@ class CachedAppointmentsCompanion
       if (branchName != null) 'branch_name': branchName,
       if (note != null) 'note': note,
       if (categoryName != null) 'category_name': categoryName,
+      if (categoryNamesJson != null) 'category_names_json': categoryNamesJson,
       if (vehiclePlate != null) 'vehicle_plate': vehiclePlate,
       if (cachedAt != null) 'cached_at': cachedAt,
       if (rowid != null) 'rowid': rowid,
@@ -1888,6 +1945,7 @@ class CachedAppointmentsCompanion
     Value<String>? branchName,
     Value<String?>? note,
     Value<String?>? categoryName,
+    Value<String?>? categoryNamesJson,
     Value<String?>? vehiclePlate,
     Value<DateTime>? cachedAt,
     Value<int>? rowid,
@@ -1902,6 +1960,7 @@ class CachedAppointmentsCompanion
       branchName: branchName ?? this.branchName,
       note: note ?? this.note,
       categoryName: categoryName ?? this.categoryName,
+      categoryNamesJson: categoryNamesJson ?? this.categoryNamesJson,
       vehiclePlate: vehiclePlate ?? this.vehiclePlate,
       cachedAt: cachedAt ?? this.cachedAt,
       rowid: rowid ?? this.rowid,
@@ -1938,6 +1997,9 @@ class CachedAppointmentsCompanion
     if (categoryName.present) {
       map['category_name'] = Variable<String>(categoryName.value);
     }
+    if (categoryNamesJson.present) {
+      map['category_names_json'] = Variable<String>(categoryNamesJson.value);
+    }
     if (vehiclePlate.present) {
       map['vehicle_plate'] = Variable<String>(vehiclePlate.value);
     }
@@ -1962,6 +2024,7 @@ class CachedAppointmentsCompanion
           ..write('branchName: $branchName, ')
           ..write('note: $note, ')
           ..write('categoryName: $categoryName, ')
+          ..write('categoryNamesJson: $categoryNamesJson, ')
           ..write('vehiclePlate: $vehiclePlate, ')
           ..write('cachedAt: $cachedAt, ')
           ..write('rowid: $rowid')
@@ -3218,6 +3281,13 @@ typedef $$CachedVehiclesTableCreateCompanionBuilder =
       required String model,
       Value<int?> year,
       Value<String?> vin,
+      Value<String?> fuelType,
+      Value<String?> wheelPosition,
+      Value<String?> colorName,
+      Value<int?> capacity,
+      Value<String?> purpose,
+      Value<int?> serviceCount,
+      Value<int?> diagnosisCount,
       required DateTime cachedAt,
       Value<int> rowid,
     });
@@ -3230,6 +3300,13 @@ typedef $$CachedVehiclesTableUpdateCompanionBuilder =
       Value<String> model,
       Value<int?> year,
       Value<String?> vin,
+      Value<String?> fuelType,
+      Value<String?> wheelPosition,
+      Value<String?> colorName,
+      Value<int?> capacity,
+      Value<String?> purpose,
+      Value<int?> serviceCount,
+      Value<int?> diagnosisCount,
       Value<DateTime> cachedAt,
       Value<int> rowid,
     });
@@ -3275,6 +3352,41 @@ class $$CachedVehiclesTableFilterComposer
 
   ColumnFilters<String> get vin => $composableBuilder(
     column: $table.vin,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fuelType => $composableBuilder(
+    column: $table.fuelType,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get wheelPosition => $composableBuilder(
+    column: $table.wheelPosition,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get colorName => $composableBuilder(
+    column: $table.colorName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get capacity => $composableBuilder(
+    column: $table.capacity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get purpose => $composableBuilder(
+    column: $table.purpose,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get serviceCount => $composableBuilder(
+    column: $table.serviceCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get diagnosisCount => $composableBuilder(
+    column: $table.diagnosisCount,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3328,6 +3440,41 @@ class $$CachedVehiclesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get fuelType => $composableBuilder(
+    column: $table.fuelType,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get wheelPosition => $composableBuilder(
+    column: $table.wheelPosition,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get colorName => $composableBuilder(
+    column: $table.colorName,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get capacity => $composableBuilder(
+    column: $table.capacity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get purpose => $composableBuilder(
+    column: $table.purpose,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get serviceCount => $composableBuilder(
+    column: $table.serviceCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get diagnosisCount => $composableBuilder(
+    column: $table.diagnosisCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get cachedAt => $composableBuilder(
     column: $table.cachedAt,
     builder: (column) => ColumnOrderings(column),
@@ -3363,6 +3510,33 @@ class $$CachedVehiclesTableAnnotationComposer
 
   GeneratedColumn<String> get vin =>
       $composableBuilder(column: $table.vin, builder: (column) => column);
+
+  GeneratedColumn<String> get fuelType =>
+      $composableBuilder(column: $table.fuelType, builder: (column) => column);
+
+  GeneratedColumn<String> get wheelPosition => $composableBuilder(
+    column: $table.wheelPosition,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get colorName =>
+      $composableBuilder(column: $table.colorName, builder: (column) => column);
+
+  GeneratedColumn<int> get capacity =>
+      $composableBuilder(column: $table.capacity, builder: (column) => column);
+
+  GeneratedColumn<String> get purpose =>
+      $composableBuilder(column: $table.purpose, builder: (column) => column);
+
+  GeneratedColumn<int> get serviceCount => $composableBuilder(
+    column: $table.serviceCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get diagnosisCount => $composableBuilder(
+    column: $table.diagnosisCount,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get cachedAt =>
       $composableBuilder(column: $table.cachedAt, builder: (column) => column);
@@ -3412,6 +3586,13 @@ class $$CachedVehiclesTableTableManager
                 Value<String> model = const Value.absent(),
                 Value<int?> year = const Value.absent(),
                 Value<String?> vin = const Value.absent(),
+                Value<String?> fuelType = const Value.absent(),
+                Value<String?> wheelPosition = const Value.absent(),
+                Value<String?> colorName = const Value.absent(),
+                Value<int?> capacity = const Value.absent(),
+                Value<String?> purpose = const Value.absent(),
+                Value<int?> serviceCount = const Value.absent(),
+                Value<int?> diagnosisCount = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => CachedVehiclesCompanion(
@@ -3422,6 +3603,13 @@ class $$CachedVehiclesTableTableManager
                 model: model,
                 year: year,
                 vin: vin,
+                fuelType: fuelType,
+                wheelPosition: wheelPosition,
+                colorName: colorName,
+                capacity: capacity,
+                purpose: purpose,
+                serviceCount: serviceCount,
+                diagnosisCount: diagnosisCount,
                 cachedAt: cachedAt,
                 rowid: rowid,
               ),
@@ -3434,6 +3622,13 @@ class $$CachedVehiclesTableTableManager
                 required String model,
                 Value<int?> year = const Value.absent(),
                 Value<String?> vin = const Value.absent(),
+                Value<String?> fuelType = const Value.absent(),
+                Value<String?> wheelPosition = const Value.absent(),
+                Value<String?> colorName = const Value.absent(),
+                Value<int?> capacity = const Value.absent(),
+                Value<String?> purpose = const Value.absent(),
+                Value<int?> serviceCount = const Value.absent(),
+                Value<int?> diagnosisCount = const Value.absent(),
                 required DateTime cachedAt,
                 Value<int> rowid = const Value.absent(),
               }) => CachedVehiclesCompanion.insert(
@@ -3444,6 +3639,13 @@ class $$CachedVehiclesTableTableManager
                 model: model,
                 year: year,
                 vin: vin,
+                fuelType: fuelType,
+                wheelPosition: wheelPosition,
+                colorName: colorName,
+                capacity: capacity,
+                purpose: purpose,
+                serviceCount: serviceCount,
+                diagnosisCount: diagnosisCount,
                 cachedAt: cachedAt,
                 rowid: rowid,
               ),
@@ -3492,6 +3694,7 @@ typedef $$CachedAppointmentsTableCreateCompanionBuilder =
       required String branchName,
       Value<String?> note,
       Value<String?> categoryName,
+      Value<String?> categoryNamesJson,
       Value<String?> vehiclePlate,
       required DateTime cachedAt,
       Value<int> rowid,
@@ -3507,6 +3710,7 @@ typedef $$CachedAppointmentsTableUpdateCompanionBuilder =
       Value<String> branchName,
       Value<String?> note,
       Value<String?> categoryName,
+      Value<String?> categoryNamesJson,
       Value<String?> vehiclePlate,
       Value<DateTime> cachedAt,
       Value<int> rowid,
@@ -3563,6 +3767,11 @@ class $$CachedAppointmentsTableFilterComposer
 
   ColumnFilters<String> get categoryName => $composableBuilder(
     column: $table.categoryName,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get categoryNamesJson => $composableBuilder(
+    column: $table.categoryNamesJson,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -3631,6 +3840,11 @@ class $$CachedAppointmentsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get categoryNamesJson => $composableBuilder(
+    column: $table.categoryNamesJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get vehiclePlate => $composableBuilder(
     column: $table.vehiclePlate,
     builder: (column) => ColumnOrderings(column),
@@ -3685,6 +3899,11 @@ class $$CachedAppointmentsTableAnnotationComposer
 
   GeneratedColumn<String> get categoryName => $composableBuilder(
     column: $table.categoryName,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get categoryNamesJson => $composableBuilder(
+    column: $table.categoryNamesJson,
     builder: (column) => column,
   );
 
@@ -3746,6 +3965,7 @@ class $$CachedAppointmentsTableTableManager
                 Value<String> branchName = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<String?> categoryName = const Value.absent(),
+                Value<String?> categoryNamesJson = const Value.absent(),
                 Value<String?> vehiclePlate = const Value.absent(),
                 Value<DateTime> cachedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
@@ -3759,6 +3979,7 @@ class $$CachedAppointmentsTableTableManager
                 branchName: branchName,
                 note: note,
                 categoryName: categoryName,
+                categoryNamesJson: categoryNamesJson,
                 vehiclePlate: vehiclePlate,
                 cachedAt: cachedAt,
                 rowid: rowid,
@@ -3774,6 +3995,7 @@ class $$CachedAppointmentsTableTableManager
                 required String branchName,
                 Value<String?> note = const Value.absent(),
                 Value<String?> categoryName = const Value.absent(),
+                Value<String?> categoryNamesJson = const Value.absent(),
                 Value<String?> vehiclePlate = const Value.absent(),
                 required DateTime cachedAt,
                 Value<int> rowid = const Value.absent(),
@@ -3787,6 +4009,7 @@ class $$CachedAppointmentsTableTableManager
                 branchName: branchName,
                 note: note,
                 categoryName: categoryName,
+                categoryNamesJson: categoryNamesJson,
                 vehiclePlate: vehiclePlate,
                 cachedAt: cachedAt,
                 rowid: rowid,

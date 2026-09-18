@@ -11,7 +11,9 @@ enum NotificationType {
   orderPaymentReceived,
   orderRescheduled,
   expectedFinishRevised,
+  serviceReminder,
   feedbackReplied,
+  tenantPromo,
   broadcast,
 }
 
@@ -34,7 +36,9 @@ NotificationType notificationTypeFromPushData(String? value) => switch (value) {
   'order_payment_received' => NotificationType.orderPaymentReceived,
   'order_rescheduled' => NotificationType.orderRescheduled,
   'expected_finish_revised' => NotificationType.expectedFinishRevised,
+  'service_reminder' => NotificationType.serviceReminder,
   'feedback_replied_account' => NotificationType.feedbackReplied,
+  'tenant_promo' => NotificationType.tenantPromo,
   _ => NotificationType.broadcast, // incl. 'broadcast_account' + unknown/null
 };
 
@@ -52,7 +56,9 @@ extension NotificationTypeUi on NotificationType {
     NotificationType.orderPaymentReceived => 'Төлбөр хүлээн авсан',
     NotificationType.orderRescheduled => 'Товлосон огноо шилжсэн',
     NotificationType.expectedFinishRevised => 'Дуусах хугацаа шинэчлэгдсэн',
+    NotificationType.serviceReminder => 'Үйлчилгээний сануулга',
     NotificationType.feedbackReplied => 'Санал хүсэлтэд хариу ирсэн',
+    NotificationType.tenantPromo => 'Байгууллагын зар',
     NotificationType.broadcast => 'Мэдэгдэл',
   };
 }

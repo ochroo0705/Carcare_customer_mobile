@@ -451,21 +451,18 @@ class _BookingRequestScreenState extends State<BookingRequestScreen>
                             style: Theme.of(context).textTheme.titleSmall
                                 ?.copyWith(fontWeight: FontWeight.w700),
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _selectedCategoryIds.isNotEmpty
-                                ? 'Нийт ойролцоогоор $_selectedDurationMinutes мин'
-                                : widget.lockBranch
-                                    ? 'Хэрэгтэй үйлчилгээгээ сонгоно уу (нэг буюу хэд).'
-                                    : 'Хэрэгтэй үйлчилгээгээ сонгоно уу (нэг буюу хэд) — доорх '
-                                          'салбарын сонголт үүнд тохируулан шүүгдэнэ.',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
-                          ),
+                          if (_selectedCategoryIds.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Нийт ойролцоогоор $_selectedDurationMinutes мин',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurfaceVariant,
+                                  ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           Wrap(
                             spacing: 8,
@@ -1008,12 +1005,6 @@ class _BookingHeader extends StatelessWidget {
                     label: '$categoryCount үйлчилгээ',
                   ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Эхлээд үйлчилгээгээ сонгоно уу',
-              style: Theme.of(context).textTheme.bodySmall
-                  ?.copyWith(color: scheme.onSurfaceVariant),
             ),
           ] else ...[
             Row(

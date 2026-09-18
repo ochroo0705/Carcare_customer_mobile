@@ -189,6 +189,16 @@ class _AppointmentHistoryTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final state = controller.state;
+    // A refresh that already has rows keeps them on screen rather than
+    // dropping back to the skeleton: `load()` carries the previous orders
+    // through `loading` (see HistoryController), and History reloads on
+    // events the customer did not trigger here — an appointment cancelled on
+    // another tab, a terminal push. The skeleton is for a first load only.
+    final status =
+        state.status == HistoryStatus.loading &&
+            (state.orders.isNotEmpty || state.cancelledAppointments.isNotEmpty)
+        ? HistoryStatus.data
+        : state.status;
     return Column(
       children: [
         Padding(
@@ -205,7 +215,7 @@ class _AppointmentHistoryTab extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: switch (state.status) {
+          child: switch (status) {
             HistoryStatus.initial || HistoryStatus.loading => Semantics(
               container: true,
               liveRegion: true,

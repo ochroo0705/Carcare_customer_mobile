@@ -20,7 +20,7 @@ class AppointmentDto {
     required this.tenantSlug,
     required this.branchName,
     this.note,
-    this.categoryName,
+    this.categoryNames = const [],
     this.vehiclePlate,
     this.payment,
     this.serviceProgress,
@@ -49,7 +49,7 @@ class AppointmentDto {
       tenantSlug: _requiredString(tenant, 'slug'),
       branchName: _requiredString(branch, 'name'),
       note: _optionalString(json['note']),
-      categoryName: category == null ? null : _optionalString(category['name']),
+      categoryNames: _categoryNames(json['categories'], category),
       vehiclePlate: accountVehicle == null
           ? null
           : _optionalString(accountVehicle['plate']),
@@ -65,7 +65,7 @@ class AppointmentDto {
   final String tenantSlug;
   final String branchName;
   final String? note;
-  final String? categoryName;
+  final List<String> categoryNames;
   final String? vehiclePlate;
   final AppointmentPayment? payment;
   final AppointmentServiceProgress? serviceProgress;
@@ -78,7 +78,7 @@ class AppointmentDto {
     tenantSlug: tenantSlug,
     branchName: branchName,
     note: note,
-    categoryName: categoryName,
+    categoryNames: categoryNames,
     vehiclePlate: vehiclePlate,
     payment: payment,
     serviceProgress: serviceProgress,
@@ -339,6 +339,26 @@ Map<String, dynamic> _requiredMap(Map<String, dynamic> json, String key) {
 
 Map<String, dynamic>? _optionalMap(Object? value) =>
     value is Map ? Map<String, dynamic>.from(value) : null;
+
+/// Booking v2-ийн `categories` массиваас ангиллын нэрсийг цуглуулна.
+/// Хуучин ганц `category` объектыг ЗӨВХӨН массив байхгүй/хоосон үед л
+/// ашиглана (харах: CUSTOMER_API_CONTRACT.md — `categories` нь бүрэн олонлог,
+/// `category` back-compat-д л үлдсэн). Давхардсан нэрийг нэг удаа авна —
+/// массив болон ганц талбар хоёулаа ижил ангиллыг заавал зөрчил биш.
+List<String> _categoryNames(Object? raw, Map<String, dynamic>? single) {
+  final names = <String>[];
+  if (raw is List) {
+    for (final entry in raw) {
+      final name = _optionalString(_optionalMap(entry)?['name']);
+      if (name != null && !names.contains(name)) names.add(name);
+    }
+  }
+  if (names.isEmpty) {
+    final fallback = _optionalString(single?['name']);
+    if (fallback != null) names.add(fallback);
+  }
+  return List.unmodifiable(names);
+}
 
 String _requiredString(Map<String, dynamic> json, String key) {
   final value = _optionalString(json[key]);

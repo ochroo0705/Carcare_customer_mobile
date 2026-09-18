@@ -37,11 +37,14 @@ void main() {
     );
 
     // Mount already in dark mode, mirroring a tab kept alive inside
-    // CustomerShell's IndexedStack before any theme change occurs.
+    // CustomerShell's IndexedStack before any theme change occurs. The
+    // tenant-name header is the tabs+filters redesign's equivalent of the
+    // old page title: text built inline inside a ListView.separated
+    // itemBuilder closure, still exercising the same regression class.
     await tester.pumpWidget(buildApp(AppTheme.dark));
     await tester.pumpAndSettle();
     expect(
-      tester.widget<Text>(find.text('Миний захиалгууд')).style?.color,
+      tester.widget<Text>(find.text('Инфосистемс').first).style?.color,
       AppColors.darkText,
     );
 
@@ -53,7 +56,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<Text>(find.text('Миний захиалгууд')).style?.color,
+      tester.widget<Text>(find.text('Инфосистемс').first).style?.color,
       AppColors.lightText,
     );
   });

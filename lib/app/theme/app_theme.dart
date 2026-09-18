@@ -33,6 +33,7 @@ abstract final class AppColors {
   static const purple = Color(0xFFA855F7); // matches web's POSTPONED badge (purple-500)
   static const green = Color(0xFF3DDC97); // --oc-ok
   static const red = Color(0xFFEF4444);
+  static const warning = Color(0xFFF59E0B); // --oc-warn
 }
 
 abstract final class AppRadii {

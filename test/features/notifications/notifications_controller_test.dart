@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notification_type.dart';
+import 'package:carcare_customer_mobile/features/notifications/domain/notifications_page.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_state.dart';
@@ -12,11 +13,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// to reproduce out-of-order responses (e.g. a pull-to-refresh's `load()`
 /// resolving after a `markRead`-triggered `load()` that started later).
 class _RaceNotificationsRepository implements NotificationsRepository {
-  final List<Completer<List<AppNotification>>> completers = [];
+  final List<Completer<NotificationsPage>> completers = [];
 
   @override
-  Future<List<AppNotification>> getNotifications() {
-    final completer = Completer<List<AppNotification>>();
+  Future<NotificationsPage> getNotifications() {
+    final completer = Completer<NotificationsPage>();
     completers.add(completer);
     return completer.future;
   }
@@ -30,6 +31,11 @@ class _RaceNotificationsRepository implements NotificationsRepository {
   @override
   Future<void> addExternal(AppNotification notification) async {}
 }
+
+NotificationsPage _page(List<AppNotification> items) => NotificationsPage(
+  items: items,
+  unreadCount: items.where((n) => !n.isRead).length,
+);
 
 AppNotification _notification(String id, {bool isRead = false}) =>
     AppNotification(
@@ -132,10 +138,10 @@ void main() {
     expect(repository.completers, hasLength(2));
 
     // The SECOND (newer) call's response arrives first...
-    repository.completers[1].complete([_notification('newer')]);
+    repository.completers[1].complete(_page([_notification('newer')]));
     await second;
     // ...then the stale first call's response arrives late.
-    repository.completers[0].complete([_notification('older')]);
+    repository.completers[0].complete(_page([_notification('older')]));
     await Future<void>.delayed(Duration.zero);
 
     // The stale response must not clobber the newer result.
