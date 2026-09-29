@@ -38,7 +38,7 @@ void main() {
             organizationDetailController: OrganizationDetailController(
               FakeOrganizationRepository(),
             ),
-            mapConfigurationService: const _UnconfiguredMaps(),
+            mapConfigurationService: _UnconfiguredMaps(),
           ),
         ),
       ),
@@ -50,9 +50,7 @@ void main() {
   });
 }
 
-class _UnconfiguredMaps implements MapConfigurationService {
-  const _UnconfiguredMaps();
-
+class _UnconfiguredMaps extends Fake implements MapConfigurationService {
   @override
   Future<bool> isConfigured() async => false;
 }

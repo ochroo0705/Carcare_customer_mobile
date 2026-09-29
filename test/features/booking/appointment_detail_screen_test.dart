@@ -3,7 +3,6 @@ import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_r
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
-import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
@@ -22,7 +21,7 @@ Future<AppointmentsController> _loadedController() async {
 
 /// A repository that exposes exactly one appointment, so a test can pin its
 /// tenant slug / branch name to a known `FakeOrganizationRepository` branch.
-class _OneAppointmentRepo implements AppointmentRepository {
+class _OneAppointmentRepo extends Fake implements AppointmentRepository {
   _OneAppointmentRepo(this._appointment);
   final Appointment _appointment;
 
@@ -37,24 +36,6 @@ class _OneAppointmentRepo implements AppointmentRepository {
   Future<AppointmentPayment?> getPayment(String id) async => null;
   @override
   Future<AppointmentPayment?> retryPayment(String id) async => null;
-  @override
-  Future<DayAvailability> getAvailability({
-    required String branchId,
-    required DateTime date,
-    List<String> categoryIds = const [],
-  }) => throw UnimplementedError();
-
-  @override
-  Future<CreatedAppointment> createAppointment({
-    required String branchId,
-    required DateTime requestedAt,
-    String? note,
-    String? accountVehicleId,
-    List<String> categoryIds = const [],
-  }) => throw UnimplementedError();
-  @override
-  Future<AppointmentPaymentCheckResult> checkPayment(String id) =>
-      throw UnimplementedError();
 }
 
 Future<void> _pump(

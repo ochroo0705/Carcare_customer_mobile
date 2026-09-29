@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Lets a test control exactly when each `getNotifications` call resolves,
 /// to reproduce out-of-order responses (e.g. a pull-to-refresh's `load()`
 /// resolving after a `markRead`-triggered `load()` that started later).
-class _RaceNotificationsRepository implements NotificationsRepository {
+class _RaceNotificationsRepository extends Fake implements NotificationsRepository {
   final List<Completer<NotificationsPage>> completers = [];
 
   @override
@@ -21,15 +21,6 @@ class _RaceNotificationsRepository implements NotificationsRepository {
     completers.add(completer);
     return completer.future;
   }
-
-  @override
-  Future<void> markRead(String id) async {}
-
-  @override
-  Future<void> markAllRead() async {}
-
-  @override
-  Future<void> addExternal(AppNotification notification) async {}
 }
 
 NotificationsPage _page(List<AppNotification> items) => NotificationsPage(

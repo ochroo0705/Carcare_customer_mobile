@@ -1,7 +1,5 @@
 import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
 import 'package:carcare_customer_mobile/app/app.dart';
-import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
-import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/booking_request_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/screens/organization_detail_screen.dart';
@@ -9,37 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _AuthedRepo implements AuthRepository {
-  @override
-  Stream<void> get onSessionInvalidated => const Stream.empty();
-
-  @override
-  Future<Account?> restoreSession() async =>
-      const Account(id: '1', phone: '99112233');
-
-  @override
-  Future<void> requestOtp(String phone) async {}
-
-  @override
-  Future<({Account account, bool reactivated})> verifyOtp({
-    required String phone,
-    required String code,
-    String? name,
-  }) async =>
-      (account: const Account(id: '1', phone: '99112233'), reactivated: false);
-
-  @override
-  Future<void> signOut() async {}
-
-  @override
-  Future<String> requestClosureOtp() async => '****1234';
-
-  @override
-  Future<void> deactivateAccount(String code) async {}
-
-  @override
-  Future<void> deleteAccount(String code) async {}
-}
+import '../support/mocks.dart';
 
 void main() {
   setUpAll(() => debugDisableAppBootstrap = true);
@@ -54,7 +22,7 @@ void main() {
           organizationRepository: FakeOrganizationRepository(
             delay: Duration.zero,
           ),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
         ),
       );
       await tester.pumpAndSettle();
@@ -123,7 +91,7 @@ void main() {
           organizationRepository: FakeOrganizationRepository(
             delay: Duration.zero,
           ),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
         ),
       );
       await tester.pumpAndSettle();
@@ -163,7 +131,7 @@ void main() {
           organizationRepository: FakeOrganizationRepository(
             delay: Duration.zero,
           ),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
         ),
       );
       await tester.pumpAndSettle();
@@ -210,7 +178,7 @@ void main() {
           organizationRepository: FakeOrganizationRepository(
             delay: Duration.zero,
           ),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
         ),
       );
       await tester.pumpAndSettle();

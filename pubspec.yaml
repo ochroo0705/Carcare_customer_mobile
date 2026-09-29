@@ -70,6 +70,8 @@ dev_dependencies:
   flutter_native_splash: ^2.4.6
   drift_dev: ^2.34.6
   build_runner: ^2.16.1
+  # Test doubles: Fake for stateful scripted doubles, Mock for canned answers.
+  mocktail: 1.0.5
 
 flutter_launcher_icons:
   android: true

@@ -292,10 +292,29 @@ void main() {
       await tester.pumpAndSettle();
       // seed-history-1 is the fake order that actually has a diagnostic
       // report attached (see FakeServiceHistoryRepository._reports) — target
-      // it directly rather than "the first order card", which (sorted by
-      // completedAt) is a different, report-less seed.
-      await tester.tap(
-          find.byKey(const ValueKey('history-order-seed-history-1')));
+      // it directly rather than "the first order card". The fake repo sorts
+      // orders newest-first (mirroring the server's `orderBy: createdAt
+      // desc`), which puts seed-history-1 (completedAt: now-20d) 4th of 5
+      // orders, below seed-history-4 (2d), seed-history-2 (8d) and the
+      // unpaid seed-history-5 (15d) — so scroll it into view first.
+      final historyOrderTile =
+          find.byKey(const ValueKey('history-order-seed-history-1'));
+      final historyListScrollable = find.descendant(
+        of: find.byKey(const PageStorageKey('history-list')),
+        matching: find.byType(Scrollable),
+      );
+      // scrollUntilVisible only checks that the item has been built (it may
+      // still sit just past the viewport edge, inside the list's cache
+      // extent), so follow up with ensureVisible to actually bring it fully
+      // on screen before tapping.
+      await tester.scrollUntilVisible(
+        historyOrderTile,
+        200,
+        scrollable: historyListScrollable,
+      );
+      await tester.ensureVisible(historyOrderTile);
+      await tester.pumpAndSettle();
+      await tester.tap(historyOrderTile);
       await tester.pumpAndSettle();
       expect(find.byType(ServiceOrderDetailScreen), findsOneWidget);
 

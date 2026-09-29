@@ -6,6 +6,7 @@ import 'package:carcare_customer_mobile/features/discovery/domain/organization.d
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 
 Organization _organization(String slug) => Organization(
   slug: slug,
@@ -40,7 +41,7 @@ OrganizationPage _page({
       ),
     );
 
-class _ScriptedRepository implements OrganizationRepository {
+class _ScriptedRepository extends Fake implements OrganizationRepository {
   final requests = <OrganizationFilter>[];
   final mapRequests = <MapViewport>[];
   Future<OrganizationPage> Function(OrganizationFilter) handler =

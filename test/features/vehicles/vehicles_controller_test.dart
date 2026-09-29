@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
-import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_lookup_result.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
@@ -12,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Lets a test control exactly when each `getVehicles` call resolves, to
 /// reproduce out-of-order responses (e.g. a manual refresh's `load()`
 /// resolving after a `delete()`-triggered `load()` that started later).
-class _RaceVehicleRepository implements VehicleRepository {
+class _RaceVehicleRepository extends Fake implements VehicleRepository {
   final List<Completer<List<Vehicle>>> completers = [];
 
   @override
@@ -23,28 +22,7 @@ class _RaceVehicleRepository implements VehicleRepository {
   }
 
   @override
-  Future<Vehicle> addVehicle({
-    required String plate,
-    required String make,
-    required String model,
-    int? year,
-    String? vin,
-    String? fuelType,
-    String? wheelPosition,
-    String? colorName,
-    int? capacity,
-    String? purpose,
-  }) async => throw UnimplementedError();
-
-  @override
   Future<void> deleteVehicle(String id) async {}
-
-  @override
-  Future<VehicleLookupResult> lookupByPlate(String plate) async =>
-      throw UnimplementedError();
-
-  @override
-  Future<Vehicle> refreshFromHur(String id) async => throw UnimplementedError();
 }
 
 Vehicle _vehicle(String id) =>

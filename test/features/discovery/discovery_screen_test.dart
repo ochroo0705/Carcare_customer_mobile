@@ -212,7 +212,10 @@ void main() {
     expect(find.text('Цаг захиалах'), findsOneWidget);
     expect(find.text('Сүхбаатар салбар'), findsOneWidget);
     expect(find.text('Баянзүрх салбар'), findsNothing);
-    expect(find.text('1-р хороо, Олимпын гудамж 9'), findsOneWidget);
+    expect(
+      find.text('Улаанбаатар · Сүхбаатар · 1-р хороо, Олимпын гудамж 9'),
+      findsOneWidget,
+    );
     expect(find.text('09:00–18:00'), findsOneWidget);
   });
 

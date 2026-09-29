@@ -2,27 +2,19 @@ import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
-import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
-import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _ThrowingHistoryRepo implements ServiceHistoryRepository {
-  const _ThrowingHistoryRepo(this.failure);
+class _ThrowingHistoryRepo extends Fake implements ServiceHistoryRepository {
+  _ThrowingHistoryRepo(this.failure);
   final AppFailure failure;
   @override
   Future<ServiceHistoryPage> getServiceHistory({HistoryFilter filter = const HistoryFilter()}) async => throw failure;
-  @override
-  Future<ServiceOrderDetail> getServiceOrderDetail(String id) async =>
-      throw failure;
-  @override
-  Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async =>
-      throw failure;
 }
 
-class _CancelledPagingRepo implements ServiceHistoryRepository {
+class _CancelledPagingRepo extends Fake implements ServiceHistoryRepository {
   final pages = <int>[];
   bool failPageTwo = false;
 
@@ -65,10 +57,6 @@ class _CancelledPagingRepo implements ServiceHistoryRepository {
   }
 
   @override
-  Future<ServiceOrderDetail> getServiceOrderDetail(String id) =>
-      throw UnimplementedError();
-
-  @override
   Future<List<CancelledAppointmentSummary>> getCancelledAppointments() async =>
       const [];
 }
@@ -104,7 +92,7 @@ void main() {
 
   test('surfaces an error state when the load fails (offline, no cache)', () async {
     final controller = HistoryController(
-      const _ThrowingHistoryRepo(NetworkFailure()),
+      _ThrowingHistoryRepo(const NetworkFailure()),
     );
 
     await controller.load();
@@ -115,7 +103,7 @@ void main() {
 
   test('a server error surfaces its message', () async {
     final controller = HistoryController(
-      const _ThrowingHistoryRepo(ServerFailure('boom')),
+      _ThrowingHistoryRepo(const ServerFailure('boom')),
     );
 
     await controller.load();

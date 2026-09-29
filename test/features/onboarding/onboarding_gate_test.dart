@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class _FakeLocation implements LocationPermissionService {
+class _FakeLocation extends Fake implements LocationPermissionService {
   _FakeLocation(this.state);
   LocationAccessState state;
   int settingsOpened = 0;
@@ -24,7 +24,7 @@ class _FakeLocation implements LocationPermissionService {
   }
 }
 
-class _FakeNotif implements NotificationPermissionService {
+class _FakeNotif extends Fake implements NotificationPermissionService {
   _FakeNotif(this.state);
   PermissionState state;
   int settingsOpened = 0;

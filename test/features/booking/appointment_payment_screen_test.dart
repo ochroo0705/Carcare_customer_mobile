@@ -2,14 +2,13 @@ import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_repository.dart';
-import 'package:carcare_customer_mobile/features/booking/domain/availability.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_payment_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Repository whose QPay checkout initially failed and succeeds on retry.
-class _RetryRepository implements AppointmentRepository {
+class _RetryRepository extends Fake implements AppointmentRepository {
   int retries = 0;
 
   // A fresh pending invoice WITH a QR (a 1×1 PNG) — a pending payment without a
@@ -41,26 +40,11 @@ class _RetryRepository implements AppointmentRepository {
   Future<List<WalkInOrder>> getWalkInOrders() async => const [];
   @override
   Future<void> cancelAppointment(String id) async {}
-  @override
-  Future<DayAvailability> getAvailability({
-    required String branchId,
-    required DateTime date,
-    List<String> categoryIds = const [],
-  }) => throw UnimplementedError();
-
-  @override
-  Future<CreatedAppointment> createAppointment({
-    required String branchId,
-    required DateTime requestedAt,
-    String? note,
-    String? accountVehicleId,
-    List<String> categoryIds = const [],
-  }) => throw UnimplementedError();
 }
 
 /// Reports "not paid" for the first [paidAfter]-1 checks, then "paid".
 /// Counts calls so a test can assert polling stopped.
-class _PaysAfterRepository implements AppointmentRepository {
+class _PaysAfterRepository extends Fake implements AppointmentRepository {
   _PaysAfterRepository({this.paidAfter = 1});
   final int paidAfter;
   int checks = 0;
@@ -81,21 +65,6 @@ class _PaysAfterRepository implements AppointmentRepository {
   Future<List<WalkInOrder>> getWalkInOrders() async => const [];
   @override
   Future<void> cancelAppointment(String id) async {}
-  @override
-  Future<DayAvailability> getAvailability({
-    required String branchId,
-    required DateTime date,
-    List<String> categoryIds = const [],
-  }) => throw UnimplementedError();
-
-  @override
-  Future<CreatedAppointment> createAppointment({
-    required String branchId,
-    required DateTime requestedAt,
-    String? note,
-    String? accountVehicleId,
-    List<String> categoryIds = const [],
-  }) => throw UnimplementedError();
 }
 
 const _pendingWithQr = AppointmentPayment(

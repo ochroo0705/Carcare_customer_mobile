@@ -10,7 +10,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// the test tells it to — lets a test fire the remote `account_closed`
 /// handler while `closeAccount` is still awaiting the server, reproducing
 /// the backend's push-before-HTTP-response race.
-class _SlowClosureRepo implements AuthRepository {
+class _SlowClosureRepo extends Fake implements AuthRepository {
   _SlowClosureRepo({Account? account})
     : _account = account ?? const Account(id: 'fake-account', phone: '99112233');
 

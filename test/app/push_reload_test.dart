@@ -1,10 +1,5 @@
-import 'dart:async';
-
 import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
 import 'package:carcare_customer_mobile/app/app.dart';
-import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
-import 'package:carcare_customer_mobile/features/auth/domain/account.dart';
-import 'package:carcare_customer_mobile/features/auth/domain/auth_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
@@ -17,73 +12,17 @@ import 'package:carcare_customer_mobile/features/history/domain/cancelled_appoin
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
-import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Push service whose foreground (`onMessage`) stream the test drives —
-/// `notification_deep_link_test.dart`'s `_ControllablePush` only exposes the
-/// tap (`onMessageOpenedApp`) stream, which isn't enough to test the
-/// reload-on-arrival path this file covers.
-class _ControllableForegroundPush implements RemotePushService {
-  final _incoming = StreamController<RemoteMessage>.broadcast();
-
-  void arrive(Map<String, dynamic> data) =>
-      _incoming.add(RemoteMessage(data: data));
-
-  @override
-  Stream<RemoteMessage> get onMessage => _incoming.stream;
-
-  @override
-  Stream<RemoteMessage> get onMessageOpenedApp => const Stream.empty();
-
-  @override
-  Future<RemoteMessage?> getInitialMessage() async => null;
-
-  @override
-  Future<String?> getToken() async => null;
-
-  @override
-  Stream<String> get onTokenRefresh => const Stream.empty();
-}
-
-class _AuthedRepo implements AuthRepository {
-  @override
-  Stream<void> get onSessionInvalidated => const Stream.empty();
-
-  @override
-  Future<Account?> restoreSession() async =>
-      const Account(id: '1', phone: '99112233');
-
-  @override
-  Future<void> requestOtp(String phone) async {}
-
-  @override
-  Future<({Account account, bool reactivated})> verifyOtp({
-    required String phone,
-    required String code,
-    String? name,
-  }) async =>
-      (account: const Account(id: '1', phone: '99112233'), reactivated: false);
-
-  @override
-  Future<void> signOut() async {}
-
-  @override
-  Future<String> requestClosureOtp() async => '****1234';
-
-  @override
-  Future<void> deactivateAccount(String code) async {}
-
-  @override
-  Future<void> deleteAccount(String code) async {}
-}
+import '../support/mocks.dart';
+import 'support/app_harness.dart';
 
 /// Wraps [FakeAppointmentRepository], counting `getAppointments()` calls —
 /// the method `AppointmentsController.load()` actually calls — so a test can
 /// assert a reload really happened instead of just that the app didn't crash.
-class _CountingAppointmentRepository implements AppointmentRepository {
+class _CountingAppointmentRepository extends Fake implements AppointmentRepository {
   _CountingAppointmentRepository(this._inner);
 
   final FakeAppointmentRepository _inner;
@@ -142,7 +81,7 @@ class _CountingAppointmentRepository implements AppointmentRepository {
 
 /// Wraps [FakeServiceHistoryRepository], counting `getServiceHistory()`
 /// calls — the method `HistoryController.load()` actually calls.
-class _CountingHistoryRepository implements ServiceHistoryRepository {
+class _CountingHistoryRepository extends Fake implements ServiceHistoryRepository {
   _CountingHistoryRepository(this._inner);
 
   final FakeServiceHistoryRepository _inner;
@@ -170,7 +109,7 @@ void main() {
   testWidgets(
     'a terminal push type (order_completed) reloads both Appointments and History',
     (tester) async {
-      final push = _ControllableForegroundPush();
+      final push = ControllablePush();
       final appointments = _CountingAppointmentRepository(
         FakeAppointmentRepository(),
       );
@@ -180,7 +119,7 @@ void main() {
       await tester.pumpWidget(
         CarCareCustomerApp(
           organizationRepository: FakeOrganizationRepository(),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
           appointmentRepository: appointments,
           historyRepository: history,
           remotePushService: push,
@@ -215,7 +154,7 @@ void main() {
   testWidgets(
     'an active-only push type (order_in_progress) reloads only Appointments',
     (tester) async {
-      final push = _ControllableForegroundPush();
+      final push = ControllablePush();
       final appointments = _CountingAppointmentRepository(
         FakeAppointmentRepository(),
       );
@@ -225,7 +164,7 @@ void main() {
       await tester.pumpWidget(
         CarCareCustomerApp(
           organizationRepository: FakeOrganizationRepository(),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
           appointmentRepository: appointments,
           historyRepository: history,
           remotePushService: push,
@@ -256,7 +195,7 @@ void main() {
   testWidgets(
     'a broadcast push reloads neither Appointments nor History',
     (tester) async {
-      final push = _ControllableForegroundPush();
+      final push = ControllablePush();
       final appointments = _CountingAppointmentRepository(
         FakeAppointmentRepository(),
       );
@@ -266,7 +205,7 @@ void main() {
       await tester.pumpWidget(
         CarCareCustomerApp(
           organizationRepository: FakeOrganizationRepository(),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
           appointmentRepository: appointments,
           historyRepository: history,
           remotePushService: push,
@@ -288,7 +227,7 @@ void main() {
   testWidgets(
     'resuming from background reconciles both lists even without a push',
     (tester) async {
-      final push = _ControllableForegroundPush();
+      final push = ControllablePush();
       final appointments = _CountingAppointmentRepository(
         FakeAppointmentRepository(),
       );
@@ -298,7 +237,7 @@ void main() {
       await tester.pumpWidget(
         CarCareCustomerApp(
           organizationRepository: FakeOrganizationRepository(),
-          authRepository: _AuthedRepo(),
+          authRepository: signedInAuthRepository(),
           appointmentRepository: appointments,
           historyRepository: history,
           remotePushService: push,

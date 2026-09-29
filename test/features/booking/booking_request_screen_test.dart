@@ -40,7 +40,7 @@ DayAvailability _fakeAvailability() => DayAvailability(
   ],
 );
 
-class _CapturingAppointmentRepository implements AppointmentRepository {
+class _CapturingAppointmentRepository extends Fake implements AppointmentRepository {
   bool called = false;
   String? capturedVehicleId;
 
@@ -90,7 +90,7 @@ class _CapturingAppointmentRepository implements AppointmentRepository {
 }
 
 /// Rejects the booking with a 409-style conflict (slot already taken).
-class _ConflictAppointmentRepository implements AppointmentRepository {
+class _ConflictAppointmentRepository extends Fake implements AppointmentRepository {
   @override
   Future<DayAvailability> getAvailability({
     required String branchId,
@@ -125,7 +125,7 @@ class _ConflictAppointmentRepository implements AppointmentRepository {
 /// Lets a test control exactly when each `getAvailability` call resolves, to
 /// reproduce out-of-order network responses (a later-fired request's response
 /// arriving before an earlier one's).
-class _RaceAvailabilityRepository implements AppointmentRepository {
+class _RaceAvailabilityRepository extends Fake implements AppointmentRepository {
   final List<Completer<DayAvailability>> completers = [];
   final List<DateTime> requestedDates = [];
 
@@ -140,29 +140,6 @@ class _RaceAvailabilityRepository implements AppointmentRepository {
     requestedDates.add(date);
     return completer.future;
   }
-
-  @override
-  Future<CreatedAppointment> createAppointment({
-    required String branchId,
-    required DateTime requestedAt,
-    String? note,
-    String? accountVehicleId,
-    List<String> categoryIds = const [],
-  }) async => throw UnimplementedError();
-
-  @override
-  Future<List<Appointment>> getAppointments() async => const [];
-  @override
-  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
-  @override
-  Future<void> cancelAppointment(String id) async {}
-  @override
-  Future<AppointmentPayment?> getPayment(String id) async => null;
-  @override
-  Future<AppointmentPaymentCheckResult> checkPayment(String id) async =>
-      const AppointmentPaymentCheckResult(paid: false);
-  @override
-  Future<AppointmentPayment?> retryPayment(String id) async => null;
 }
 
 DayAvailability _availabilityWithSlot(int hour, int minute) => DayAvailability(
@@ -182,7 +159,7 @@ DayAvailability _availabilityWithSlot(int hour, int minute) => DayAvailability(
 /// Returns 09:00 on the first `getAvailability` call and 11:00 on every call
 /// after — simulates the slot the customer picked getting taken (or the
 /// schedule changing) while the app was backgrounded.
-class _CountingAvailabilityRepository implements AppointmentRepository {
+class _CountingAvailabilityRepository extends Fake implements AppointmentRepository {
   int calls = 0;
 
   @override
@@ -194,29 +171,6 @@ class _CountingAvailabilityRepository implements AppointmentRepository {
     calls += 1;
     return _availabilityWithSlot(calls == 1 ? 9 : 11, 0);
   }
-
-  @override
-  Future<CreatedAppointment> createAppointment({
-    required String branchId,
-    required DateTime requestedAt,
-    String? note,
-    String? accountVehicleId,
-    List<String> categoryIds = const [],
-  }) async => throw UnimplementedError();
-
-  @override
-  Future<List<Appointment>> getAppointments() async => const [];
-  @override
-  Future<List<WalkInOrder>> getWalkInOrders() async => const [];
-  @override
-  Future<void> cancelAppointment(String id) async {}
-  @override
-  Future<AppointmentPayment?> getPayment(String id) async => null;
-  @override
-  Future<AppointmentPaymentCheckResult> checkPayment(String id) async =>
-      const AppointmentPaymentCheckResult(paid: false);
-  @override
-  Future<AppointmentPayment?> retryPayment(String id) async => null;
 }
 
 const _branch = BranchDetail(

@@ -155,7 +155,9 @@ class FakeServiceHistoryRepository implements ServiceHistoryRepository {
       if (filter.year != null && filter.month != null && order.completedAt.month != filter.month) return false;
       if (q.isEmpty) return true;
       return [order.tenantName, order.branchName, order.vehiclePlate ?? ''].any((value) => value.toLowerCase().contains(q));
-    }).toList(growable: false);
+    }).toList()
+      // Mirror the server's `orderBy: createdAt desc` — newest completed first.
+      ..sort((a, b) => b.completedAt.compareTo(a.completedAt));
     final cancelled = _cancelledAppointments.where((item) {
       if (filter.year != null && item.requestedAt.year != filter.year) return false;
       if (filter.year != null && filter.month != null && item.requestedAt.month != filter.month) return false;
