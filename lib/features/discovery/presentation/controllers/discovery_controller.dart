@@ -74,8 +74,12 @@ double _longitudeSpan(MapViewport viewport) {
 
 double _normalizeLongitude(double longitude) {
   var normalized = longitude;
-  while (normalized > 180) normalized -= 360;
-  while (normalized < -180) normalized += 360;
+  while (normalized > 180) {
+    normalized -= 360;
+  }
+  while (normalized < -180) {
+    normalized += 360;
+  }
   return normalized;
 }
 
@@ -603,9 +607,9 @@ class DiscoveryController extends ChangeNotifier {
         filter.query,
         filter.city,
         filter.district,
-        filter.lat == null ? '' : filter.lat,
-        filter.lng == null ? '' : filter.lng,
-        filter.radiusKm == null ? '' : filter.radiusKm,
+        filter.lat ?? '',
+        filter.lng ?? '',
+        filter.radiusKm ?? '',
         filter.openNow,
         filter.weekend,
         filter.serviceKey,

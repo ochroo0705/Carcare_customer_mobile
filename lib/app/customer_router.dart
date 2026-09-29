@@ -24,6 +24,7 @@ import 'package:carcare_customer_mobile/features/profile/presentation/screens/pr
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/add_vehicle_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/screens/vehicle_detail_screen.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -34,7 +35,9 @@ import 'package:provider/provider.dart';
 String? customerRedirect({required bool isAuthenticated, required Uri uri}) {
   final segments = uri.pathSegments;
   final isBooking =
-      segments.length == 3 && segments[0] == 'organizations' && segments[2] == 'book';
+      segments.length == 3 &&
+      segments[0] == 'organizations' &&
+      segments[2] == 'book';
   if (isBooking && !isAuthenticated) {
     return CustomerRoutes.login(from: uri.toString());
   }
@@ -189,9 +192,19 @@ GoRouter buildCustomerRouter(
               services: services,
               builder: (context, c, reload) {
                 final organization = c.organization;
+                if (c.status == OrganizationDetailStatus.error) {
+                  return Scaffold(
+                    appBar: AppBar(leading: BackButton(onPressed: context.pop)),
+                    body: OrganizationLoadError(
+                      message: c.message ?? 'Мэдээлэл ачаалсангүй.',
+                      onRetry: reload,
+                    ),
+                  );
+                }
                 if (organization == null || organization.slug != slug) {
-                  return const Scaffold(
-                    body: Center(child: CircularProgressIndicator()),
+                  return Scaffold(
+                    appBar: AppBar(),
+                    body: const SkeletonDetail(),
                   );
                 }
                 return BookingRequestScreen(
@@ -204,7 +217,11 @@ GoRouter buildCustomerRouter(
                   lockBranch: lock == '1',
                   initialCategoryIds: keyIds.isEmpty
                       ? null
-                      : resolveLockedCategoryIds(organization, branchId, keyIds),
+                      : resolveLockedCategoryIds(
+                          organization,
+                          branchId,
+                          keyIds,
+                        ),
                   // `BookingRequestScreen.onUnauthenticated` fires when a
                   // `createAppointment` call comes back 401 while this page
                   // is already showing (a session the client hadn't noticed
@@ -299,13 +316,14 @@ GoRouter buildCustomerRouter(
         pageBuilder: (context, state) {
           final id = state.pathParameters['id']!;
           final extraVehicle = state.extra as Vehicle?;
-          final fallback =
-              extraVehicle ?? _findVehicle(services, id);
+          final fallback = extraVehicle ?? _findVehicle(services, id);
           if (fallback == null) {
             return MaterialPage(
               key: state.pageKey,
               child: Scaffold(
-                appBar: AppBar(leading: BackButton(onPressed: () => context.pop())),
+                appBar: AppBar(
+                  leading: BackButton(onPressed: () => context.pop()),
+                ),
                 body: const Center(child: Text('Машин олдсонгүй.')),
               ),
             );
@@ -335,7 +353,8 @@ GoRouter buildCustomerRouter(
               CustomerRoutes.payment(appointment.id),
               extra: appointment.payment,
             ),
-            onReportSelected: (id) => context.push(CustomerRoutes.diagnostic(id)),
+            onReportSelected: (id) =>
+                context.push(CustomerRoutes.diagnostic(id)),
           ),
         ),
       ),
@@ -359,7 +378,8 @@ GoRouter buildCustomerRouter(
           child: WalkInOrderDetailScreen(
             orderId: state.pathParameters['id']!,
             onBack: () => context.pop(),
-            onReportSelected: (id) => context.push(CustomerRoutes.diagnostic(id)),
+            onReportSelected: (id) =>
+                context.push(CustomerRoutes.diagnostic(id)),
           ),
         ),
       ),
@@ -372,7 +392,8 @@ GoRouter buildCustomerRouter(
             orderId: state.pathParameters['id']!,
             onBack: () => context.pop(),
             historyController: services.historyController,
-            onReportSelected: (id) => context.push(CustomerRoutes.diagnostic(id)),
+            onReportSelected: (id) =>
+                context.push(CustomerRoutes.diagnostic(id)),
           ),
         ),
       ),
@@ -436,8 +457,9 @@ class _AccountClosureRoute extends StatefulWidget {
 class _AccountClosureRouteState extends State<_AccountClosureRoute> {
   @override
   Widget build(BuildContext context) {
-    final isAuthenticated =
-        context.select<AuthController, bool>((c) => c.isAuthenticated);
+    final isAuthenticated = context.select<AuthController, bool>(
+      (c) => c.isAuthenticated,
+    );
     if (!isAuthenticated) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (context.mounted) widget.onClosed();
@@ -492,7 +514,11 @@ class _OrganizationScope extends StatefulWidget {
 
   final String slug;
   final CustomerAppServices services;
-  final Widget Function(BuildContext context, _OrgScopeState state, VoidCallback reload)
+  final Widget Function(
+    BuildContext context,
+    _OrgScopeState state,
+    VoidCallback reload,
+  )
   builder;
 
   @override
@@ -534,6 +560,17 @@ class _OrganizationScopeState extends State<_OrganizationScope> {
   Widget build(BuildContext context) {
     final controller = context.watch<OrganizationDetailController>();
     final matchesSlug = controller.organization?.slug == widget.slug;
+    // A failed load for this very slug is a settled state, not a mismatch:
+    // show it and wait for the user's retry instead of reloading forever.
+    if (!matchesSlug &&
+        controller.status == OrganizationDetailStatus.error &&
+        controller.requestedSlug == widget.slug) {
+      return widget.builder(context, (
+        organization: null,
+        status: controller.status,
+        message: controller.message,
+      ), _reload);
+    }
     if (!matchesSlug) {
       // Only the topmost (currently active) route ever corrects the shared
       // controller back to its own slug. Every mismatched scope still
@@ -552,14 +589,10 @@ class _OrganizationScopeState extends State<_OrganizationScope> {
       }
       return widget.builder(context, _loadingOrgScopeState, _reload);
     }
-    return widget.builder(
-      context,
-      (
-        organization: controller.organization,
-        status: controller.status,
-        message: controller.message,
-      ),
-      _reload,
-    );
+    return widget.builder(context, (
+      organization: controller.organization,
+      status: controller.status,
+      message: controller.message,
+    ), _reload);
   }
 }

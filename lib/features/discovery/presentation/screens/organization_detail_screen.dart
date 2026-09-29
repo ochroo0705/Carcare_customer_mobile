@@ -47,7 +47,7 @@ class OrganizationDetailScreen extends StatelessWidget {
                 status == OrganizationDetailStatus.initial
             ? const SkeletonDetail()
             : status == OrganizationDetailStatus.error
-            ? _DetailError(
+            ? OrganizationLoadError(
                 message: errorMessage ?? 'Мэдээлэл ачаалсангүй.',
                 onRetry: onRetry,
               )
@@ -261,9 +261,8 @@ class _HeroLogo extends StatelessWidget {
     final letter = Center(
       child: Text(
         name.characters.isEmpty ? '?' : name.characters.first.toUpperCase(),
-        style: Theme.of(
-          context,
-        ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+        style: Theme.of(context).textTheme.headlineSmall
+            ?.copyWith(fontWeight: FontWeight.w900),
       ),
     );
     final url = logoUrl?.trim();
@@ -486,10 +485,7 @@ class _HoursDisclosureState extends State<_HoursDisclosure> {
             onTap: () => setState(() => _expanded = !_expanded),
             child: Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
                 borderRadius: toggleRadius,
                 border: Border(
@@ -580,9 +576,8 @@ class _WeeklyHoursTable extends StatelessWidget {
       children: [
         Text(
           'Долоо хоногийн цагийн хуваарь',
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.labelLarge
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         for (final weekday in _weekdayOrder)
@@ -667,9 +662,8 @@ class _UpcomingScheduleNotices extends StatelessWidget {
       children: [
         Text(
           'Онцгой өдрүүд',
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.labelLarge
+              ?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         for (final exception in exceptions)
@@ -895,8 +889,13 @@ class _NotFound extends StatelessWidget {
   );
 }
 
-class _DetailError extends StatelessWidget {
-  const _DetailError({required this.message, required this.onRetry});
+/// Байгууллага ачаалж чадаагүй үед — дэлгэрэнгүй болон захиалгын хуудас хоёулаа ашиглана.
+class OrganizationLoadError extends StatelessWidget {
+  const OrganizationLoadError({
+    super.key,
+    required this.message,
+    required this.onRetry,
+  });
 
   final String message;
   final VoidCallback onRetry;

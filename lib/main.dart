@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:carcare_customer_mobile/app/app.dart';
+import 'package:carcare_customer_mobile/core/analytics/analytics_service.dart';
 import 'package:carcare_customer_mobile/core/config/app_environment.dart';
 import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
 import 'package:carcare_customer_mobile/core/network/api_client.dart';
@@ -162,6 +163,7 @@ void main() async {
       notificationsRepository: notificationsRepository,
       deviceRepository: deviceRepository,
       remotePushService: remotePushService,
+      analytics: FirebaseAnalyticsService(),
       connectivityService: const PlatformConnectivityService(),
       cacheStore: cacheStore,
     ),

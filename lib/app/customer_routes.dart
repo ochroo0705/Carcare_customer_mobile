@@ -6,7 +6,7 @@ abstract final class CustomerRoutes {
 
   static String organization(String slug, {String? branchId}) => Uri(
     path: '/organizations/$slug',
-    queryParameters: {if (branchId != null) 'branch': branchId},
+    queryParameters: {'branch': ?branchId},
   ).toString();
 
   static String booking(
@@ -17,7 +17,7 @@ abstract final class CustomerRoutes {
   }) => Uri(
     path: '/organizations/$slug/book',
     queryParameters: {
-      if (branchId != null) 'branch': branchId,
+      'branch': ?branchId,
       if (serviceKeyIds.isNotEmpty) 'keys': serviceKeyIds.join(','),
       if (lockBranch) 'lock': '1',
     },
@@ -25,7 +25,7 @@ abstract final class CustomerRoutes {
 
   static String login({String? from}) => Uri(
     path: '/login',
-    queryParameters: {if (from != null) 'from': from},
+    queryParameters: {'from': ?from},
   ).toString();
 
   static const addVehicle = '/vehicles/add';

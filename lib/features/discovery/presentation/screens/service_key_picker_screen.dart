@@ -4,6 +4,8 @@ import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeleton.dart';
 import 'package:flutter/material.dart';
 
 /// Cross-org "юу хийлгэх гэж байна?" — Booking tab-ийн НЭГ дэлгэц (web-ийн
@@ -224,12 +226,7 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
           ),
         ];
       case _LoadStatus.loading:
-        return const [
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        ];
+        return const [SliverFillRemaining(child: SkeletonAvatarCardList())];
       case _LoadStatus.error:
         return [
           SliverFillRemaining(
@@ -417,7 +414,17 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
   Widget _body(ScrollController scrollController) {
     switch (widget.keysStatus) {
       case _LoadStatus.loading:
-        return const Center(child: CircularProgressIndicator());
+        return SkeletonList(
+          itemCount: 8,
+          separator: 8,
+          itemBuilder: (_, _) => const Row(
+            children: [
+              SkeletonBox(height: 20, width: 20, radius: 6),
+              SizedBox(width: 14),
+              Expanded(child: SkeletonBox(height: 14)),
+            ],
+          ),
+        );
       case _LoadStatus.error:
         return _MessageState(
           icon: Icons.cloud_off_outlined,

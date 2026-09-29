@@ -29,6 +29,8 @@ class DiscoveryMap extends StatefulWidget {
     this.onViewportChanged,
     this.refitSignal,
     this.height = 430,
+    this.showLocationBanner = true,
+    this.onLocationAccessChanged,
     this.locationPermissionService =
         const PermissionHandlerLocationPermissionService(),
     this.mapConfigurationService = const NativeMapConfigurationService(),
@@ -52,6 +54,12 @@ class DiscoveryMap extends StatefulWidget {
   // avoid fighting the user's own panning/zooming.
   final int? refitSignal;
   final double height;
+  // A parent with its own top overlay (the discovery screen's floating
+  // search bar) sets this false and renders [LocationPermissionBanner]
+  // itself, below that overlay, driven by [onLocationAccessChanged] and
+  // [DiscoveryMapState.requestLocationPermission] / [openLocationSettings].
+  final bool showLocationBanner;
+  final ValueChanged<LocationAccessState>? onLocationAccessChanged;
   final LocationPermissionService locationPermissionService;
   final MapConfigurationService mapConfigurationService;
   final DeviceLocationService deviceLocationService;
@@ -114,7 +122,8 @@ class DiscoveryMapState extends State<DiscoveryMap>
   @override
   void didUpdateWidget(covariant DiscoveryMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.refitSignal != null && widget.refitSignal != oldWidget.refitSignal) {
+    if (widget.refitSignal != null &&
+        widget.refitSignal != oldWidget.refitSignal) {
       _visibleBounds = null;
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _fitCameraToLocations(),
@@ -144,7 +153,10 @@ class DiscoveryMapState extends State<DiscoveryMap>
       setState(() => _mapLoadState = _MapLoadState.unavailable);
       return;
     }
-    _requestLocationPermission();
+    // Check only — onboarding already offered the prompt. Asking again here
+    // would spend iOS's single prompt (and one of Android's two) on a user
+    // who just skipped it; the banner and locate-me ask on an explicit tap.
+    _checkLocationPermission();
     _loadPinIcons();
     _loadMapStyles();
     _startInitializationTimer();
@@ -209,19 +221,21 @@ class DiscoveryMapState extends State<DiscoveryMap>
     }
   }
 
-  Future<void> _requestLocationPermission() async {
-    final status = await widget.locationPermissionService.request();
-    if (!mounted) return;
-    setState(() => _locationAccessState = status);
+  Future<void> requestLocationPermission() async {
+    _setLocationAccess(await widget.locationPermissionService.request());
   }
 
   Future<void> _checkLocationPermission() async {
-    final status = await widget.locationPermissionService.check();
-    if (!mounted) return;
-    setState(() => _locationAccessState = status);
+    _setLocationAccess(await widget.locationPermissionService.check());
   }
 
-  Future<void> _openLocationSettings() async {
+  void _setLocationAccess(LocationAccessState status) {
+    if (!mounted) return;
+    setState(() => _locationAccessState = status);
+    widget.onLocationAccessChanged?.call(status);
+  }
+
+  Future<void> openLocationSettings() async {
     await widget.locationPermissionService.openSettings();
   }
 
@@ -234,7 +248,11 @@ class DiscoveryMapState extends State<DiscoveryMap>
   Future<void> locateMe() async {
     final controller = _mapController;
     if (controller == null) return;
+    // current() prompts if still undecided; re-read the result so the
+    // banner and blue dot follow whatever the user just chose.
     final location = await widget.deviceLocationService.current();
+    if (!mounted) return;
+    await _checkLocationPermission();
     if (location == null || !mounted) return;
     await controller.animateCamera(
       CameraUpdate.newLatLngZoom(LatLng(location.lat, location.lng), 15),
@@ -267,8 +285,8 @@ class DiscoveryMapState extends State<DiscoveryMap>
     final controller = _mapController;
     if (controller == null || _mapLoadState != _MapLoadState.ready) return;
     final bounds = cluster.bounds;
-    final latitudeSpan =
-        (bounds.northeast.latitude - bounds.southwest.latitude).abs();
+    final latitudeSpan = (bounds.northeast.latitude - bounds.southwest.latitude)
+        .abs();
     final longitudeDelta =
         bounds.northeast.longitude - bounds.southwest.longitude;
     final longitudeSpan = longitudeDelta >= 0
@@ -289,9 +307,7 @@ class DiscoveryMapState extends State<DiscoveryMap>
         );
         return;
       }
-      await controller.animateCamera(
-        CameraUpdate.newLatLngBounds(bounds, 72),
-      );
+      await controller.animateCamera(CameraUpdate.newLatLngBounds(bounds, 72));
     } catch (_) {
       // Keep the current map usable if a native camera update races map teardown.
     }
@@ -572,7 +588,8 @@ class DiscoveryMapState extends State<DiscoveryMap>
                   minMaxZoomPreference: const MinMaxZoomPreference(5, 19),
                 ),
               ),
-            if (_mapLoadState == _MapLoadState.ready &&
+            if (widget.showLocationBanner &&
+                _mapLoadState == _MapLoadState.ready &&
                 _locationAccessState != null &&
                 _locationAccessState != LocationAccessState.granted)
               Positioned(
@@ -581,8 +598,8 @@ class DiscoveryMapState extends State<DiscoveryMap>
                 right: 10,
                 child: LocationPermissionBanner(
                   state: _locationAccessState!,
-                  onRequest: _requestLocationPermission,
-                  onOpenSettings: _openLocationSettings,
+                  onRequest: requestLocationPermission,
+                  onOpenSettings: openLocationSettings,
                 ),
               ),
             if (visibleSelection != null)
@@ -879,7 +896,10 @@ class _SelectedBranchCard extends StatelessWidget {
               ),
               if (branchDetail != null) ...[
                 const SizedBox(height: 6),
-                _CardDetail(icon: Icons.schedule_rounded, text: branchDetail.hoursLabel),
+                _CardDetail(
+                  icon: Icons.schedule_rounded,
+                  text: branchDetail.hoursLabel,
+                ),
               ],
               if (detail?.phone != null) ...[
                 const SizedBox(height: 6),
@@ -903,7 +923,8 @@ class _SelectedBranchCard extends StatelessWidget {
                   ],
                 ),
               ],
-              if (branchDetail != null && branchDetail.categories.isNotEmpty) ...[
+              if (branchDetail != null &&
+                  branchDetail.categories.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Wrap(
                   spacing: 6,
@@ -911,8 +932,9 @@ class _SelectedBranchCard extends StatelessWidget {
                   children: [
                     // Quick preview card: a taste of what's offered, not the
                     // full list — that's what the detail page is for.
-                    for (final category
-                        in branchDetail.categories.take(_maxPreviewCategories))
+                    for (final category in branchDetail.categories.take(
+                      _maxPreviewCategories,
+                    ))
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 9,
@@ -975,9 +997,8 @@ class _CardLogo extends StatelessWidget {
         organization.name.characters.isEmpty
             ? '?'
             : organization.name.characters.first.toUpperCase(),
-        style: Theme.of(
-          context,
-        ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+        style: Theme.of(context).textTheme.titleMedium
+            ?.copyWith(fontWeight: FontWeight.w800),
       ),
     );
     final logoUrl = organization.logoUrl?.trim();
@@ -1013,7 +1034,9 @@ class _OpenStatusLine extends StatelessWidget {
     final color = switch (status) {
       BranchOpenStatus.open => AppColors.green,
       BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
-      BranchOpenStatus.unknown => Theme.of(context).colorScheme.onSurfaceVariant,
+      BranchOpenStatus.unknown => Theme.of(
+        context,
+      ).colorScheme.onSurfaceVariant,
     };
     final label = switch (status) {
       BranchOpenStatus.open => 'Нээлттэй',
@@ -1031,9 +1054,8 @@ class _OpenStatusLine extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.labelSmall
+              ?.copyWith(color: color, fontWeight: FontWeight.w700),
         ),
       ],
     );

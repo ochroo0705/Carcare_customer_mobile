@@ -339,7 +339,9 @@ class BranchDetail {
 }
 
 T? _firstOrNull<T>(Iterable<T> values) {
-  for (final value in values) return value;
+  for (final value in values) {
+    return value;
+  }
   return null;
 }
 

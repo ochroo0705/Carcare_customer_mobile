@@ -12,7 +12,9 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/controll
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_card.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/location_permission_banner.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/device_location_service.dart';
+import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +38,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   final _mapKey = GlobalKey<DiscoveryMapState>();
+  // Mirrors the map's location access so its banner can sit under the
+  // floating search bar instead of behind it.
+  LocationAccessState? _mapLocationAccess;
   MapViewport? _lastMapViewport;
 
   @override
@@ -108,7 +113,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   Widget _buildMapBody(DiscoveryController controller) {
     final detailController = context.read<OrganizationDetailController>();
     final mapOrganizations = controller.mapLoaded
-        ? controller.mapMarkers.map((marker) => marker.toOrganization()).toList()
+        ? controller.mapMarkers
+              .map((marker) => marker.toOrganization())
+              .toList()
         : controller.mapFallbackOrganizations;
     final account = context.watch<AuthController>().account;
     final unreadCount = context.watch<NotificationsController>().unreadCount;
@@ -121,6 +128,12 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               organizations: mapOrganizations,
               hasActiveFilters: controller.hasActiveFilters,
               height: constraints.maxHeight,
+              showLocationBanner: false,
+              onLocationAccessChanged: (state) {
+                if (state != _mapLocationAccess) {
+                  setState(() => _mapLocationAccess = state);
+                }
+              },
               organizationDetailController: detailController,
               refitSignal: controller.mapRefitSignal,
               onViewportChanged: (bounds) {
@@ -152,6 +165,18 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                       searchController: _searchController,
                       onOpenFilters: () => _openFiltersSheet(controller),
                     ),
+                    if (_mapLocationAccess != null &&
+                        _mapLocationAccess != LocationAccessState.granted)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: LocationPermissionBanner(
+                          state: _mapLocationAccess!,
+                          onRequest: () =>
+                              _mapKey.currentState?.requestLocationPermission(),
+                          onOpenSettings: () =>
+                              _mapKey.currentState?.openLocationSettings(),
+                        ),
+                      ),
                     // A search/filter change re-fetches markers for the
                     // current viewport in the background (see
                     // DiscoveryController._invalidateMapForFilterChange)
@@ -282,7 +307,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 const SizedBox(height: 12),
                 ListenableBuilder(
                   listenable: controller,
-                  builder: (context, _) => _FiltersPanel(controller: controller),
+                  builder: (context, _) =>
+                      _FiltersPanel(controller: controller),
                 ),
               ],
             ),
@@ -310,10 +336,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             ),
           ]
         : const <Widget>[];
-    return [
-      ...banner,
-      ..._statusContent(state, organizations, controller),
-    ];
+    return [...banner, ..._statusContent(state, organizations, controller)];
   }
 
   List<Widget> _statusContent(
@@ -401,13 +424,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             },
           ),
         ),
-        if (state.isLoadingMore || state.loadMoreMessage != null ||
+        if (state.isLoadingMore ||
+            state.loadMoreMessage != null ||
             state.pagination.hasNext)
           SliverToBoxAdapter(
-            child: _LoadMoreFooter(
-              state: state,
-              onRetry: controller.loadMore,
-            ),
+            child: _LoadMoreFooter(state: state, onRetry: controller.loadMore),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
@@ -653,10 +674,7 @@ class _MapRefreshSpinner extends StatelessWidget {
       color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
       shape: BoxShape.circle,
       boxShadow: [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.15),
-          blurRadius: 6,
-        ),
+        BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 6),
       ],
     ),
     padding: const EdgeInsets.all(6),
@@ -927,21 +945,31 @@ class _TagFilter extends StatelessWidget {
     items: [
       const DropdownMenuItem(
         value: '',
-        child: Text('Салбарын төрөл', maxLines: 1, overflow: TextOverflow.ellipsis),
+        child: Text(
+          'Салбарын төрөл',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       ...options.map(
         (option) => DropdownMenuItem(
           value: option.id,
-          child: Text(option.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: Text(
+            option.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
       ),
     ],
     onChanged: (id) {
       if (id == null) return;
-      final name = options.firstWhere(
-        (o) => o.id == id,
-        orElse: () => const BranchTagOption(id: '', name: ''),
-      ).name;
+      final name = options
+          .firstWhere(
+            (o) => o.id == id,
+            orElse: () => const BranchTagOption(id: '', name: ''),
+          )
+          .name;
       onChanged(id, name);
     },
   );

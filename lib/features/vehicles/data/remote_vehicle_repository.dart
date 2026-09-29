@@ -50,7 +50,7 @@ class RemoteVehicleRepository implements VehicleRepository {
         'wheelPosition': wheelPosition.trim(),
       if (colorName != null && colorName.trim().isNotEmpty)
         'colorName': colorName.trim(),
-      if (capacity != null) 'capacity': capacity,
+      'capacity': ?capacity,
       if (purpose != null && purpose.trim().isNotEmpty)
         'purpose': purpose.trim(),
     });

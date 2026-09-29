@@ -17,23 +17,20 @@ class LocalPushService {
     const androidSettings = AndroidInitializationSettings(
       '@mipmap/ic_launcher',
     );
-    const iosSettings = DarwinInitializationSettings();
+    // Never prompt from here: this runs on every launch, including the first,
+    // before onboarding is shown. Onboarding's permissions page and the
+    // post-onboarding FirebaseMessaging request in main.dart own the prompt.
+    const iosSettings = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
     await _plugin.initialize(
       settings: const InitializationSettings(
         android: androidSettings,
         iOS: iosSettings,
       ),
     );
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
     _initialized = true;
   }
 

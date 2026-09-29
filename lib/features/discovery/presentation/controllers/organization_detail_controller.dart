@@ -15,6 +15,10 @@ class OrganizationDetailController extends ChangeNotifier {
   String? message;
   String? _requestedSlug;
 
+  /// The slug of the most recent [load] call — lets a scope tell whether an
+  /// [OrganizationDetailStatus.error] belongs to its own slug.
+  String? get requestedSlug => _requestedSlug;
+
   Future<void> load(String slug) async {
     if (_requestedSlug == slug && status == OrganizationDetailStatus.loading) {
       return;

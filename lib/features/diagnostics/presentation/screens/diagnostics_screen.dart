@@ -168,9 +168,8 @@ class _DiagnosticsListViewState extends State<DiagnosticsListView> {
             const SizedBox(height: 18),
             Text(
               'Оношилгооны тайлан алга',
-              style: Theme.of(
-                context,
-              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
             Text(
@@ -184,53 +183,54 @@ class _DiagnosticsListViewState extends State<DiagnosticsListView> {
         ),
       ),
     ),
-    DiagnosticsStatus.data => widget.controller.resultsStale
-        ? const Center(child: CircularProgressIndicator())
-        : widget.controller.reports.isEmpty
-        ? Center(
-            child: Padding(
-              padding: const EdgeInsets.all(32),
-              child: Text(
-                'Сонгосон шүүлтэд тохирох тайлан алга.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+    DiagnosticsStatus.data =>
+      widget.controller.resultsStale
+          ? const SkeletonCardList(showTrailing: true)
+          : widget.controller.reports.isEmpty
+          ? Center(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Text(
+                  'Сонгосон шүүлтэд тохирох тайлан алга.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
-            ),
-          )
-        : RefreshIndicator(
-            onRefresh: widget.controller.load,
-            child: ListView.separated(
-              controller: _scrollController,
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-              itemCount:
-                  widget.controller.reports.length +
-                  (widget.controller.hasNextPage ? 1 : 0),
-              separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (context, index) {
-                final reports = widget.controller.reports;
-                if (index >= reports.length) {
-                  return Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Center(
-                      child: widget.controller.message == null
-                          ? const CircularProgressIndicator()
-                          : OutlinedButton(
-                              onPressed: widget.controller.loadMore,
-                              child: const Text('Дахин ачаалах'),
-                            ),
-                    ),
+            )
+          : RefreshIndicator(
+              onRefresh: widget.controller.load,
+              child: ListView.separated(
+                controller: _scrollController,
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+                itemCount:
+                    widget.controller.reports.length +
+                    (widget.controller.hasNextPage ? 1 : 0),
+                separatorBuilder: (_, _) => const SizedBox(height: 12),
+                itemBuilder: (context, index) {
+                  final reports = widget.controller.reports;
+                  if (index >= reports.length) {
+                    return Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Center(
+                        child: widget.controller.message == null
+                            ? const CircularProgressIndicator()
+                            : OutlinedButton(
+                                onPressed: widget.controller.loadMore,
+                                child: const Text('Дахин ачаалах'),
+                              ),
+                      ),
+                    );
+                  }
+                  final report = reports[index];
+                  return _ReportCard(
+                    report: report,
+                    onTap: () => widget.onReportSelected(report.id),
                   );
-                }
-                final report = reports[index];
-                return _ReportCard(
-                  report: report,
-                  onTap: () => widget.onReportSelected(report.id),
-                );
-              },
+                },
+              ),
             ),
-          ),
   };
 }
 

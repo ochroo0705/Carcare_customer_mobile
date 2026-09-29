@@ -25,6 +25,7 @@ import 'package:carcare_customer_mobile/features/devices/data/device_id_store.da
 import 'package:carcare_customer_mobile/features/devices/data/fake_device_repository.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/data/fake_diagnostics_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
@@ -32,20 +33,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-CustomerAppServices _buildServices() => CustomerAppServices(
-  organizationRepository: FakeOrganizationRepository(delay: Duration.zero),
-  authRepository: FakeAuthRepository(),
-  appointmentRepository: FakeAppointmentRepository(),
-  vehicleRepository: FakeVehicleRepository(),
-  historyRepository: FakeServiceHistoryRepository(),
-  diagnosticsRepository: FakeDiagnosticsRepository(),
-  notificationsRepository: FakeNotificationsRepository(),
-  deviceRepository: FakeDeviceRepository(),
-  remotePushService: const NoopRemotePushService(),
-  deviceIdStore: DeviceIdStore(),
-  connectivityService: const NoopConnectivityService(),
-  cacheStore: const NoopCacheStore(),
-);
+CustomerAppServices _buildServices({bool signedIn = false}) =>
+    CustomerAppServices(
+      organizationRepository: FakeOrganizationRepository(delay: Duration.zero),
+      authRepository: FakeAuthRepository(signedIn: signedIn),
+      appointmentRepository: FakeAppointmentRepository(),
+      vehicleRepository: FakeVehicleRepository(),
+      historyRepository: FakeServiceHistoryRepository(),
+      diagnosticsRepository: FakeDiagnosticsRepository(),
+      notificationsRepository: FakeNotificationsRepository(),
+      deviceRepository: FakeDeviceRepository(),
+      remotePushService: const NoopRemotePushService(),
+      deviceIdStore: DeviceIdStore(),
+      connectivityService: const NoopConnectivityService(),
+      cacheStore: const NoopCacheStore(),
+    );
 
 /// A bounded stand-in for `pumpAndSettle`: the org-detail page's loading
 /// skeleton (and other always-mounted shell tabs, e.g. the discovery map)
@@ -83,14 +85,19 @@ void main() {
               value: services.organizationDetailController,
             ),
             ChangeNotifierProvider.value(value: services.authController),
-            ChangeNotifierProvider.value(value: services.appointmentsController),
+            ChangeNotifierProvider.value(
+              value: services.appointmentsController,
+            ),
             ChangeNotifierProvider.value(value: services.vehiclesController),
             ChangeNotifierProvider.value(value: services.historyController),
             ChangeNotifierProvider.value(
               value: services.notificationsController,
             ),
           ],
-          child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
+          child: MaterialApp.router(
+            theme: AppTheme.light,
+            routerConfig: router,
+          ),
         ),
       );
       await _pumpAWhile(tester);
@@ -122,6 +129,61 @@ void main() {
       await _pumpAWhile(tester);
       expect(find.text('Auto Doctor Service'), findsOneWidget);
       expect(find.text('Хурд Моторс'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'a failed org load on the booking route shows the error with a retry '
+    'instead of reloading forever behind a loading skeleton',
+    (tester) async {
+      final services = _buildServices(signedIn: true);
+      addTearDown(services.dispose);
+      final navigation = CustomerNavigation(services);
+      final router = buildCustomerRouter(services, navigation);
+      navigation.router = router;
+      addTearDown(router.dispose);
+      final themeController = ThemeController();
+      addTearDown(themeController.dispose);
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider.value(value: themeController),
+            ChangeNotifierProvider.value(value: services.discoveryController),
+            ChangeNotifierProvider.value(
+              value: services.organizationDetailController,
+            ),
+            ChangeNotifierProvider.value(value: services.authController),
+            ChangeNotifierProvider.value(
+              value: services.appointmentsController,
+            ),
+            ChangeNotifierProvider.value(value: services.vehiclesController),
+            ChangeNotifierProvider.value(value: services.historyController),
+            ChangeNotifierProvider.value(
+              value: services.notificationsController,
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.light,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await _pumpAWhile(tester);
+
+      // The fake repository throws NotFoundFailure for an unknown slug.
+      router.push('/organizations/no-such-org/book');
+      await _pumpAWhile(tester);
+      expect(find.text('Байгууллага олдсонгүй.'), findsOneWidget);
+      expect(find.text('Дахин оролдох'), findsOneWidget);
+
+      // Still settled on the error a while later — no silent reload loop.
+      await _pumpAWhile(tester);
+      expect(
+        services.organizationDetailController.status,
+        OrganizationDetailStatus.error,
+      );
+      expect(find.text('Дахин оролдох'), findsOneWidget);
     },
   );
 }

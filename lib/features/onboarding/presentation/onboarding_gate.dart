@@ -1,6 +1,6 @@
 import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
+import 'package:carcare_customer_mobile/core/analytics/analytics_service.dart';
 import 'package:carcare_customer_mobile/core/permissions/notification_permission_service.dart';
-import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
 import 'package:carcare_customer_mobile/features/onboarding/data/onboarding_store.dart';
 import 'package:carcare_customer_mobile/features/onboarding/presentation/screens/onboarding_screen.dart';
 import 'package:flutter/material.dart';
@@ -13,7 +13,7 @@ class OnboardingGate extends StatefulWidget {
     required this.child,
     required this.onRequestLogin,
     this.store = const OnboardingStore(),
-    this.locationService = const PermissionHandlerLocationPermissionService(),
+    this.analytics = const NoopAnalyticsService(),
     this.notificationService =
         const PermissionHandlerNotificationPermissionService(),
     super.key,
@@ -22,7 +22,7 @@ class OnboardingGate extends StatefulWidget {
   final Widget child;
   final VoidCallback onRequestLogin;
   final OnboardingStore store;
-  final LocationPermissionService locationService;
+  final AnalyticsService analytics;
   final NotificationPermissionService notificationService;
 
   @override
@@ -57,8 +57,8 @@ class _OnboardingGateState extends State<OnboardingGate> {
     if (_completed!) return widget.child;
     return OnboardingScreen(
       onFinish: _finish,
-      locationService: widget.locationService,
       notificationService: widget.notificationService,
+      analytics: widget.analytics,
     );
   }
 }

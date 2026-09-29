@@ -8,6 +8,7 @@ import 'package:carcare_customer_mobile/features/booking/presentation/controller
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
+import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -173,9 +174,7 @@ class _VehicleDetailView extends StatelessWidget {
                               Text(
                                 '${vehicle.make} ${vehicle.model}',
                                 style: Theme.of(context).textTheme.bodyLarge
-                                    ?.copyWith(
-                                      color: scheme.onSurfaceVariant,
-                                    ),
+                                    ?.copyWith(color: scheme.onSurfaceVariant),
                               ),
                             ],
                           ),
@@ -191,9 +190,8 @@ class _VehicleDetailView extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       '${vehicle.serviceCount} үйлчилгээ · ${vehicle.diagnosisCount} оношилгоо',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                     for (final fact in facts) ...[
                       const Divider(height: 1),
@@ -217,9 +215,8 @@ class _VehicleDetailView extends StatelessWidget {
               const SizedBox(height: 12),
               Text(
                 'Энд харагдах мэдээлэл нь бүртгэлд хадгалагдсан HUR-ийн утгууд дээр үндэслэнэ.',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: scheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -258,9 +255,8 @@ class _ServiceOrdersSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Үйлчилгээний түүх',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               Text(
@@ -272,8 +268,8 @@ class _ServiceOrdersSection extends StatelessWidget {
             ],
           ),
           if (isLoading) ...[
-            const SizedBox(height: 16),
-            const Center(child: CircularProgressIndicator()),
+            const SizedBox(height: 12),
+            const SkeletonCardColumn(itemCount: 2, showTrailing: true),
           ] else if (sorted.isEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -372,9 +368,8 @@ class _AppointmentsSection extends StatelessWidget {
               Expanded(
                 child: Text(
                   'Цагийн захиалгын түүх',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               Text(
@@ -386,8 +381,8 @@ class _AppointmentsSection extends StatelessWidget {
             ],
           ),
           if (isLoading) ...[
-            const SizedBox(height: 16),
-            const Center(child: CircularProgressIndicator()),
+            const SizedBox(height: 12),
+            const SkeletonCardColumn(itemCount: 2, showTrailing: true),
           ] else if (sorted.isEmpty) ...[
             const SizedBox(height: 12),
             Text(
@@ -503,9 +498,8 @@ class _FactRow extends StatelessWidget {
           child: Text(
             value,
             textAlign: TextAlign.right,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
+            style: Theme.of(context).textTheme.bodyMedium
+                ?.copyWith(fontWeight: FontWeight.w700),
           ),
         ),
       ],

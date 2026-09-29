@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/core/analytics/analytics_service.dart';
 import 'package:carcare_customer_mobile/app/customer_app_services.dart';
 import 'package:carcare_customer_mobile/app/customer_navigation.dart';
 import 'package:carcare_customer_mobile/app/customer_router.dart';
@@ -39,6 +40,7 @@ class CarCareCustomerApp extends StatefulWidget {
     NotificationsRepository? notificationsRepository,
     DeviceRepository? deviceRepository,
     RemotePushService? remotePushService,
+    AnalyticsService? analytics,
     DeviceIdStore? deviceIdStore,
     ConnectivityService? connectivityService,
     CacheStore? cacheStore,
@@ -54,6 +56,7 @@ class CarCareCustomerApp extends StatefulWidget {
            notificationsRepository ?? FakeNotificationsRepository(),
        deviceRepository = deviceRepository ?? FakeDeviceRepository(),
        remotePushService = remotePushService ?? const NoopRemotePushService(),
+       analytics = analytics ?? const NoopAnalyticsService(),
        deviceIdStore = deviceIdStore ?? DeviceIdStore(),
        connectivityService =
            connectivityService ?? const NoopConnectivityService(),
@@ -67,6 +70,7 @@ class CarCareCustomerApp extends StatefulWidget {
   final NotificationsRepository notificationsRepository;
   final DeviceRepository deviceRepository;
   final RemotePushService remotePushService;
+  final AnalyticsService analytics;
   final DeviceIdStore deviceIdStore;
   final ConnectivityService connectivityService;
   final CacheStore cacheStore;
@@ -146,6 +150,7 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
       builder: (context, child) => SplashGate(
         child: OnboardingGate(
           onRequestLogin: _navigation.requestLogin,
+          analytics: widget.analytics,
           child: child ?? const SizedBox.shrink(),
         ),
       ),

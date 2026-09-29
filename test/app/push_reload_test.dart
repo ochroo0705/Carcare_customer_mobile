@@ -10,7 +10,6 @@ import 'package:carcare_customer_mobile/features/discovery/data/fake_organizatio
 import 'package:carcare_customer_mobile/features/history/data/fake_service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/domain/cancelled_appointment_summary.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
-import 'package:carcare_customer_mobile/features/history/domain/service_order.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_detail.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
