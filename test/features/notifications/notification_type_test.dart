@@ -8,6 +8,10 @@ void main() {
       NotificationType.appointmentConfirmed,
     );
     expect(
+      notificationTypeFromPushData('appointment_booked_by_staff'),
+      NotificationType.appointmentBookedByStaff,
+    );
+    expect(
       notificationTypeFromPushData('appointment_rejected'),
       NotificationType.appointmentRejected,
     );

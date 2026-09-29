@@ -82,7 +82,13 @@ void main() async {
   final authRepository = AppEnvironment.useFakeApi
       ? FakeAuthRepository()
       : RemoteAuthRepository(
-          ApiClient(baseUrl: AppEnvironment.apiBaseUrl),
+          // Account closure endpoints are authenticated; the public OTP
+          // login calls send no header while signed out.
+          ApiClient(
+            baseUrl: AppEnvironment.apiBaseUrl,
+            accessTokenProvider: sessionStore.readToken,
+            onUnauthorized: sessionStore.clear,
+          ),
           sessionStore,
         );
   final deviceRepository = AppEnvironment.useFakeApi

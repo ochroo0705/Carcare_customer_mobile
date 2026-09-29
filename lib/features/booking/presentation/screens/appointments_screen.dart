@@ -11,6 +11,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.da
 import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
+import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -719,9 +720,45 @@ class _WalkInOrderCard extends StatelessWidget {
           '№${order.progress.number}',
           style: Theme.of(context).textTheme.bodySmall,
         ),
+        if (order.progress.hasOutstandingBalance) ...[
+          const SizedBox(height: 8),
+          _OutstandingBalanceChip(progress: order.progress),
+        ],
       ],
     ),
   );
+}
+
+/// Дууссан ч бүрэн төлөгдөөгүй захиалгын "Төлбөр дутуу · X₮" badge — яагаад
+/// түүхэнд шилжээгүйг ойлгуулна.
+class _OutstandingBalanceChip extends StatelessWidget {
+  const _OutstandingBalanceChip({required this.progress});
+
+  final AppointmentServiceProgress progress;
+
+  @override
+  Widget build(BuildContext context) {
+    final due = progress.outstandingAmount;
+    final label = due == null
+        ? 'Төлбөр дутуу'
+        : 'Төлбөр дутуу · ${formatAmount(due.round())}₮';
+    return Container(
+      key: ValueKey('outstanding-balance-${progress.id}'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.warning.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          color: AppColors.warning,
+          fontWeight: FontWeight.w700,
+          fontSize: 12,
+        ),
+      ),
+    );
+  }
 }
 
 class _ProgressStatusChip extends StatelessWidget {
@@ -815,6 +852,10 @@ class _AppointmentCard extends StatelessWidget {
             Text(_formatDateTime(appointment.requestedAt)),
           ],
         ),
+        if (appointment.serviceProgress?.hasOutstandingBalance ?? false) ...[
+          const SizedBox(height: 8),
+          _OutstandingBalanceChip(progress: appointment.serviceProgress!),
+        ],
         // Захиалга (ServiceOrder) үүсмэгц доорх явцын хэсэг бодит
         // үйлчилгээ бүрийг статус/үнэтэй нь жагсаадаг тул ангиллын мөр
         // илүүц болно — түүнээс ч илүү, захиалга анхны ангиллаас хальж

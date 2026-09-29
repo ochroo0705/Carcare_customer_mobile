@@ -202,4 +202,17 @@ class AppointmentServiceProgress {
   /// давхар шалгаж, кэшлэгдсэн хуучин датаг найдваргүй харуулахаас сэргийлнэ).
   bool get isSettled =>
       status.isCompleted && paymentStatus == OrderPaymentStatus.paid;
+
+  /// Дууссан ч бүрэн төлөгдөөгүй — "Захиалгууд" дээр "Төлбөр дутуу" badge-тэй
+  /// үлдэж, бүрэн төлөгдмөгц түүхэнд шилжинэ (веб /account-тай ижил,
+  /// CUSTOMER_API_CONTRACT.md "paid-only history" 2026-09-24).
+  bool get hasOutstandingBalance => status.isCompleted && !isSettled;
+
+  /// Үлдэгдэл (нийт − төлсөн); дүн мэдэгдэхгүй эсвэл ≤0 бол null.
+  num? get outstandingAmount {
+    final total = totalAmount;
+    if (total == null) return null;
+    final due = total - (paidAmount ?? 0);
+    return due > 0 ? due : null;
+  }
 }

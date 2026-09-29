@@ -1,17 +1,22 @@
 # CarCare Customer Mobile
 
-Customer-facing Flutter application for discovering automotive service organizations, selecting branches, and building toward online appointment booking.
+Customer-facing Flutter application for discovering automotive service
+organizations, selecting branches, and booking appointments.
 
 ## Current scope
 
-- Public organization discovery with dummy repository data
+- Public organization discovery with fake and remote repository paths
 - Text, city, and district filtering
 - List and Google Maps views
 - Organization details and branch selection
+- Appointment booking and appointment cancellation
+- Vehicle management, service history, and notifications (fake data paths)
 - Light/dark CarCare design system
 - Android and iOS projects
 
-The backend customer contract and complete booking flow are still under development. Placeholder behavior is kept behind repository/domain boundaries so it can be replaced safely.
+The first vertical slice is implemented against fake data. Remote API paths
+exist for the published contract but still require live-server verification;
+keep `USE_FAKE_API` explicit when choosing the runtime path.
 
 ## Local setup
 

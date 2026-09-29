@@ -98,6 +98,30 @@ void main() {
   );
 
   test(
+    'handleIncomingPush maps a staff phone-in booking push (appointment_booked_by_staff)',
+    () async {
+      final controller = NotificationsController(FakeNotificationsRepository());
+      await controller.load();
+      final before = controller.unreadCount;
+
+      await controller.handleIncomingPush(
+        title: 'Шинэ цаг захиалга',
+        body: 'Инфосистемс таны нэр дээр 2026.09.28 08:00-д цаг бүртгэлээ.',
+        data: const {
+          'type': 'appointment_booked_by_staff',
+          'appointmentId': '456',
+        },
+      );
+
+      expect(controller.unreadCount, before + 1);
+      final newest = controller.state.notifications.first;
+      expect(newest.title, 'Шинэ цаг захиалга');
+      expect(newest.type, NotificationType.appointmentBookedByStaff);
+      expect(newest.isRead, isFalse);
+    },
+  );
+
+  test(
     'handleIncomingPush falls back to broadcast for an unknown or missing type',
     () async {
       final controller = NotificationsController(FakeNotificationsRepository());

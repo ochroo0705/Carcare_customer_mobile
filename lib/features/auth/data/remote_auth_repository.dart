@@ -31,7 +31,7 @@ class RemoteAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<Account> verifyOtp({
+  Future<({Account account, bool reactivated})> verifyOtp({
     required String phone,
     required String code,
     String? name,
@@ -61,11 +61,29 @@ class RemoteAuthRepository implements AuthRepository {
     // тасарвал launch үеийн restore нь буруу authenticated төлөв үүсгэхээс
     // сэргийлж incomplete session-ийг хүлээж авахгүй.
     await _sessionStore.save(token: token, account: account);
-    return account;
+    return (account: account, reactivated: json['reactivated'] == true);
   }
 
   @override
   /// Local session-г цэвэрлэнэ. Device registration removal нь тусдаа
   /// best-effort урсгалд хийгддэг бөгөөд authentication logout-ийг блоклохгүй.
   Future<void> signOut() => _sessionStore.clear();
+
+  @override
+  Future<String> requestClosureOtp() async {
+    final json = await _client.postJson('/account/close/request-otp', const {});
+    return json['maskedPhone'] as String? ?? '';
+  }
+
+  @override
+  Future<void> deactivateAccount(String code) async {
+    await _client.postJson('/account/deactivate', {'code': code});
+    await _sessionStore.clear();
+  }
+
+  @override
+  Future<void> deleteAccount(String code) async {
+    await _client.postJson('/account/delete', {'code': code});
+    await _sessionStore.clear();
+  }
 }

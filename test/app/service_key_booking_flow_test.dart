@@ -21,14 +21,24 @@ class _AuthedRepo implements AuthRepository {
   Future<void> requestOtp(String phone) async {}
 
   @override
-  Future<Account> verifyOtp({
+  Future<({Account account, bool reactivated})> verifyOtp({
     required String phone,
     required String code,
     String? name,
-  }) async => const Account(id: '1', phone: '99112233');
+  }) async =>
+      (account: const Account(id: '1', phone: '99112233'), reactivated: false);
 
   @override
   Future<void> signOut() async {}
+
+  @override
+  Future<String> requestClosureOtp() async => '****1234';
+
+  @override
+  Future<void> deactivateAccount(String code) async {}
+
+  @override
+  Future<void> deleteAccount(String code) async {}
 }
 
 void main() {

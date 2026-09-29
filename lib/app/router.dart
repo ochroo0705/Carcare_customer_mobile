@@ -41,6 +41,7 @@ import 'package:carcare_customer_mobile/features/notifications/domain/notificati
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/screens/notifications_screen.dart';
+import 'package:carcare_customer_mobile/features/profile/presentation/screens/account_closure_screen.dart';
 import 'package:carcare_customer_mobile/features/profile/presentation/screens/profile_screen.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
@@ -160,16 +161,28 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _tokenRefreshSubscription = remotePushService.onTokenRefresh.listen(
       _onTokenRefreshed,
     );
-    _foregroundMessageSubscription = remotePushService.onMessage.listen(
-      (message) {
-        notificationsController.handleIncomingPush(
-          title: message.notification?.title,
-          body: message.notification?.body,
-          data: message.data,
+    _foregroundMessageSubscription = remotePushService.onMessage.listen((
+      message,
+    ) {
+      final type = message.data['type'] as String?;
+      // Silent, data-only account-closure push: never a visible/local
+      // notification, never appended to the in-app list, never routed —
+      // just force a local sign-out. Handled before
+      // `notificationsController.handleIncomingPush` so it can't leak in
+      // as a notification.
+      if (type == 'account_closed') {
+        authController.handleRemoteAccountClosed(
+          deleted: message.data['reason'] == 'deleted',
         );
-        _reloadListsForPushType(message.data['type'] as String?);
-      },
-    );
+        return;
+      }
+      notificationsController.handleIncomingPush(
+        title: message.notification?.title,
+        body: message.notification?.body,
+        data: message.data,
+      );
+      _reloadListsForPushType(type);
+    });
     _connectivitySubscription = connectivityService.onConnectivityChanged
         .listen(_onConnectivityChanged);
     // Deep-link a background notification tap into the relevant screen.
@@ -232,6 +245,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   bool _showAddVehicle = false;
   Vehicle? _selectedVehicle;
   bool _showNotifications = false;
+  bool _showAccountClosure = false;
   bool _wasAuthenticated = false;
   bool _disposed = false;
 
@@ -288,6 +302,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
                 onLoginRequested: _requestLogin,
                 onAddVehicle: _openAddVehicle,
                 onVehicleSelected: _openVehicleDetail,
+                onAccountClosureRequested: _openAccountClosure,
               ),
             ],
           ),
@@ -466,6 +481,11 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
               onBack: _closeDiagnosticDetail,
             ),
           ),
+        if (_showAccountClosure && authController.isAuthenticated)
+          MaterialPage<void>(
+            key: const ValueKey('account-closure'),
+            child: AccountClosureScreen(onClosed: _closeAccountClosure),
+          ),
         if (_showNotifications)
           MaterialPage<void>(
             key: const ValueKey('notifications'),
@@ -478,6 +498,8 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       onDidRemovePage: (page) {
         if (_showNotifications) {
           _closeNotifications();
+        } else if (_showAccountClosure) {
+          _closeAccountClosure();
         } else if (_paymentAppointmentId != null) {
           _closePayment();
         } else if (_selectedDiagnosticId != null) {
@@ -692,6 +714,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
   };
   static const _activeOnlyPushTypes = {
     'appointment_confirmed',
+    'appointment_booked_by_staff',
     'appointment_reminder',
     'appointment_rescheduled',
     'order_in_progress',
@@ -766,6 +789,7 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     _showAddVehicle = false;
     _selectedVehicle = null;
     _showNotifications = false;
+    _showAccountClosure = false;
     notifyListeners();
   }
 
@@ -819,6 +843,16 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
     notifyListeners();
   }
 
+  void _openAccountClosure() {
+    _showAccountClosure = true;
+    notifyListeners();
+  }
+
+  void _closeAccountClosure() {
+    _showAccountClosure = false;
+    notifyListeners();
+  }
+
   void _onAuthChanged() {
     final isAuthenticated = authController.isAuthenticated;
     if (isAuthenticated && !_wasAuthenticated) {
@@ -827,17 +861,69 @@ class CustomerRouterDelegate extends RouterDelegate<CustomerRoutePath>
       historyController.load();
       notificationsController.load();
       _registerDeviceForPush();
+      if (authController.justReactivated) {
+        authController.justReactivated = false;
+        final context = navigatorKey?.currentContext;
+        final messenger = context == null
+            ? null
+            : ScaffoldMessenger.maybeOf(context);
+        messenger?.showSnackBar(
+          const SnackBar(content: Text('Бүртгэл тань сэргээгдлээ')),
+        );
+      }
     } else if (!isAuthenticated && _wasAuthenticated) {
+      // Signed out (incl. a closure from this or another device): the closure
+      // page only makes sense for a signed-in account.
+      _showAccountClosure = false;
       appointmentsController.reset();
       vehiclesController.reset();
       historyController.reset();
       notificationsController.reset();
-      // Best-effort safety net for the 401-triggered path: `authController`
-      // wires `_removeDeviceForPush` to run before an explicit sign-out
-      // clears the token (see `beforeSignOut` below), but a 401 means the
-      // token was already invalid server-side, so this call is expected to
-      // fail there too — left in only in case removal was never attempted.
-      _removeDeviceForPush();
+      final closedDeleteForever = authController.justClosedAccount;
+      final remoteClosedReason = authController.justRemoteClosedAccount;
+      if (closedDeleteForever != null) {
+        // Account closure: the server already removed the devices, so skip
+        // the removal call below and just confirm the action.
+        authController.justClosedAccount = null;
+        final context = navigatorKey?.currentContext;
+        final messenger = context == null
+            ? null
+            : ScaffoldMessenger.maybeOf(context);
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              closedDeleteForever
+                  ? 'Бүртгэл устгагдлаа'
+                  : 'Бүртгэл идэвхгүй боллоо',
+            ),
+          ),
+        );
+      } else if (remoteClosedReason != null) {
+        // Closed remotely (e.g. from the website) while this device was
+        // still signed in — same skip-device-removal reasoning as above,
+        // but distinct wording since this device didn't initiate it.
+        authController.justRemoteClosedAccount = null;
+        final context = navigatorKey?.currentContext;
+        final messenger = context == null
+            ? null
+            : ScaffoldMessenger.maybeOf(context);
+        messenger?.showSnackBar(
+          SnackBar(
+            content: Text(
+              remoteClosedReason == 'deleted'
+                  ? 'Бүртгэл тань устгагдсан'
+                  : 'Бүртгэл тань идэвхгүй болсон',
+            ),
+          ),
+        );
+      } else {
+        // Best-effort safety net for the 401-triggered path: `authController`
+        // wires `_removeDeviceForPush` to run before an explicit sign-out
+        // clears the token (see `beforeSignOut` below), but a 401 means the
+        // token was already invalid server-side, so this call is expected to
+        // fail there too — left in only in case removal was never attempted.
+        _removeDeviceForPush();
+      }
     }
     _wasAuthenticated = isAuthenticated;
   }

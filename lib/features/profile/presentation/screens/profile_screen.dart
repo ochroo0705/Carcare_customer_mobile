@@ -14,12 +14,17 @@ class ProfileScreen extends StatelessWidget {
     required this.onLoginRequested,
     required this.onAddVehicle,
     this.onVehicleSelected,
+    this.onAccountClosureRequested,
     super.key,
   });
 
   final VoidCallback onLoginRequested;
   final VoidCallback onAddVehicle;
   final ValueChanged<Vehicle>? onVehicleSelected;
+
+  /// Opens the account-closure page on the router delegate's stack. The tile
+  /// is hidden when null.
+  final VoidCallback? onAccountClosureRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +48,7 @@ class ProfileScreen extends StatelessWidget {
                   account: authController.account,
                   onSignOut: authController.signOut,
                   onVehicleSelected: onVehicleSelected,
+                  onAccountClosureRequested: onAccountClosureRequested,
                 )
               : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
         ),
@@ -102,12 +108,14 @@ class _ProfileBody extends StatelessWidget {
     required this.account,
     required this.onSignOut,
     this.onVehicleSelected,
+    this.onAccountClosureRequested,
   });
 
   final VehiclesController controller;
   final Account? account;
   final VoidCallback onSignOut;
   final ValueChanged<Vehicle>? onVehicleSelected;
+  final VoidCallback? onAccountClosureRequested;
 
   @override
   Widget build(BuildContext context) {
@@ -155,6 +163,8 @@ class _ProfileBody extends StatelessWidget {
             ),
         ],
       },
+      if (account != null && onAccountClosureRequested != null)
+        _AccountClosureTile(onTap: onAccountClosureRequested!),
     ];
     return RefreshIndicator(
       onRefresh: controller.load,
@@ -295,6 +305,32 @@ class _ProfileHeader extends StatelessWidget {
   }
 }
 
+class _AccountClosureTile extends StatelessWidget {
+  const _AccountClosureTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GlassSurface(
+    key: const ValueKey('profile-account-closure-tile'),
+    onTap: onTap,
+    child: Row(
+      children: [
+        Icon(
+          Icons.person_off_outlined,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 12),
+        const Expanded(child: Text('Бүртгэл хаах')),
+        Icon(
+          Icons.chevron_right_rounded,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ],
+    ),
+  );
+}
+
 String _displayLabel(Account account) {
   final name = account.name?.trim();
   return (name != null && name.isNotEmpty) ? name : account.phone;
@@ -384,21 +420,11 @@ class _VehicleCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        '${vehicle.make} ${vehicle.model}',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w800),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    Icon(
-                      Icons.chevron_right_rounded,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ],
+                Text(
+                  '${vehicle.make} ${vehicle.model}',
+                  style: Theme.of(context).textTheme.titleMedium
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                  overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -438,6 +464,10 @@ class _VehicleCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
+        Icon(
+          Icons.chevron_right_rounded,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
         IconButton(
           key: ValueKey('delete-vehicle-${vehicle.id}'),

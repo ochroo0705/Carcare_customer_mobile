@@ -34,7 +34,56 @@ class AuthController extends ChangeNotifier {
   String? errorMessage;
   bool isBusy = false;
 
+  /// Set by [verifyOtp] from the server's `reactivated` flag: true when this
+  /// sign-in cleared a previous self-service deactivation. Not persisted —
+  /// only meaningful right after a successful [verifyOtp] call, for a
+  /// one-time "welcome back" notice.
+  bool justReactivated = false;
+
+  /// Set by [closeAccount] on success: `false` = deactivated, `true` =
+  /// deleted forever, `null` = the last sign-out was not a closure. The
+  /// router consumes it once to show a notice and to skip the device-removal
+  /// call (the server already dropped the devices and the token is dead).
+  bool? justClosedAccount;
+
+  /// Set by [handleRemoteAccountClosed]: `'deleted'` or `'deactivated'` when
+  /// this device's still-signed-in session just learned (via a silent push)
+  /// that the account was closed elsewhere — e.g. from the website. Distinct
+  /// from [justClosedAccount], which is this device's own in-app closure
+  /// flow; the router uses the two to pick between "Бүртгэл тань ..." (remote)
+  /// and "Бүртгэл ... боллоо/лээ" (local) wording. Consumed once by the router.
+  String? justRemoteClosedAccount;
+
+  /// True for the duration of this device's own [closeAccount] call. The
+  /// backend sends the `account_closed` push right after its DB transaction
+  /// commits but *before* the closure HTTP response returns, so on the
+  /// device that requested the closure, the push can arrive while
+  /// `closeAccount` is still awaiting that response. Without this guard,
+  /// [handleRemoteAccountClosed] would run mid-`closeAccount`, sign out and
+  /// show the remote snackbar, and then `closeAccount` would resume and set
+  /// [justClosedAccount] after the sign-out transition already fired — a
+  /// flag nobody ever consumes, left to leak into the *next* sign-out as a
+  /// stale "Бүртгэл устгагдлаа" notice.
+  bool _closingAccount = false;
+
   bool get isAuthenticated => account != null;
+
+  /// Handles the backend's silent `account_closed` data push (sent on
+  /// deactivation/deletion, including from the website). Local-only: the
+  /// server already revoked the token and dropped this device's row, so no
+  /// network call is made here (one would just 401). Idempotent — a no-op
+  /// once already signed out (covers this device's own push arriving after
+  /// [closeAccount] already finished), and also a no-op while [closeAccount]
+  /// is still in flight (see [_closingAccount]) — that call owns the
+  /// sign-out and its own "Бүртгэл ... боллоо/лээ" notice in that case.
+  Future<void> handleRemoteAccountClosed({required bool deleted}) async {
+    if (_closingAccount) return;
+    if (!isAuthenticated) return;
+    await _repository.signOut();
+    justRemoteClosedAccount = deleted ? 'deleted' : 'deactivated';
+    account = null;
+    notifyListeners();
+  }
 
   /// Launch үед secure session-ийг нэг удаа сэргээнэ. Token эвдэрсэн эсвэл
   /// session байхгүй бол account null хэвээр үлдэж public discovery ажиллана.
@@ -61,7 +110,63 @@ class AuthController extends ChangeNotifier {
 
   /// OTP-г repository-д баталгаажуулж, амжилттай бол account state-г солино.
   Future<bool> verifyOtp(String code) => _run(() async {
-    account = await _repository.verifyOtp(phone: phone, code: code.trim());
+    final result = await _repository.verifyOtp(phone: phone, code: code.trim());
+    account = result.account;
+    justReactivated = result.reactivated;
+  });
+
+  /// Account closure OTP хүсэж, masked утасны дугаар буцаана. Алдаа гарвал
+  /// `null` буцааж [errorMessage]-г тохируулна.
+  Future<String?> requestClosureOtp() async {
+    if (isBusy) return null;
+    isBusy = true;
+    errorMessage = null;
+    notifyListeners();
+    try {
+      return await _repository.requestClosureOtp();
+    } on AppFailure catch (failure) {
+      errorMessage = failure.message;
+      return null;
+    } catch (_) {
+      errorMessage = 'Тодорхойгүй алдаа гарлаа.';
+      return null;
+    } finally {
+      isBusy = false;
+      notifyListeners();
+    }
+  }
+
+  /// Deactivate (`deleteForever: false`) эсвэл delete forever
+  /// (`deleteForever: true`) хийж, амжилттай бол local session-г гаргана.
+  /// Буруу код өгвөл session хэвээр үлдэж [errorMessage] тавигдана.
+  Future<bool> closeAccount({
+    required bool deleteForever,
+    required String code,
+  }) => _run(() async {
+    _closingAccount = true;
+    try {
+      if (deleteForever) {
+        await _repository.deleteAccount(code);
+      } else {
+        await _repository.deactivateAccount(code);
+      }
+      // beforeSignOut (device removal) is skipped on purpose: the server
+      // already deleted this account's devices and the token is now
+      // rejected, so the call could only 401.
+      //
+      // Guard against the account_closed push's own race (see
+      // `_closingAccount`'s doc): with the guard in place this is always
+      // true in practice (`handleRemoteAccountClosed` cannot have nulled
+      // `account` while `_closingAccount` was true) — kept as a defensive
+      // belt-and-suspenders check so a transition is never fired, and the
+      // flag never set, for a sign-out this call didn't actually cause.
+      if (account != null) {
+        justClosedAccount = deleteForever;
+        account = null;
+      }
+    } finally {
+      _closingAccount = false;
+    }
   });
 
   void editPhone() {
