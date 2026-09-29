@@ -59,7 +59,10 @@ class CustomerAppServices with WidgetsBindingObserver {
       appointmentRepository,
       cache: cacheStore,
     );
-    vehiclesController = VehiclesController(vehicleRepository, cache: cacheStore);
+    vehiclesController = VehiclesController(
+      vehicleRepository,
+      cache: cacheStore,
+    );
     historyController = HistoryController(historyRepository, cache: cacheStore);
     // A customer cancelling their own appointment is a terminal transition, so
     // it has to reconcile both lists exactly as the staff-side terminal pushes
@@ -224,7 +227,9 @@ class CustomerAppServices with WidgetsBindingObserver {
         // the removal call below and just confirm the action.
         authController.justClosedAccount = null;
         showMessage?.call(
-          closedDeleteForever ? 'Бүртгэл устгагдлаа' : 'Бүртгэл идэвхгүй боллоо',
+          closedDeleteForever
+              ? 'Бүртгэл устгагдлаа'
+              : 'Бүртгэл идэвхгүй боллоо',
         );
       } else if (remoteClosedReason != null) {
         // Closed remotely (e.g. from the website) while this device was
@@ -312,17 +317,28 @@ class CustomerAppServices with WidgetsBindingObserver {
       );
     } catch (_) {
       // Best-effort — push registration failing must never block sign-in.
-      if (kDebugMode) debugPrint('Push device registration could not complete.');
+      if (kDebugMode) {
+        debugPrint('Push device registration could not complete.');
+      }
     }
   }
 
   Future<void> _removeDeviceForPush() async {
     try {
       final deviceId = await deviceIdStore.getOrCreate();
-      await deviceRepository.removeDevice(deviceId);
+      // Bounded: sign-out awaits this before clearing the token, and must
+      // not hang on a slow network.
+      await deviceRepository
+          .removeDevice(deviceId)
+          .timeout(const Duration(seconds: 4));
     } catch (_) {
       // Best-effort — matches the API doc's "call during logout when possible".
     }
+    // Whether or not the DELETE landed, drop this install's FCM token so the
+    // signed-out account's pushes can't keep arriving here.
+    try {
+      await remotePushService.deleteToken().timeout(const Duration(seconds: 4));
+    } catch (_) {}
   }
 
   /// The API contract requires re-registering whenever the FCM token

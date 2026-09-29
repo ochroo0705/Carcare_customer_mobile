@@ -39,6 +39,8 @@ class VehiclesController extends ChangeNotifier {
     VehiclesState result;
     try {
       final vehicles = await _repository.getVehicles();
+      // A superseded or post-sign-out load must not write the cache either.
+      if (requestId != _loadRequestId) return;
       result = VehiclesState(
         status: vehicles.isEmpty ? VehiclesStatus.empty : VehiclesStatus.data,
         vehicles: vehicles,

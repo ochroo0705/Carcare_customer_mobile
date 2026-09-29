@@ -83,10 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           controller: _phoneController,
                           keyboardType: TextInputType.phone,
                           autofillHints: const [AutofillHints.telephoneNumber],
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                            LengthLimitingTextInputFormatter(8),
-                          ],
+                          inputFormatters: const [_MongolianPhoneFormatter()],
                           decoration: const InputDecoration(
                             labelText: 'Утасны дугаар',
                             prefixText: '+976 ',
@@ -227,5 +224,29 @@ class _LoginScreenState extends State<LoginScreen> {
     final minutes = _resendSecondsRemaining ~/ 60;
     final seconds = (_resendSecondsRemaining % 60).toString().padLeft(2, '0');
     return 'Код дахин авах ($minutes:$seconds)';
+  }
+}
+
+/// Keeps the phone field to the 8-digit local number. Pasted or autofilled
+/// numbers often carry the country code ("+976 9911 2233"); a plain
+/// digits-then-truncate filter would turn that into "97699112". This strips
+/// non-digits, then a leading 976 when the remainder is still too long.
+class _MongolianPhoneFormatter extends TextInputFormatter {
+  const _MongolianPhoneFormatter();
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var digits = newValue.text.replaceAll(RegExp(r'\D'), '');
+    if (digits.length > 8 && digits.startsWith('976')) {
+      digits = digits.substring(3);
+    }
+    if (digits.length > 8) digits = digits.substring(0, 8);
+    return TextEditingValue(
+      text: digits,
+      selection: TextSelection.collapsed(offset: digits.length),
+    );
   }
 }

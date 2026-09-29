@@ -7,6 +7,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 void main() {
+  testWidgets(
+    'a pasted number with the country code keeps the local 8 digits',
+    (tester) async {
+      final controller = AuthController(_CountingAuthRepository());
+      await tester.pumpWidget(
+        ChangeNotifierProvider.value(
+          value: controller,
+          child: MaterialApp(
+            theme: AppTheme.dark,
+            home: LoginScreen(onAuthenticated: () {}, onBack: () {}),
+          ),
+        ),
+      );
+      await tester.enterText(
+        find.byKey(const ValueKey('login-phone')),
+        '+976 9911 2233',
+      );
+      final field = tester.widget<TextField>(
+      find.byKey(const ValueKey('login-phone')),
+    );
+    expect(field.controller!.text, '99112233');
+    },
+  );
+
   testWidgets('enables OTP resend after a 60 second cooldown', (tester) async {
     final repository = _CountingAuthRepository();
     final controller = AuthController(repository);

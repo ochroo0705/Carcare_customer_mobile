@@ -66,6 +66,11 @@ class AuthController extends ChangeNotifier {
   /// stale "Бүртгэл устгагдлаа" notice.
   bool _closingAccount = false;
 
+  // Storage was cleared (a 401, or the closure call's own clear) while
+  // [closeAccount] was running. That call decides what the sign-out means;
+  // this only records that one is owed if the closure itself failed.
+  bool _invalidatedWhileClosing = false;
+
   bool get isAuthenticated => account != null;
 
   /// Handles the backend's silent `account_closed` data push (sent on
@@ -109,11 +114,21 @@ class AuthController extends ChangeNotifier {
   }
 
   /// OTP-г repository-д баталгаажуулж, амжилттай бол account state-г солино.
-  Future<bool> verifyOtp(String code) => _run(() async {
-    final result = await _repository.verifyOtp(phone: phone, code: code.trim());
+  Future<bool> verifyOtp(String code) async {
+    final trimmed = code.trim();
+    if (!RegExp(r'^\d{6}$').hasMatch(trimmed)) {
+      errorMessage = '6 оронтой кодоо оруулна уу.';
+      notifyListeners();
+      return false;
+    }
+    return _run(() => _verify(trimmed));
+  }
+
+  Future<void> _verify(String code) async {
+    final result = await _repository.verifyOtp(phone: phone, code: code);
     account = result.account;
     justReactivated = result.reactivated;
-  });
+  }
 
   /// Account closure OTP хүсэж, masked утасны дугаар буцаана. Алдаа гарвал
   /// `null` буцааж [errorMessage]-г тохируулна.
@@ -144,6 +159,7 @@ class AuthController extends ChangeNotifier {
     required String code,
   }) => _run(() async {
     _closingAccount = true;
+    _invalidatedWhileClosing = false;
     try {
       if (deleteForever) {
         await _repository.deleteAccount(code);
@@ -166,6 +182,13 @@ class AuthController extends ChangeNotifier {
       }
     } finally {
       _closingAccount = false;
+      // The closure failed but its request 401'd and wiped the session:
+      // still sign out, as a plain sign-out (no closure notice).
+      if (_invalidatedWhileClosing && account != null) {
+        account = null;
+        notifyListeners();
+      }
+      _invalidatedWhileClosing = false;
     }
   });
 
@@ -179,7 +202,9 @@ class AuthController extends ChangeNotifier {
     step = AuthStep.phone;
     phone = '';
     errorMessage = null;
-    isBusy = false;
+    // isBusy is deliberately left alone: a request still in flight clears it
+    // when it finishes. Resetting it here let a second request start
+    // alongside the first.
   }
 
   Future<void> signOut() async {
@@ -202,6 +227,13 @@ class AuthController extends ChangeNotifier {
   /// Storage has already been cleared by the repository that hit the 401 —
   /// this only needs to drop the in-memory `account` so the UI catches up.
   void _handleSessionInvalidated() {
+    // The closure's own storage clear fires this too, and the event may land
+    // before closeAccount resumes — nulling `account` here would make it
+    // skip `justClosedAccount`, losing the "Бүртгэл ... боллоо" notice.
+    if (_closingAccount) {
+      _invalidatedWhileClosing = true;
+      return;
+    }
     if (account == null) return;
     account = null;
     notifyListeners();

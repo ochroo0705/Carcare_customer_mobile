@@ -10,6 +10,12 @@ import 'package:flutter/foundation.dart';
 abstract interface class RemotePushService {
   Future<String?> getToken();
 
+  /// Invalidates this install's FCM token, so pushes addressed to it stop
+  /// arriving even if the server still has it on a device row (e.g. the
+  /// device DELETE on sign-out failed offline). The next [getToken] issues
+  /// a fresh one.
+  Future<void> deleteToken();
+
   Stream<String> get onTokenRefresh;
 
   /// Foreground messages (the OS does not display these; the app shows a local
@@ -30,12 +36,15 @@ class FirebaseRemotePushService implements RemotePushService {
   FirebaseRemotePushService({
     Future<String?> Function()? readApnsToken,
     Future<String?> Function()? readFcmToken,
+    Future<void> Function()? deleteFcmToken,
     Future<void> Function(Duration)? wait,
     bool? requiresApns,
   }) : _readApnsToken =
            readApnsToken ?? (() => FirebaseMessaging.instance.getAPNSToken()),
        _readFcmToken =
            readFcmToken ?? (() => FirebaseMessaging.instance.getToken()),
+       _deleteFcmToken =
+           deleteFcmToken ?? (() => FirebaseMessaging.instance.deleteToken()),
        _wait = wait ?? ((duration) => Future<void>.delayed(duration)),
        _requiresApns =
            requiresApns ??
@@ -47,6 +56,7 @@ class FirebaseRemotePushService implements RemotePushService {
   // Firebase initialization, native plugins, and wall-clock waits.
   final Future<String?> Function() _readApnsToken;
   final Future<String?> Function() _readFcmToken;
+  final Future<void> Function() _deleteFcmToken;
   final Future<void> Function(Duration) _wait;
   final bool _requiresApns;
   Future<String?>? _pendingToken;
@@ -55,6 +65,9 @@ class FirebaseRemotePushService implements RemotePushService {
   /// Permission prompts remain owned by onboarding/startup, not this retry.
   /// Retry every 500 ms for up to 20 waits; later token-refresh events and
   /// subsequent sign-ins can still register if APNs takes longer to arrive.
+  @override
+  Future<void> deleteToken() => _deleteFcmToken();
+
   @override
   Future<String?> getToken() async {
     final pending = _pendingToken;
@@ -115,6 +128,9 @@ class NoopRemotePushService implements RemotePushService {
 
   @override
   Future<String?> getToken() async => null;
+
+  @override
+  Future<void> deleteToken() async {}
 
   @override
   Stream<String> get onTokenRefresh => const Stream.empty();

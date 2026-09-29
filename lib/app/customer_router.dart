@@ -45,9 +45,22 @@ String? customerRedirect({required bool isAuthenticated, required Uri uri}) {
     return CustomerRoutes.shell;
   }
   if (uri.path == '/login' && isAuthenticated) {
-    return uri.queryParameters['from'];
+    return safeReturnLocation(uri.queryParameters['from']);
   }
   return null;
+}
+
+/// The `from` a successful login may return to, or `null` to just close the
+/// login page. Only an in-app path is accepted: no scheme or host, not
+/// protocol-relative (`//x`), and not `/login` itself (which would loop).
+String? safeReturnLocation(String? from) {
+  if (from == null || !from.startsWith('/') || from.startsWith('//')) {
+    return null;
+  }
+  final uri = Uri.tryParse(from);
+  if (uri == null || uri.hasScheme || uri.hasAuthority) return null;
+  if (uri.path == '/login') return null;
+  return from;
 }
 
 /// Booking tab's cross-org service-key picker preselects (and locks) the
@@ -262,7 +275,7 @@ GoRouter buildCustomerRouter(
       GoRoute(
         path: '/login',
         pageBuilder: (context, state) {
-          final from = state.uri.queryParameters['from'];
+          final from = safeReturnLocation(state.uri.queryParameters['from']);
           return MaterialPage(
             key: state.pageKey,
             child: LoginScreen(

@@ -176,6 +176,9 @@ class HistoryController extends ChangeNotifier {
   /// the customer signs out — the next account must never see this one's
   /// cached service history.
   Future<void> reset() async {
+    // Invalidates a load still in flight, so it can't restore this
+    // account's orders (state or disk cache) after sign-out.
+    _generation++;
     _state = const HistoryState();
     _query = '';
     _year = DateTime.now().year;

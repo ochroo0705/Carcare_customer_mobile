@@ -109,10 +109,18 @@ class ApiClient {
 
   /// Зөвхөн server 401 өгсөн үед session устгана.
   /// Network тасарсан эсвэл өөр статусыг logout гэж буруу үзэж болохгүй.
+  ///
+  /// Only when the rejected request carried the token that is current now: a
+  /// slow request from a previous session (signed out, or another account
+  /// signed in since) must not wipe the newer session.
   Future<void> _handleUnauthorized(DioException error) async {
-    if (error.response?.statusCode == 401 && accessTokenProvider != null) {
-      await onUnauthorized?.call();
-    }
+    final provider = accessTokenProvider;
+    if (error.response?.statusCode != 401 || provider == null) return;
+    final sent = error.requestOptions.headers['Authorization'];
+    if (sent is! String) return;
+    final current = await provider();
+    if (current == null || sent != 'Bearer $current') return;
+    await onUnauthorized?.call();
   }
 }
 

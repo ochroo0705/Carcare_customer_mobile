@@ -17,6 +17,12 @@ class AppointmentsController extends ChangeNotifier {
   AppointmentsState _state = const AppointmentsState();
   final Set<String> _cancellingIds = {};
 
+  // Bumped by every [load] and by [reset]. A load whose generation is no
+  // longer current (a newer load started, or the user signed out meanwhile)
+  // must not touch state or the disk cache — otherwise a load in flight at
+  // sign-out puts the previous account's appointments back.
+  int _generation = 0;
+
   /// Fired after a cancel succeeds server-side. The router wires this to
   /// `historyController.load()`.
   ///
@@ -92,7 +98,8 @@ class AppointmentsController extends ChangeNotifier {
   }.toList(growable: false);
 
   List<String> get availableWalkInStatuses => {
-    for (final order in _state.walkInOrders) order.progress.status.localizedLabel,
+    for (final order in _state.walkInOrders)
+      order.progress.status.localizedLabel,
   }.toList(growable: false);
 
   bool _matchesSearch(String haystack) {
@@ -147,6 +154,7 @@ class AppointmentsController extends ChangeNotifier {
   }
 
   Future<void> load() async {
+    final generation = ++_generation;
     _state = AppointmentsState(
       status: AppointmentsStatus.loading,
       appointments: _state.appointments,
@@ -162,6 +170,7 @@ class AppointmentsController extends ChangeNotifier {
         _repository.getAppointments(),
         _repository.getWalkInOrders(),
       ]);
+      if (generation != _generation) return;
       final appointments = results[0] as List<Appointment>;
       final walkInOrders = results[1] as List<WalkInOrder>;
       _state = AppointmentsState(
@@ -173,11 +182,17 @@ class AppointmentsController extends ChangeNotifier {
       );
       await _cache.writeAppointments(appointments);
     } on AppFailure catch (failure) {
+      if (generation != _generation) return;
       // Cache нь source of truth биш: зөвхөн сүүлийн амжилттай fetch-ийг
       // offline үед харуулна, failure message-г state дээр хадгална.
-      _state = await _fallbackToCache(failure.message);
+      final fallback = await _fallbackToCache(failure.message);
+      if (generation != _generation) return;
+      _state = fallback;
     } catch (_) {
-      _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      if (generation != _generation) return;
+      final fallback = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      if (generation != _generation) return;
+      _state = fallback;
     }
     notifyListeners();
   }
@@ -186,6 +201,7 @@ class AppointmentsController extends ChangeNotifier {
   /// the customer signs out — the next account must never see this one's
   /// cached appointments.
   Future<void> reset() async {
+    _generation++;
     _state = const AppointmentsState();
     _cancellingIds.clear();
     _searchQuery = '';
