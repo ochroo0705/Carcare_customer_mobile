@@ -6,6 +6,8 @@ import 'package:carcare_customer_mobile/features/history/domain/service_order_it
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/widgets/diagnostic_report_row.dart';
 import 'package:flutter/material.dart';
+import 'package:carcare_customer_mobile/core/widgets/status_chip.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/widgets/appointment_status_style.dart';
 
 /// Customer-facing read-only view of the repair progress created from an
 /// appointment. Payment status stays in its own section on the detail page.
@@ -45,7 +47,10 @@ class ServiceProgressSection extends StatelessWidget {
                   ),
                 ),
               ),
-              _ProgressStatusChip(status: progress.status),
+              StatusChip(
+                label: progress.status.localizedLabel,
+                color: serviceProgressStatusColor(progress.status, context),
+              ),
             ],
           ),
           if (progress.number.isNotEmpty) ...[
@@ -60,7 +65,8 @@ class ServiceProgressSection extends StatelessWidget {
             Text(
               [
                 progress.vehiclePlate,
-                if (progress.vehicleMake != null || progress.vehicleModel != null)
+                if (progress.vehicleMake != null ||
+                    progress.vehicleModel != null)
                   [
                     progress.vehicleMake,
                     progress.vehicleModel,
@@ -79,7 +85,7 @@ class ServiceProgressSection extends StatelessWidget {
           ],
           const SizedBox(height: 14),
           ClipRRect(
-            borderRadius: BorderRadius.circular(99),
+            borderRadius: BorderRadius.circular(AppRadii.pill),
             child: LinearProgressIndicator(
               value: progress.completionRatio.clamp(0.0, 1.0).toDouble(),
               minHeight: 7,
@@ -114,7 +120,9 @@ class ServiceProgressSection extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Төлвийн түүх',
-              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+              style: textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             _StatusHistoryList(entries: progress.statusHistory),
@@ -125,7 +133,9 @@ class ServiceProgressSection extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Оношилгооны тайлан',
-              style: textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+              style: textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 8),
             for (final report in progress.reports)
@@ -170,7 +180,7 @@ class _StatusHistoryList extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: AppColors.green,
-                      borderRadius: BorderRadius.circular(99),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
                     ),
                     child: const SizedBox(width: 6, height: 6),
                   ),
@@ -186,7 +196,9 @@ class _StatusHistoryList extends StatelessWidget {
                             if (entry.fromStatus != null)
                               TextSpan(
                                 text: '${entry.fromStatus!.localizedLabel} → ',
-                                style: textTheme.bodySmall?.copyWith(color: muted),
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: muted,
+                                ),
                               ),
                             TextSpan(
                               text: entry.toStatus.localizedLabel,
@@ -229,7 +241,7 @@ class _TotalsBlock extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: muted.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -239,10 +251,15 @@ class _TotalsBlock extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Нийт дүн', style: textTheme.bodySmall?.copyWith(color: muted)),
+                Text(
+                  'Нийт дүн',
+                  style: textTheme.bodySmall?.copyWith(color: muted),
+                ),
                 Text(
                   '${formatAmount(progress.totalAmount!.round())}₮',
-                  style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
+                  style: textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ],
             ),
@@ -251,7 +268,10 @@ class _TotalsBlock extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Төлсөн', style: textTheme.bodySmall?.copyWith(color: muted)),
+                  Text(
+                    'Төлсөн',
+                    style: textTheme.bodySmall?.copyWith(color: muted),
+                  ),
                   Text(
                     '${formatAmount(progress.paidAmount!.round())}₮',
                     style: textTheme.bodySmall,
@@ -280,10 +300,14 @@ class _ProgressItemRow extends StatelessWidget {
     // хамааралгүй мэдээлэл болно.
     final isPart = item.kind == ServiceOrderItemKind.part;
     final (icon, color) = switch (item.status) {
-      ServiceProgressStatus.completed =>
-        (Icons.check_circle_rounded, AppColors.green),
-      ServiceProgressStatus.inProgress =>
-        (Icons.play_circle_fill_rounded, AppColors.accent),
+      ServiceProgressStatus.completed => (
+        Icons.check_circle_rounded,
+        AppColors.green,
+      ),
+      ServiceProgressStatus.inProgress => (
+        Icons.play_circle_fill_rounded,
+        AppColors.accent,
+      ),
       ServiceProgressStatus.cancelled => (Icons.cancel_rounded, AppColors.red),
       _ => (Icons.radio_button_unchecked_rounded, muted),
     };
@@ -301,7 +325,11 @@ class _ProgressItemRow extends StatelessWidget {
           if (isPart)
             const SizedBox(width: 30)
           else ...[
-            Icon(icon, size: 20, color: color),
+            Icon(
+              icon,
+              size: 20,
+              color: AppColors.readable(color, Theme.of(context).brightness),
+            ),
             const SizedBox(width: 10),
           ],
           Expanded(
@@ -331,14 +359,19 @@ class _ProgressItemRow extends StatelessWidget {
                 Text(
                   item.status.localizedLabel,
                   style: textTheme.bodySmall?.copyWith(
-                    color: color,
+                    color: AppColors.readable(
+                      color,
+                      Theme.of(context).brightness,
+                    ),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
               if (hasPrice)
                 Text(
                   '${formatAmount(item.total!.round())}₮',
-                  style: textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                  style: textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
             ],
           ),
@@ -395,7 +428,10 @@ class _TimingInfo extends StatelessWidget {
             child: Text(
               'Засвар үргэлжлэх цаг: ${_formatDateTime(progress.scheduledReturnAt!)}',
               style: textTheme.bodyMedium?.copyWith(
-                color: AppColors.purple,
+                color: AppColors.readable(
+                  AppColors.purple,
+                  Theme.of(context).brightness,
+                ),
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -408,37 +444,3 @@ class _TimingInfo extends StatelessWidget {
 String _formatDateTime(DateTime value) =>
     '${value.year}.${value.month.toString().padLeft(2, '0')}.${value.day.toString().padLeft(2, '0')} '
     '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-
-class _ProgressStatusChip extends StatelessWidget {
-  const _ProgressStatusChip({required this.status});
-
-  final ServiceProgressStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      ServiceProgressStatus.completed => AppColors.green,
-      ServiceProgressStatus.cancelled => AppColors.red,
-      ServiceProgressStatus.inProgress => AppColors.accent,
-      ServiceProgressStatus.postponed => AppColors.purple,
-      _ => Theme.of(context).colorScheme.onSurfaceVariant,
-    };
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        child: Text(
-          status.localizedLabel,
-          style: TextStyle(
-            color: color,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}

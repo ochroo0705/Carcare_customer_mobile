@@ -13,6 +13,7 @@ import 'package:carcare_customer_mobile/features/vehicles/presentation/controlle
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/branch_open_style.dart';
 
 class BookingRequestScreen extends StatefulWidget {
   const BookingRequestScreen({
@@ -951,16 +952,14 @@ class _BookingHeader extends StatelessWidget {
                           Expanded(
                             child: Text(
                               organization.phone!,
-                              style: TextStyle(
-                                color: scheme.onSurfaceVariant,
-                                fontSize: 13,
-                              ),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           InkWell(
                             key: const ValueKey('booking-copy-phone'),
-                            borderRadius: BorderRadius.circular(99),
+                            borderRadius: BorderRadius.circular(AppRadii.pill),
                             onTap: () async {
                               await Clipboard.setData(
                                 ClipboardData(text: organization.phone!),
@@ -1085,7 +1084,7 @@ class _InfoPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
         border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
       child: Row(
@@ -1107,18 +1106,12 @@ class _OpenBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      BranchOpenStatus.open => AppColors.green,
-      BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
-      BranchOpenStatus.unknown => Theme.of(
-        context,
-      ).colorScheme.onSurfaceVariant,
-    };
+    final color = branchOpenColor(status, context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
@@ -1136,8 +1129,9 @@ class _OpenBadge extends StatelessWidget {
               BranchOpenStatus.closed => 'Хаалттай',
               BranchOpenStatus.unknown => 'Төлөв тодорхойгүй',
             },
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(color: color),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.readable(color, Theme.of(context).brightness),
+            ),
           ),
         ],
       ),

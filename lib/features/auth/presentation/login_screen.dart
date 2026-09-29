@@ -100,11 +100,11 @@ class _LoginScreenState extends State<LoginScreen> {
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
                           autofillHints: const [AutofillHints.oneTimeCode],
-                          style: const TextStyle(
-                            fontSize: 20,
-                            letterSpacing: 8,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                letterSpacing: 8,
+                                fontWeight: FontWeight.w700,
+                              ),
                           inputFormatters: [
                             FilteringTextInputFormatter.digitsOnly,
                             LengthLimitingTextInputFormatter(6),

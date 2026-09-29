@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
@@ -7,6 +8,7 @@ import 'package:carcare_customer_mobile/features/notifications/presentation/cont
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_state.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:carcare_customer_mobile/core/widgets/state_views.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({
@@ -60,13 +62,16 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final state = controller.state;
     return switch (state.status) {
-      NotificationsStatus.initial || NotificationsStatus.loading =>
-        const SkeletonNotificationList(),
-      NotificationsStatus.error => _ErrorView(
+      NotificationsStatus.initial ||
+      NotificationsStatus.loading => const SkeletonNotificationList(),
+      NotificationsStatus.error => ErrorView(
         message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
         onRetry: controller.load,
       ),
-      NotificationsStatus.empty => const _EmptyNotifications(),
+      NotificationsStatus.empty => const EmptyView(
+        icon: Icons.notifications_none_rounded,
+        title: 'Мэдэгдэл алга',
+      ),
       NotificationsStatus.unavailable => const ComingSoonView(
         icon: Icons.notifications_none_rounded,
         title: 'Тун удахгүй',
@@ -78,64 +83,6 @@ class _Body extends StatelessWidget {
       ),
     };
   }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final Future<void> Function() onRetry;
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.error_outline_rounded,
-            size: 52,
-            color: Theme.of(context).colorScheme.error,
-          ),
-          const SizedBox(height: 16),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          OutlinedButton(
-            onPressed: onRetry,
-            child: const Text('Дахин оролдох'),
-          ),
-        ],
-      ),
-    ),
-  );
-}
-
-class _EmptyNotifications extends StatelessWidget {
-  const _EmptyNotifications();
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.notifications_none_rounded,
-            size: 58,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'Мэдэгдэл алга',
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _NotificationsList extends StatelessWidget {
@@ -185,7 +132,7 @@ class _NotificationCard extends StatelessWidget {
     return InkWell(
       key: ValueKey('notification-${notification.id}'),
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppRadii.extraLarge),
       child: GlassSurface(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_order_status.dart';
 import 'package:flutter/material.dart';
+import 'package:carcare_customer_mobile/core/widgets/status_chip.dart';
 
 /// Захиалгын төлбөрийн төлөв (unpaid/partial/paid) — түүхийн жагсаалт болон
 /// дэлгэрэнгүй дэлгэц хоёуланд ижилхэн харагдана.
@@ -16,7 +17,7 @@ class ServiceOrderStatusChip extends StatelessWidget {
       ServiceOrderStatus.partiallyPaid => AppColors.blue,
       ServiceOrderStatus.unpaid => AppColors.red,
     };
-    return _Chip(label: status.localizedLabel, color: color);
+    return StatusChip(label: status.localizedLabel, color: color);
   }
 }
 
@@ -31,25 +32,6 @@ class CancelledOrderChip extends StatelessWidget {
   final String label;
 
   @override
-  Widget build(BuildContext context) => _Chip(label: label, color: AppColors.red);
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(999),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      StatusChip(label: label, color: AppColors.red);
 }

@@ -358,7 +358,10 @@ class _NoFeeRequired extends StatelessWidget {
           Icon(
             Icons.check_circle_outline_rounded,
             size: 52,
-            color: AppColors.green,
+            color: AppColors.readable(
+              AppColors.green,
+              Theme.of(context).brightness,
+            ),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -467,7 +470,7 @@ class _PaymentPanel extends StatelessWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppRadii.medium),
               ),
               child: Image.memory(
                 base64Decode(payment.qrImageBase64!),
@@ -594,12 +597,14 @@ class _Banner extends StatelessWidget {
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.12),
       border: Border.all(color: color.withValues(alpha: 0.3)),
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppRadii.medium),
     ),
     child: Text(
       text,
       textAlign: TextAlign.center,
-      style: TextStyle(color: color),
+      style: TextStyle(
+        color: AppColors.readable(color, Theme.of(context).brightness),
+      ),
     ),
   );
 }

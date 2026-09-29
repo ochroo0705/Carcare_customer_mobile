@@ -231,7 +231,10 @@ void main() {
     await _pump(tester, controller, 'apt-x');
 
     expect(find.text('Байршил ба цагийн хуваарь'), findsOneWidget);
-    expect(find.text('26-р хороо, Нарны зам 18'), findsOneWidget); // fullAddress
+    expect(
+      find.text('26-р хороо, Нарны зам 18'),
+      findsOneWidget,
+    ); // fullAddress
     expect(find.byKey(const ValueKey('detail-show-on-maps')), findsOneWidget);
     expect(find.byKey(const ValueKey('detail-call')), findsOneWidget);
     expect(find.byKey(const ValueKey('detail-copy-phone')), findsOneWidget);
@@ -388,7 +391,7 @@ void main() {
     );
     expect(
       button.style?.foregroundColor?.resolve(<WidgetState>{}),
-      AppColors.red,
+      AppColors.readable(AppColors.red, Brightness.light),
       reason:
           'Эргэлт буцалтгүй үйлдэл нь салбарын картын энгийн OutlinedButton-'
           'оос өнгөөрөө ялгарах ёстой',

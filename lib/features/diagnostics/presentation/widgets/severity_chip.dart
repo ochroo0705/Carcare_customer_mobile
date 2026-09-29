@@ -1,6 +1,7 @@
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/report_severity.dart';
 import 'package:flutter/material.dart';
+import 'package:carcare_customer_mobile/core/widgets/status_chip.dart';
 
 /// Web-ийн `SEVERITY_BADGE`/`CHECK_TONE_ACTIVE`-тай ижил өнгөний зарчим:
 /// good → ногоон, warn → шар, bad → улаан.
@@ -22,7 +23,8 @@ class SeverityChip extends StatelessWidget {
   final ReportSeverity severity;
 
   @override
-  Widget build(BuildContext context) => _Chip(
+  Widget build(BuildContext context) => StatusChip(
+    bordered: true,
     label: severity.localizedLabel,
     color: colorForSeverity(severity),
   );
@@ -36,27 +38,9 @@ class CheckValueChip extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) =>
-      _Chip(label: value, color: colorForTone(checkOptionTone(value)));
-}
-
-class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-    decoration: BoxDecoration(
-      color: color.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(999),
-      border: Border.all(color: color.withValues(alpha: 0.35)),
-    ),
-    child: Text(
-      label,
-      style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
-    ),
+  Widget build(BuildContext context) => StatusChip(
+    label: value,
+    color: colorForTone(checkOptionTone(value)),
+    bordered: true,
   );
 }

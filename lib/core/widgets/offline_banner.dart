@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 /// Shown above a screen's data when it is displaying a locally cached list
@@ -38,7 +39,7 @@ class OfflineBanner extends StatelessWidget {
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         elevation: 5,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: largeText

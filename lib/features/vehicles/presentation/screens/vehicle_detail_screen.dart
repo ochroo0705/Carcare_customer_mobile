@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_status.dart';
@@ -149,7 +150,9 @@ class _VehicleDetailView extends StatelessWidget {
                           height: 52,
                           decoration: BoxDecoration(
                             color: scheme.primary.withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(
+                              AppRadii.medium,
+                            ),
                           ),
                           child: Icon(
                             Icons.directions_car_outlined,
@@ -286,7 +289,7 @@ class _ServiceOrdersSection extends StatelessWidget {
                 onTap: onOrderSelected == null
                     ? null
                     : () => onOrderSelected!(sorted[i].id),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppRadii.medium),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Row(
@@ -399,7 +402,7 @@ class _AppointmentsSection extends StatelessWidget {
                 onTap: onAppointmentSelected == null
                     ? null
                     : () => onAppointmentSelected!(sorted[i].id),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(AppRadii.medium),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Row(

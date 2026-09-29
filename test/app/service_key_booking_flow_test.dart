@@ -33,6 +33,11 @@ void main() {
       // No selection yet — the branch list stays blank with a prompt, not a
       // full unfiltered catalog.
       expect(find.text('Ажлын төрлөө сонгоно уу'), findsOneWidget);
+      // With nothing picked, "add" is the page's full-width primary button.
+      expect(
+        find.widgetWithText(FilledButton, 'Ажлын төрөл сонгох'),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byKey(const ValueKey('service-key-add')));
       await tester.pumpAndSettle();
@@ -55,6 +60,9 @@ void main() {
       // BOTH selected keys shows up — all on the same screen, no navigation.
       expect(find.text('Моторын тос солих'), findsOneWidget);
       expect(find.text('Угаалга'), findsOneWidget);
+      // Once tags exist, "add" shrinks into the tag row as a chip.
+      expect(find.widgetWithText(ActionChip, 'Нэмэх'), findsOneWidget);
+      expect(find.text('1 салбар олдлоо'), findsOneWidget);
       expect(
         find.byKey(const ValueKey('service-key-result-auto-doctor-bzd')),
         findsOneWidget,
@@ -170,37 +178,42 @@ void main() {
     },
   );
 
-  testWidgets(
-    'search filters the service-key list inside the picker sheet',
-    (tester) async {
-      await tester.pumpWidget(
-        CarCareCustomerApp(
-          organizationRepository: FakeOrganizationRepository(
-            delay: Duration.zero,
-          ),
-          authRepository: signedInAuthRepository(),
+  testWidgets('search filters the service-key list inside the picker sheet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      CarCareCustomerApp(
+        organizationRepository: FakeOrganizationRepository(
+          delay: Duration.zero,
         ),
-      );
-      await tester.pumpAndSettle();
+        authRepository: signedInAuthRepository(),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.tap(find.text('Захиалах'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('service-key-add')));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Захиалах'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('service-key-add')));
+    await tester.pumpAndSettle();
 
-      await tester.enterText(
-        find.byKey(const ValueKey('service-key-search')),
-        'тос',
-      );
-      await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('service-key-search')),
+      'тос',
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.byKey(const ValueKey('service-key-oil-change')), findsOneWidget);
-      expect(find.byKey(const ValueKey('service-key-car-wash')), findsNothing);
-      expect(find.byKey(const ValueKey('service-key-tire-service')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('service-key-oil-change')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('service-key-car-wash')), findsNothing);
+    expect(
+      find.byKey(const ValueKey('service-key-tire-service')),
+      findsNothing,
+    );
 
-      await tester.tap(find.byKey(const ValueKey('service-key-oil-change')));
-      await tester.pumpAndSettle();
-      expect(find.text('Хэрэглэх (1)'), findsOneWidget);
-    },
-  );
+    await tester.tap(find.byKey(const ValueKey('service-key-oil-change')));
+    await tester.pumpAndSettle();
+    expect(find.text('Хэрэглэх (1)'), findsOneWidget);
+  });
 }

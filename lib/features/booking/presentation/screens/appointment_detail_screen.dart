@@ -18,6 +18,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:carcare_customer_mobile/core/widgets/status_chip.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/widgets/appointment_status_style.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/branch_open_style.dart';
 
 /// Full-page view of a single appointment. Reads the appointment reactively
 /// from [AppointmentsController] by id rather than taking it as a constructor
@@ -169,9 +172,8 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen>
     if (confirmed != true) return;
     final error = await controller.cancel(appointment.id);
     if (error != null && context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(error)));
     }
   }
 }
@@ -204,151 +206,167 @@ class _AppointmentDetailBody extends StatelessWidget {
       child: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
         children: [
-        GlassSurface(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      appointment.tenantName,
-                      style: textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
+          GlassSurface(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        appointment.tenantName,
+                        style: textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  _StatusChip(status: appointment.status),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                appointment.branchName,
-                style: textTheme.bodyMedium?.copyWith(color: muted),
-              ),
-              const SizedBox(height: 16),
-              _DetailRow(
-                icon: Icons.event_outlined,
-                label: 'Цаг',
-                value: _formatDateTime(appointment.requestedAt),
-              ),
-              // Захиалга үүсмэгц `ServiceProgressSection` бодит үйлчилгээний
-              // жагсаалтыг харуулдаг тул энэ мөр давхцаж, хоцрогдсон болно
-              // (appointments_screen.dart-ийн ижил нөхцөл).
-              if (appointment.serviceProgress == null &&
-                  appointment.categoryNames.isNotEmpty)
-                _DetailRow(
-                  icon: Icons.construction_outlined,
-                  label: appointment.categoryNames.length > 1
-                      ? 'Ангиллууд'
-                      : 'Ангилал',
-                  value: appointment.categoryNames.join(' · '),
-                ),
-              if (appointment.vehiclePlate != null)
-                _DetailRow(
-                  icon: Icons.directions_car_outlined,
-                  label: 'Тээврийн хэрэгсэл',
-                  value: appointment.vehiclePlate!,
-                ),
-              if (appointment.note != null &&
-                  appointment.note!.trim().isNotEmpty)
-                _DetailRow(
-                  icon: Icons.sticky_note_2_outlined,
-                  label: 'Тэмдэглэл',
-                  value: appointment.note!,
-                ),
-            ],
-          ),
-        ),
-        // Хэсгүүдийн дараалал: юу болж байна → юу хийх ёстой → хаашаа
-        // очих. Явц (ServiceProgressSection) нь захиалга үүссэний дараа энэ
-        // хуудсыг нээх БАРАГ цорын ганц шалтгаан тул салбарын лавлах
-        // мэдээллээс дээр байна; хураамжийн сэрэмжлүүлэг нь богино бөгөөд
-        // мөнгөтэй холбоотой үйлдэл учир хамгийн дээр үлдэнэ (урт явцын
-        // картын доор дарагдвал анзаарагдахгүй өнгөрөх эрсдэлтэй).
-        //
-        // Зай: нэг бүлгийн дотор 16, бүлэг хооронд 24 (4px scale — харах:
-        // CUSTOMER_FLUTTER_DESIGN_SYSTEM.md). Бүх хэсэг ижил GlassSurface
-        // chrome-той тул зай нь эрэмбийг илэрхийлэх цорын ганц хэрэгсэл.
-        if (onPay != null) ...[
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: AppColors.red.withValues(alpha: 0.12),
-              border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    appointment.payment!.status == AppointmentFeeStatus.failed
-                        ? 'Хураамжийн QR үүсгэхэд алдаа гарсан'
-                        : 'Цаг захиалгын хураамж төлөгдөөгүй',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.red,
+                    const SizedBox(width: 8),
+                    StatusChip(
+                      label: appointment.status.localizedLabel,
+                      color: appointmentStatusColor(
+                        appointment.status,
+                        context,
+                      ),
                     ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  appointment.branchName,
+                  style: textTheme.bodyMedium?.copyWith(color: muted),
+                ),
+                const SizedBox(height: 16),
+                _DetailRow(
+                  icon: Icons.event_outlined,
+                  label: 'Цаг',
+                  value: _formatDateTime(appointment.requestedAt),
+                ),
+                // Захиалга үүсмэгц `ServiceProgressSection` бодит үйлчилгээний
+                // жагсаалтыг харуулдаг тул энэ мөр давхцаж, хоцрогдсон болно
+                // (appointments_screen.dart-ийн ижил нөхцөл).
+                if (appointment.serviceProgress == null &&
+                    appointment.categoryNames.isNotEmpty)
+                  _DetailRow(
+                    icon: Icons.construction_outlined,
+                    label: appointment.categoryNames.length > 1
+                        ? 'Ангиллууд'
+                        : 'Ангилал',
+                    value: appointment.categoryNames.join(' · '),
                   ),
-                ),
-                FilledButton(
-                  key: ValueKey('detail-pay-${appointment.id}'),
-                  onPressed: onPay,
-                  child: const Text('Төлөх'),
-                ),
+                if (appointment.vehiclePlate != null)
+                  _DetailRow(
+                    icon: Icons.directions_car_outlined,
+                    label: 'Тээврийн хэрэгсэл',
+                    value: appointment.vehiclePlate!,
+                  ),
+                if (appointment.note != null &&
+                    appointment.note!.trim().isNotEmpty)
+                  _DetailRow(
+                    icon: Icons.sticky_note_2_outlined,
+                    label: 'Тэмдэглэл',
+                    value: appointment.note!,
+                  ),
               ],
             ),
           ),
-        ],
-        // Хураамж төлөгдсөн бол баталгаажуулах badge — цаг захиалгын status
-        // (Хүлээгдэж буй) нь салангид: төлбөр төлөгдсөн ч ажилтан баталгаажуулах
-        // хүртэл PENDING хэвээр. Хоёрыг андуурахгүйн тулд төлбөрийг тусад нь
-        // тэмдэглэнэ.
-        if (appointment.payment?.status == AppointmentFeeStatus.paid) ...[
-          const SizedBox(height: 16),
-          _FeePaidBadge(key: ValueKey('detail-fee-paid-${appointment.id}')),
-        ],
-        if (appointment.serviceProgress != null) ...[
-          const SizedBox(height: 24),
-          ServiceProgressSection(
-            progress: appointment.serviceProgress!,
-            onReportSelected: onReportSelected,
-          ),
-        ],
-        const SizedBox(height: 24),
-        _BranchInfoCard(
-          tenantSlug: appointment.tenantSlug,
-          branchName: appointment.branchName,
-          repository: organizationRepository,
-        ),
-        if (onCancel != null) ...[
-          const SizedBox(height: 24),
-          // Цуцлах нь эргэлт буцалтгүй үйлдэл тул аюулын өнгөөр ялгана.
-          // Үүнгүйгээр энэ нь салбарын картын сүүлчийн "Газрын зураг дээр
-          // харах" OutlinedButton-той яг ижил харагдана — дээр нь шууд
-          // залгаа байрладаг тул андуурч дарах бодит эрсдэл үүснэ.
-          OutlinedButton.icon(
-            key: ValueKey('detail-cancel-${appointment.id}'),
-            onPressed: isCancelling ? null : onCancel,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.red,
-              side: BorderSide(
-                color: AppColors.red.withValues(alpha: isCancelling ? 0.2 : 0.5),
+          // Хэсгүүдийн дараалал: юу болж байна → юу хийх ёстой → хаашаа
+          // очих. Явц (ServiceProgressSection) нь захиалга үүссэний дараа энэ
+          // хуудсыг нээх БАРАГ цорын ганц шалтгаан тул салбарын лавлах
+          // мэдээллээс дээр байна; хураамжийн сэрэмжлүүлэг нь богино бөгөөд
+          // мөнгөтэй холбоотой үйлдэл учир хамгийн дээр үлдэнэ (урт явцын
+          // картын доор дарагдвал анзаарагдахгүй өнгөрөх эрсдэлтэй).
+          //
+          // Зай: нэг бүлгийн дотор 16, бүлэг хооронд 24 (4px scale — харах:
+          // CUSTOMER_FLUTTER_DESIGN_SYSTEM.md). Бүх хэсэг ижил GlassSurface
+          // chrome-той тул зай нь эрэмбийг илэрхийлэх цорын ганц хэрэгсэл.
+          if (onPay != null) ...[
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.red.withValues(alpha: 0.12),
+                border: Border.all(
+                  color: AppColors.red.withValues(alpha: 0.35),
+                ),
+                borderRadius: BorderRadius.circular(AppRadii.medium),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      appointment.payment!.status == AppointmentFeeStatus.failed
+                          ? 'Хураамжийн QR үүсгэхэд алдаа гарсан'
+                          : 'Цаг захиалгын хураамж төлөгдөөгүй',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.readable(
+                          AppColors.red,
+                          Theme.of(context).brightness,
+                        ),
+                      ),
+                    ),
+                  ),
+                  FilledButton(
+                    key: ValueKey('detail-pay-${appointment.id}'),
+                    onPressed: onPay,
+                    child: const Text('Төлөх'),
+                  ),
+                ],
               ),
             ),
-            icon: isCancelling
-                ? const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.close_rounded),
-            label: const Text('Захиалга цуцлах'),
+          ],
+          // Хураамж төлөгдсөн бол баталгаажуулах badge — цаг захиалгын status
+          // (Хүлээгдэж буй) нь салангид: төлбөр төлөгдсөн ч ажилтан баталгаажуулах
+          // хүртэл PENDING хэвээр. Хоёрыг андуурахгүйн тулд төлбөрийг тусад нь
+          // тэмдэглэнэ.
+          if (appointment.payment?.status == AppointmentFeeStatus.paid) ...[
+            const SizedBox(height: 16),
+            _FeePaidBadge(key: ValueKey('detail-fee-paid-${appointment.id}')),
+          ],
+          if (appointment.serviceProgress != null) ...[
+            const SizedBox(height: 24),
+            ServiceProgressSection(
+              progress: appointment.serviceProgress!,
+              onReportSelected: onReportSelected,
+            ),
+          ],
+          const SizedBox(height: 24),
+          _BranchInfoCard(
+            tenantSlug: appointment.tenantSlug,
+            branchName: appointment.branchName,
+            repository: organizationRepository,
           ),
-        ],
+          if (onCancel != null) ...[
+            const SizedBox(height: 24),
+            // Цуцлах нь эргэлт буцалтгүй үйлдэл тул аюулын өнгөөр ялгана.
+            // Үүнгүйгээр энэ нь салбарын картын сүүлчийн "Газрын зураг дээр
+            // харах" OutlinedButton-той яг ижил харагдана — дээр нь шууд
+            // залгаа байрладаг тул андуурч дарах бодит эрсдэл үүснэ.
+            OutlinedButton.icon(
+              key: ValueKey('detail-cancel-${appointment.id}'),
+              onPressed: isCancelling ? null : onCancel,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.readable(
+                  AppColors.red,
+                  Theme.of(context).brightness,
+                ),
+                side: BorderSide(
+                  color: AppColors.red.withValues(
+                    alpha: isCancelling ? 0.2 : 0.5,
+                  ),
+                ),
+              ),
+              icon: isCancelling
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.close_rounded),
+              label: const Text('Захиалга цуцлах'),
+            ),
+          ],
         ],
       ),
     );
@@ -382,9 +400,8 @@ class _DetailRow extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: muted),
+                  style: Theme.of(context).textTheme.bodySmall
+                      ?.copyWith(color: muted),
                 ),
                 const SizedBox(height: 2),
                 Text(value, style: Theme.of(context).textTheme.bodyLarge),
@@ -417,9 +434,8 @@ class _NotFound extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Захиалга олдсонгүй',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 16),
           OutlinedButton(onPressed: onBack, child: const Text('Буцах')),
@@ -543,18 +559,17 @@ class _BranchInfoCardState extends State<_BranchInfoCard> {
     final uri = Uri(scheme: 'tel', path: phone);
     final ok = await launchUrl(uri);
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Дуудлага хийж чадсангүй')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Дуудлага хийж чадсангүй')));
     }
   }
 
   Future<void> _copy(String phone) async {
     await Clipboard.setData(ClipboardData(text: phone));
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Утасны дугаар хууллаа')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Утасны дугаар хууллаа')));
   }
 
   @override
@@ -566,9 +581,8 @@ class _BranchInfoCardState extends State<_BranchInfoCard> {
         children: [
           Text(
             'Байршил ба цагийн хуваарь',
-            style: Theme.of(
-              context,
-            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 12),
           if (_loading)
@@ -599,7 +613,11 @@ class _BranchInfoCardState extends State<_BranchInfoCard> {
     );
   }
 
-  List<Widget> _content(BuildContext context, BranchDetail branch, Color muted) {
+  List<Widget> _content(
+    BuildContext context,
+    BranchDetail branch,
+    Color muted,
+  ) {
     final hasCoords = branch.latitude != null && branch.longitude != null;
     return [
       if (branch.fullAddress.trim().isNotEmpty)
@@ -618,7 +636,7 @@ class _BranchInfoCardState extends State<_BranchInfoCard> {
               style: Theme.of(context).textTheme.bodyLarge,
             ),
           ),
-          _OpenBadge(status: branch.openStatusAt(DateTime.now())),
+          _openBadge(context, branch.openStatusAt(DateTime.now())),
         ],
       ),
       const SizedBox(height: 14),
@@ -668,78 +686,22 @@ class _Note extends StatelessWidget {
       children: [
         Icon(icon, size: 18, color: muted),
         const SizedBox(width: 10),
-        Expanded(child: Text(text, style: TextStyle(color: muted))),
+        Expanded(
+          child: Text(text, style: TextStyle(color: muted)),
+        ),
       ],
     );
   }
 }
 
-class _OpenBadge extends StatelessWidget {
-  const _OpenBadge({required this.status});
-
-  final BranchOpenStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final (label, color) = switch (status) {
-      BranchOpenStatus.open => ('Нээлттэй', AppColors.green),
-      BranchOpenStatus.closed => ('Хаалттай', AppColors.red),
-      BranchOpenStatus.unknown => (
-        'Тодорхойгүй',
-        Theme.of(context).colorScheme.onSurfaceVariant,
-      ),
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final AppointmentStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      AppointmentStatus.confirmed => AppColors.green,
-      AppointmentStatus.pending => AppColors.blue,
-      AppointmentStatus.rejected ||
-      AppointmentStatus.cancelled => AppColors.red,
-      AppointmentStatus.noShow || AppointmentStatus.unknown => Theme.of(
-        context,
-      ).colorScheme.onSurfaceVariant,
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status.localizedLabel,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-}
+Widget _openBadge(BuildContext context, BranchOpenStatus status) => StatusChip(
+  label: switch (status) {
+    BranchOpenStatus.open => 'Нээлттэй',
+    BranchOpenStatus.closed => 'Хаалттай',
+    BranchOpenStatus.unknown => 'Тодорхойгүй',
+  },
+  color: branchOpenColor(status, context),
+);
 
 /// Хураамж төлөгдсөнийг харуулах ногоон badge (цаг захиалгын status-аас
 /// тусдаа — доор жагсаалтын дэлгэц дээр ижил дүр зурагтай).
@@ -753,15 +715,28 @@ class _FeePaidBadge extends StatelessWidget {
     decoration: BoxDecoration(
       color: AppColors.green.withValues(alpha: 0.12),
       border: Border.all(color: AppColors.green.withValues(alpha: 0.35)),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadii.medium),
     ),
-    child: const Row(
+    child: Row(
       children: [
-        Icon(Icons.check_circle_rounded, size: 18, color: AppColors.green),
-        SizedBox(width: 8),
+        Icon(
+          Icons.check_circle_rounded,
+          size: 18,
+          color: AppColors.readable(
+            AppColors.green,
+            Theme.of(context).brightness,
+          ),
+        ),
+        const SizedBox(width: 8),
         Text(
           'Хураамж төлөгдсөн',
-          style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.green),
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.readable(
+              AppColors.green,
+              Theme.of(context).brightness,
+            ),
+          ),
         ),
       ],
     ),

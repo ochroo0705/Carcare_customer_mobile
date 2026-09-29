@@ -74,7 +74,9 @@ class _DiagnosticDetailScreenState extends State<DiagnosticDetailScreen> {
   Future<void> _load() async {
     setState(() => _status = _DetailStatus.loading);
     try {
-      final detail = await widget.repository.getDiagnosticDetail(widget.reportId);
+      final detail = await widget.repository.getDiagnosticDetail(
+        widget.reportId,
+      );
       if (!mounted) return;
       setState(() {
         _detail = detail;
@@ -104,7 +106,9 @@ class _DiagnosticDetailScreenState extends State<DiagnosticDetailScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('PDF бэлтгэхэд алдаа гарлаа. Дахин оролдоно уу.')),
+        const SnackBar(
+          content: Text('PDF бэлтгэхэд алдаа гарлаа. Дахин оролдоно уу.'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _isExporting = false);
@@ -139,7 +143,10 @@ class _DiagnosticDetailScreenState extends State<DiagnosticDetailScreen> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            OutlinedButton(onPressed: _load, child: const Text('Дахин оролдох')),
+            OutlinedButton(
+              onPressed: _load,
+              child: const Text('Дахин оролдох'),
+            ),
           ],
         ),
       ),
@@ -210,7 +217,10 @@ class _DetailBody extends StatelessWidget {
               Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
               if (detail.notes != null && detail.notes!.trim().isNotEmpty) ...[
                 const SizedBox(height: 8),
-                Text(detail.notes!, style: Theme.of(context).textTheme.bodySmall),
+                Text(
+                  detail.notes!,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               ],
               const SizedBox(height: 16),
               SizedBox(
@@ -312,6 +322,7 @@ class _ToneChip extends StatelessWidget {
     label: Text(label),
     selected: isSelected,
     onSelected: (_) => onTap(),
+    materialTapTargetSize: MaterialTapTargetSize.padded,
     visualDensity: VisualDensity.compact,
   );
 }

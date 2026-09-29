@@ -14,6 +14,9 @@ import 'package:carcare_customer_mobile/features/booking/presentation/controller
 import 'package:carcare_customer_mobile/features/history/presentation/format_amount.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:carcare_customer_mobile/core/widgets/state_views.dart';
+import 'package:carcare_customer_mobile/core/widgets/status_chip.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/widgets/appointment_status_style.dart';
 
 class AppointmentsScreen extends StatelessWidget {
   const AppointmentsScreen({
@@ -161,13 +164,18 @@ class _AppointmentsBodyState extends State<_AppointmentsBody>
       );
     }
     if (state.status == AppointmentsStatus.error) {
-      return _ErrorView(
+      return ErrorView(
         message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
         onRetry: widget.controller.load,
+        retryKey: const ValueKey('appointments-retry'),
       );
     }
     if (state.status == AppointmentsStatus.empty) {
-      return const _EmptyAppointments();
+      return const EmptyView(
+        icon: Icons.event_available_outlined,
+        title: 'Цагийн хүсэлт алга',
+        message: 'Байгууллага сонгож цаг захиалахад энд харагдана.',
+      );
     }
     return Column(
       children: [
@@ -177,8 +185,7 @@ class _AppointmentsBodyState extends State<_AppointmentsBody>
             child: OfflineBanner(
               message:
                   'Сүлжээгүй байна — сүүлд ачаалсан захиалгуудыг харуулж байна',
-              semanticsLabel:
-                  'Сүлжээгүй байна. Сүүлд ачаалсан захиалгуудын жагсаалтыг харуулж байна.',
+              semanticsLabel: 'Сүлжээгүй байна. Сүүлд ачаалсан захиалгуудын жагсаалтыг харуулж байна.',
               retryKey: const ValueKey('appointments-offline-retry'),
               onRetry: widget.controller.load,
             ),
@@ -200,6 +207,7 @@ class _AppointmentsBodyState extends State<_AppointmentsBody>
                     suffixIcon: widget.controller.searchQuery.isEmpty
                         ? null
                         : IconButton(
+                            tooltip: 'Цэвэрлэх',
                             icon: const Icon(Icons.close_rounded),
                             onPressed: () {
                               _searchController.clear();
@@ -209,7 +217,7 @@ class _AppointmentsBodyState extends State<_AppointmentsBody>
                     isDense: true,
                     filled: true,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(AppRadii.medium),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -291,7 +299,7 @@ class _AppointmentsBodyState extends State<_AppointmentsBody>
               alignment: Alignment.topRight,
               child: Material(
                 elevation: 8,
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(AppRadii.large),
                 color: Theme.of(overlayContext).colorScheme.surface,
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 280),
@@ -361,9 +369,9 @@ class _FilterButton extends StatelessWidget {
         color: hasActive
             ? colorScheme.primaryContainer
             : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -396,9 +404,8 @@ class _StatusFilterOptions extends StatelessWidget {
     if (available.isEmpty) {
       return Text(
         'Шүүх төлөв алга.',
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        ),
+        style: Theme.of(context).textTheme.bodyMedium
+            ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       );
     }
     return Column(
@@ -439,7 +446,7 @@ class _StatusFilterOption extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppRadii.medium),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
         child: Row(
@@ -460,78 +467,6 @@ class _StatusFilterOption extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final Future<void> Function() onRetry;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    container: true,
-    liveRegion: true,
-    label: message,
-    child: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              key: const ValueKey('appointments-retry'),
-              onPressed: onRetry,
-              child: const Text('Дахин оролдох'),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _EmptyAppointments extends StatelessWidget {
-  const _EmptyAppointments();
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.event_available_outlined,
-            size: 58,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'Цагийн хүсэлт алга',
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Байгууллага сонгож цаг захиалахад энд харагдана.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _NoFilterResults extends StatelessWidget {
@@ -705,15 +640,17 @@ class _WalkInOrderCard extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            _ProgressStatusChip(status: order.progress.status),
+            StatusChip(
+              label: order.progress.status.localizedLabel,
+              color: serviceProgressStatusColor(order.progress.status, context),
+            ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           order.branchName,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 4),
         Text(
@@ -722,7 +659,7 @@ class _WalkInOrderCard extends StatelessWidget {
         ),
         if (order.progress.hasOutstandingBalance) ...[
           const SizedBox(height: 8),
-          _OutstandingBalanceChip(progress: order.progress),
+          _outstandingBalanceChip(order.progress),
         ],
       ],
     ),
@@ -731,66 +668,15 @@ class _WalkInOrderCard extends StatelessWidget {
 
 /// Дууссан ч бүрэн төлөгдөөгүй захиалгын "Төлбөр дутуу · X₮" badge — яагаад
 /// түүхэнд шилжээгүйг ойлгуулна.
-class _OutstandingBalanceChip extends StatelessWidget {
-  const _OutstandingBalanceChip({required this.progress});
-
-  final AppointmentServiceProgress progress;
-
-  @override
-  Widget build(BuildContext context) {
-    final due = progress.outstandingAmount;
-    final label = due == null
+Widget _outstandingBalanceChip(AppointmentServiceProgress progress) {
+  final due = progress.outstandingAmount;
+  return StatusChip(
+    key: ValueKey('outstanding-balance-${progress.id}'),
+    label: due == null
         ? 'Төлбөр дутуу'
-        : 'Төлбөр дутуу · ${formatAmount(due.round())}₮';
-    return Container(
-      key: ValueKey('outstanding-balance-${progress.id}'),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: AppColors.warning,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
-}
-
-class _ProgressStatusChip extends StatelessWidget {
-  const _ProgressStatusChip({required this.status});
-
-  final ServiceProgressStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      ServiceProgressStatus.completed => AppColors.green,
-      ServiceProgressStatus.cancelled => AppColors.red,
-      ServiceProgressStatus.inProgress => AppColors.blue,
-      ServiceProgressStatus.postponed => AppColors.purple,
-      ServiceProgressStatus.pending ||
-      ServiceProgressStatus.scheduled ||
-      ServiceProgressStatus.unknown => Theme.of(
-        context,
-      ).colorScheme.onSurfaceVariant,
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status.localizedLabel,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12),
-      ),
-    );
-  }
+        : 'Төлбөр дутуу · ${formatAmount(due.round())}₮',
+    color: AppColors.warning,
+  );
 }
 
 class _AppointmentCard extends StatelessWidget {
@@ -830,8 +716,17 @@ class _AppointmentCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             appointment.serviceProgress != null
-                ? _ProgressStatusChip(status: appointment.serviceProgress!.status)
-                : _StatusChip(status: appointment.status),
+                ? StatusChip(
+                    label: appointment.serviceProgress!.status.localizedLabel,
+                    color: serviceProgressStatusColor(
+                      appointment.serviceProgress!.status,
+                      context,
+                    ),
+                  )
+                : StatusChip(
+                    label: appointment.status.localizedLabel,
+                    color: appointmentStatusColor(appointment.status, context),
+                  ),
           ],
         ),
         const SizedBox(height: 4),
@@ -854,7 +749,7 @@ class _AppointmentCard extends StatelessWidget {
         ),
         if (appointment.serviceProgress?.hasOutstandingBalance ?? false) ...[
           const SizedBox(height: 8),
-          _OutstandingBalanceChip(progress: appointment.serviceProgress!),
+          _outstandingBalanceChip(appointment.serviceProgress!),
         ],
         // Захиалга (ServiceOrder) үүсмэгц доорх явцын хэсэг бодит
         // үйлчилгээ бүрийг статус/үнэтэй нь жагсаадаг тул ангиллын мөр
@@ -889,7 +784,7 @@ class _AppointmentCard extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.red.withValues(alpha: 0.12),
               border: Border.all(color: AppColors.red.withValues(alpha: 0.35)),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(AppRadii.medium),
             ),
             child: Row(
               children: [
@@ -898,9 +793,12 @@ class _AppointmentCard extends StatelessWidget {
                     appointment.payment!.status == AppointmentFeeStatus.failed
                         ? 'Хураамжийн QR үүсгэхэд алдаа гарсан'
                         : 'Цаг захиалгын хураамж төлөгдөөгүй',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: AppColors.red,
+                      color: AppColors.readable(
+                        AppColors.red,
+                        Theme.of(context).brightness,
+                      ),
                     ),
                   ),
                 ),
@@ -923,18 +821,30 @@ class _AppointmentCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: AppColors.green.withValues(alpha: 0.12),
-              border: Border.all(color: AppColors.green.withValues(alpha: 0.35)),
-              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.green.withValues(alpha: 0.35),
+              ),
+              borderRadius: BorderRadius.circular(AppRadii.medium),
             ),
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.check_circle_rounded, size: 16, color: AppColors.green),
-                SizedBox(width: 8),
+                Icon(
+                  Icons.check_circle_rounded,
+                  size: 16,
+                  color: AppColors.readable(
+                    AppColors.green,
+                    Theme.of(context).brightness,
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Text(
                   'Хураамж төлөгдсөн',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    color: AppColors.green,
+                    color: AppColors.readable(
+                      AppColors.green,
+                      Theme.of(context).brightness,
+                    ),
                   ),
                 ),
               ],
@@ -953,7 +863,12 @@ class _AppointmentCard extends StatelessWidget {
             child: TextButton(
               key: ValueKey('cancel-${appointment.id}'),
               onPressed: isCancelling ? null : onCancel,
-              style: TextButton.styleFrom(foregroundColor: AppColors.red),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.readable(
+                  AppColors.red,
+                  Theme.of(context).brightness,
+                ),
+              ),
               child: isCancelling
                   ? const SizedBox.square(
                       dimension: 16,
@@ -966,40 +881,6 @@ class _AppointmentCard extends StatelessWidget {
       ],
     ),
   );
-}
-
-class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.status});
-
-  final AppointmentStatus status;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = switch (status) {
-      AppointmentStatus.confirmed => AppColors.green,
-      AppointmentStatus.pending => AppColors.blue,
-      AppointmentStatus.rejected ||
-      AppointmentStatus.cancelled => AppColors.red,
-      AppointmentStatus.noShow || AppointmentStatus.unknown => Theme.of(
-        context,
-      ).colorScheme.onSurfaceVariant,
-    };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        status.localizedLabel,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w700,
-          fontSize: 12,
-        ),
-      ),
-    );
-  }
 }
 
 String _formatDateTime(DateTime value) =>

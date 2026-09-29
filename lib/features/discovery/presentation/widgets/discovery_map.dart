@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/branch_open_style.dart';
 
 class DiscoveryMap extends StatefulWidget {
   const DiscoveryMap({
@@ -378,7 +379,7 @@ class DiscoveryMapState extends State<DiscoveryMap>
     final logo = (await codec.getNextFrame()).image;
     final icons = await Future.wait([
       _createPinIcon(logo, AppColors.green, selected: false),
-      _createPinIcon(logo, const Color(0xFF9CA3AF), selected: false),
+      _createPinIcon(logo, AppColors.neutral, selected: false),
       _createPinIcon(logo, AppColors.accent, selected: true),
     ]);
     logo.dispose();
@@ -835,7 +836,7 @@ class _SelectedBranchCard extends StatelessWidget {
     return Material(
       color: scheme.surface,
       elevation: 12,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppRadii.extraLarge),
       clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxHeight: 420),
@@ -942,7 +943,7 @@ class _SelectedBranchCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: scheme.surfaceContainer,
-                          borderRadius: BorderRadius.circular(99),
+                          borderRadius: BorderRadius.circular(AppRadii.pill),
                         ),
                         child: Text(
                           category.name,
@@ -957,7 +958,7 @@ class _SelectedBranchCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: scheme.surfaceContainer,
-                          borderRadius: BorderRadius.circular(99),
+                          borderRadius: BorderRadius.circular(AppRadii.pill),
                         ),
                         child: Text(
                           '+${branchDetail.categories.length - _maxPreviewCategories}',
@@ -1007,7 +1008,7 @@ class _CardLogo extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
         border: Border.all(color: CarCareTheme.of(context).glassBorder),
       ),
       clipBehavior: Clip.antiAlias,
@@ -1031,13 +1032,7 @@ class _OpenStatusLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = branch.openStatusAt(DateTime.now());
-    final color = switch (status) {
-      BranchOpenStatus.open => AppColors.green,
-      BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
-      BranchOpenStatus.unknown => Theme.of(
-        context,
-      ).colorScheme.onSurfaceVariant,
-    };
+    final color = branchOpenColor(status, context);
     final label = switch (status) {
       BranchOpenStatus.open => 'Нээлттэй',
       BranchOpenStatus.closed => 'Хаалттай',
@@ -1054,8 +1049,10 @@ class _OpenStatusLine extends StatelessWidget {
         const SizedBox(width: 5),
         Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall
-              ?.copyWith(color: color, fontWeight: FontWeight.w700),
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: AppColors.readable(color, Theme.of(context).brightness),
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ],
     );
@@ -1075,7 +1072,7 @@ class _PhoneLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => InkWell(
     onTap: _call,
-    borderRadius: BorderRadius.circular(8),
+    borderRadius: BorderRadius.circular(AppRadii.small),
     child: Row(
       children: [
         Icon(

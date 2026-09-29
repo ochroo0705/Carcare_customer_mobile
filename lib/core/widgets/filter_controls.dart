@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 
 /// Icon button opening an anchored filter dropdown — shows a numeric badge
@@ -26,9 +27,9 @@ class FilterIconButton extends StatelessWidget {
         color: hasActive
             ? colorScheme.primaryContainer
             : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
         child: InkWell(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(AppRadii.medium),
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -62,23 +63,26 @@ class FilterOptionTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                  color: isSelected ? colorScheme.primary : null,
+      borderRadius: BorderRadius.circular(AppRadii.medium),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 48),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    color: isSelected ? colorScheme.primary : null,
+                  ),
                 ),
               ),
-            ),
-            if (isSelected)
-              Icon(Icons.check_rounded, color: colorScheme.primary, size: 18),
-          ],
+              if (isSelected)
+                Icon(Icons.check_rounded, color: colorScheme.primary, size: 18),
+            ],
+          ),
         ),
       ),
     );
@@ -252,7 +256,7 @@ OverlayEntry showAnchoredFilterOverlay({
             alignment: Alignment.topRight,
             child: Material(
               elevation: 8,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(AppRadii.large),
               color: Theme.of(overlayContext).colorScheme.surface,
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 280),

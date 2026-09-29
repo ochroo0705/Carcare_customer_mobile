@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/widgets/filter_controls.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
@@ -6,6 +7,7 @@ import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/controllers/diagnostics_controller.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/presentation/widgets/severity_chip.dart';
 import 'package:flutter/material.dart';
+import 'package:carcare_customer_mobile/core/widgets/state_views.dart';
 
 /// "Оношилгооны түүх" — зөвхөн өнгөрсөн оношилгооны тайлангуудын жагсаалт
 /// (машин бүрээр биш, бүх байгууллага дамнасан), Түүх дэлгэцтэй ижил
@@ -129,59 +131,14 @@ class _DiagnosticsListViewState extends State<DiagnosticsListView> {
       label: 'Оношилгооны түүхийг ачаалж байна',
       child: const SkeletonCardList(showTrailing: true),
     ),
-    DiagnosticsStatus.error => Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              widget.controller.message ?? 'Тодорхойгүй алдаа гарлаа.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              onPressed: widget.controller.load,
-              child: const Text('Дахин оролдох'),
-            ),
-          ],
-        ),
-      ),
+    DiagnosticsStatus.error => ErrorView(
+      message: widget.controller.message ?? 'Тодорхойгүй алдаа гарлаа.',
+      onRetry: widget.controller.load,
     ),
-    DiagnosticsStatus.empty => Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.fact_check_outlined,
-              size: 58,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 18),
-            Text(
-              'Оношилгооны тайлан алга',
-              style: Theme.of(context).textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Үйлчилгээ хийгдэж, тайлан бөглөгдсөний дараа энд харагдана.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
-      ),
+    DiagnosticsStatus.empty => const EmptyView(
+      icon: Icons.fact_check_outlined,
+      title: 'Оношилгооны тайлан алга',
+      message: 'Үйлчилгээ хийгдэж, тайлан бөглөгдсөний дараа энд харагдана.',
     ),
     DiagnosticsStatus.data =>
       widget.controller.resultsStale
@@ -250,7 +207,7 @@ class _ReportCard extends StatelessWidget {
     return InkWell(
       key: ValueKey('diagnostic-report-${report.id}'),
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(AppRadii.extraLarge),
       child: GlassSurface(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,

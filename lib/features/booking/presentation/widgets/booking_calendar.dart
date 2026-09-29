@@ -51,6 +51,7 @@ class BookingCalendar extends StatelessWidget {
                       DateTime(currentMonthKey.year, currentMonthKey.month - 1),
                     )
                   : null,
+              tooltip: 'Өмнөх сар',
               icon: const Icon(Icons.chevron_left_rounded),
             ),
             Expanded(
@@ -66,6 +67,7 @@ class BookingCalendar extends StatelessWidget {
               onPressed: () => onMonthChanged(
                 DateTime(currentMonthKey.year, currentMonthKey.month + 1),
               ),
+              tooltip: 'Дараах сар',
               icon: const Icon(Icons.chevron_right_rounded),
             ),
           ],

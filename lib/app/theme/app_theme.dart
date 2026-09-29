@@ -30,10 +30,36 @@ abstract final class AppColors {
   static const accentLightText = Color(0xFF0E7490); // --oc-accent (light)
   static const onAccent = Color(0xFF14120C); // --oc-on-accent
   static const blue = Color(0xFF3B82F6);
-  static const purple = Color(0xFFA855F7); // matches web's POSTPONED badge (purple-500)
+  static const purple = Color(
+    0xFFA855F7,
+  ); // matches web's POSTPONED badge (purple-500)
   static const green = Color(0xFF3DDC97); // --oc-ok
   static const red = Color(0xFFEF4444);
+  // Neutral grey for inactive map pins (closed branches).
+  static const neutral = Color(0xFF9CA3AF);
   static const warning = Color(0xFFF59E0B); // --oc-warn
+
+  // Light-mode text variants. The status colors above are tuned for the dark
+  // shell; as text on a white or tinted-white surface they fall to ~1.6–3:1.
+  // Use [readable] rather than picking these by hand.
+  static const greenLightText = Color(0xFF047857);
+  static const warningLightText = Color(0xFFB45309);
+  static const blueLightText = Color(0xFF1D4ED8);
+  static const purpleLightText = Color(0xFF7E22CE);
+  static const redLightText = Color(0xFFB91C1C);
+
+  /// The text/icon color for a status [color] on the current [brightness]:
+  /// unchanged in dark mode, a darker readable variant in light mode.
+  static Color readable(Color color, Brightness brightness) {
+    if (brightness == Brightness.dark) return color;
+    if (color == accent) return accentLightText;
+    if (color == green) return greenLightText;
+    if (color == warning) return warningLightText;
+    if (color == blue) return blueLightText;
+    if (color == purple) return purpleLightText;
+    if (color == red) return redLightText;
+    return color;
+  }
 }
 
 abstract final class AppRadii {
@@ -41,6 +67,7 @@ abstract final class AppRadii {
   static const medium = 12.0;
   static const large = 16.0;
   static const extraLarge = 20.0;
+  static const pill = 999.0;
 }
 
 @immutable
@@ -170,8 +197,11 @@ abstract final class AppTheme {
       surface: background,
     );
     final scheme = base.copyWith(
-      primary: AppColors.accent,
-      onPrimary: AppColors.onAccent,
+      // Light mode: primary is also used for text, icons and selection, where
+      // cyan on white is ~1.7:1. Filled buttons keep the cyan fill via
+      // filledButtonTheme below, matching the spec's "primary action" token.
+      primary: dark ? AppColors.accent : AppColors.accentLightText,
+      onPrimary: dark ? AppColors.onAccent : Colors.white,
       primaryContainer: dark
           ? const Color(0x3322D3EE)
           : const Color(0xFFCFFAFE),
@@ -264,7 +294,10 @@ abstract final class AppTheme {
         ),
       ),
       iconButtonTheme: IconButtonThemeData(
-        style: IconButton.styleFrom(foregroundColor: extension.mutedText),
+        style: IconButton.styleFrom(
+          foregroundColor: extension.mutedText,
+          minimumSize: const Size(48, 48),
+        ),
       ),
       dividerColor: border,
       progressIndicatorTheme: const ProgressIndicatorThemeData(

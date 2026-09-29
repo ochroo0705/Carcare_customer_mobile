@@ -6,6 +6,10 @@ import 'package:carcare_customer_mobile/features/discovery/domain/organization.d
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeleton.dart';
+import 'package:carcare_customer_mobile/core/widgets/state_views.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_card.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_filter_panel.dart';
+import 'package:carcare_customer_mobile/features/discovery/services/device_location_service.dart';
 import 'package:flutter/material.dart';
 
 /// Cross-org "юу хийлгэх гэж байна?" — Booking tab-ийн НЭГ дэлгэц (web-ийн
@@ -22,10 +26,14 @@ class ServiceKeyPickerScreen extends StatefulWidget {
   const ServiceKeyPickerScreen({
     required this.repository,
     required this.onBranchSelected,
+    this.locationService = const GeolocatorDeviceLocationService(),
     super.key,
   });
 
   final OrganizationRepository repository;
+
+  /// Device location for the "near me" filter; injectable for tests.
+  final DeviceLocationService locationService;
   final void Function(
     Organization organization,
     Branch branch,
@@ -50,10 +58,50 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
   String? _resultsError;
   final List<(Organization, Branch)> _results = [];
 
+  // Branch filters — this screen's own state, deliberately not shared with
+  // Discovery's controller so filters set in one tab never narrow the other.
+  String _city = '';
+  String _district = '';
+  String _tag = '';
+  bool _nearMe = false;
+  bool _openNow = false;
+  bool _weekend = false;
+  ({double lat, double lng})? _location;
+  bool _nearMePending = false;
+  bool _openNowPending = false;
+  bool _weekendPending = false;
+  List<BranchTagOption> _tagOptions = const [];
+
+  // The last fetch made with no branch filters. City/district options come
+  // from here, not from the filtered results — otherwise picking "open now"
+  // with zero matches would empty the city list and strand the user.
+  List<Organization> _catalog = const [];
+
+  // Bumped per results request; a response from an older request is dropped
+  // so rapid filter changes can never land out of order.
+  int _generation = 0;
+
+  // Rebuilt on every setState so the open filter sheet (a separate route)
+  // tracks the screen's filter values and result count live.
+  final ValueNotifier<int> _revision = ValueNotifier(0);
+
+  @override
+  void setState(VoidCallback fn) {
+    super.setState(fn);
+    _revision.value++;
+  }
+
   @override
   void initState() {
     super.initState();
     _loadKeys();
+    _loadTagOptions();
+  }
+
+  @override
+  void dispose() {
+    _revision.dispose();
+    super.dispose();
   }
 
   Future<void> _loadKeys() async {
@@ -81,7 +129,52 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
     }
   }
 
+  Future<void> _loadTagOptions() async {
+    try {
+      final tags = await widget.repository.getBranchTags();
+      if (!mounted) return;
+      setState(() => _tagOptions = tags);
+    } catch (_) {
+      // Optional filter: the tag dropdown simply stays hidden on failure.
+    }
+  }
+
+  bool get _hasServerFilters =>
+      _city.isNotEmpty ||
+      _district.isNotEmpty ||
+      _tag.isNotEmpty ||
+      _openNow ||
+      _weekend ||
+      _location != null;
+
+  int get _activeFilterCount => [
+    _city.isNotEmpty,
+    _district.isNotEmpty,
+    _tag.isNotEmpty,
+    _nearMe,
+    _openNow,
+    _weekend,
+  ].where((active) => active).length;
+
+  OrganizationFilter get _filter => OrganizationFilter(
+    // Cross-org, so one large page is fetched and the service keys are
+    // AND-matched on the client (same approach as the web `/book`); the
+    // catalog is small enough that server paging isn't needed yet.
+    pageSize: 200,
+    city: _city,
+    district: _district,
+    tag: _tag,
+    openNow: _openNow,
+    weekend: _weekend,
+    lat: _location?.lat,
+    lng: _location?.lng,
+  );
+
+  bool _covers(Branch branch) =>
+      _selectedIds.every((id) => branch.serviceKeyIds.contains(id));
+
   Future<void> _loadResults() async {
+    final generation = ++_generation;
     if (_selectedIds.isEmpty) {
       setState(() {
         _resultsStatus = _LoadStatus.empty;
@@ -91,41 +184,167 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
     }
     setState(() => _resultsStatus = _LoadStatus.loading);
     try {
-      // Cross-org тул нэг л том хуудсаар татаад client дээр АНД-логикоор
-      // шүүнэ (web-ийн `/book`-той ижил хандлага) — энэ каталогийн одоогийн
-      // хэмжээнд server талын хуудаслалт шаардлагагүй.
-      final page = await widget.repository.getOrganizations(
-        filter: const OrganizationFilter(pageSize: 200),
-      );
-      if (!mounted) return;
-      final results = <(Organization, Branch)>[];
-      for (final org in page.organizations) {
-        for (final branch in org.branches) {
-          final covers = _selectedIds.every(
-            (id) => branch.serviceKeyIds.contains(id),
-          );
-          if (covers) results.add((org, branch));
-        }
+      final needsCatalog = _hasServerFilters && _catalog.isEmpty;
+      final responses = await Future.wait([
+        widget.repository.getOrganizations(filter: _filter),
+        if (needsCatalog)
+          widget.repository.getOrganizations(
+            filter: const OrganizationFilter(pageSize: 200),
+          ),
+      ]);
+      if (!mounted || generation != _generation) return;
+      final page = responses.first;
+      final results = <(Organization, Branch)>[
+        for (final org in page.organizations)
+          for (final branch in org.branches)
+            if (_covers(branch)) (org, branch),
+      ];
+      if (_location != null) {
+        // Nearest first; branches without a distance go last.
+        results.sort(
+          (a, b) => (a.$2.distanceKm ?? double.infinity).compareTo(
+            b.$2.distanceKm ?? double.infinity,
+          ),
+        );
       }
       setState(() {
+        if (!_hasServerFilters) {
+          _catalog = page.organizations;
+        } else if (needsCatalog) {
+          _catalog = responses.last.organizations;
+        }
         _results
           ..clear()
           ..addAll(results);
         _resultsStatus = results.isEmpty ? _LoadStatus.empty : _LoadStatus.data;
       });
     } on AppFailure catch (failure) {
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _resultsStatus = _LoadStatus.error;
         _resultsError = failure.message;
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || generation != _generation) return;
       setState(() {
         _resultsStatus = _LoadStatus.error;
         _resultsError = 'Тодорхойгүй алдаа гарлаа.';
       });
     }
+  }
+
+  /// Branches in the unfiltered catalog that can do every selected job —
+  /// the pool the location options are drawn from, so each offered city or
+  /// district can actually produce a result.
+  Iterable<Branch> get _candidateBranches =>
+      _catalog.expand((org) => org.branches).where(_covers);
+
+  List<String> get _cities => ({
+    for (final branch in _candidateBranches)
+      if (branch.city.trim().isNotEmpty) branch.city.trim(),
+  }.toList()..sort());
+
+  List<String> get _districts => ({
+    for (final branch in _candidateBranches)
+      if ((_city.isEmpty || branch.city.trim() == _city) &&
+          branch.district.trim().isNotEmpty)
+        branch.district.trim(),
+  }.toList()..sort());
+
+  void _setCity(String? value) {
+    final next = value?.trim() ?? '';
+    if (next == _city) return;
+    // A district belongs to one city, so changing the city clears it.
+    setState(() {
+      _city = next;
+      _district = '';
+    });
+    _loadResults();
+  }
+
+  void _setDistrict(String? value) {
+    final next = value?.trim() ?? '';
+    if (next == _district) return;
+    setState(() => _district = next);
+    _loadResults();
+  }
+
+  void _setTag(String id, String name) {
+    if (id == _tag) return;
+    setState(() => _tag = id);
+    _loadResults();
+  }
+
+  Future<void> _setOpenNow(bool value) async {
+    setState(() {
+      _openNow = value;
+      _openNowPending = true;
+    });
+    await _loadResults();
+    if (mounted) setState(() => _openNowPending = false);
+  }
+
+  Future<void> _setWeekend(bool value) async {
+    setState(() {
+      _weekend = value;
+      _weekendPending = true;
+    });
+    await _loadResults();
+    if (mounted) setState(() => _weekendPending = false);
+  }
+
+  Future<void> _setNearMe(bool enabled) async {
+    if (!enabled) {
+      setState(() {
+        _nearMe = false;
+        _location = null;
+      });
+      await _loadResults();
+      return;
+    }
+    // Optimistic: the chip selects at once and spins while locating.
+    setState(() {
+      _nearMe = true;
+      _nearMePending = true;
+    });
+    final location = await widget.locationService.current();
+    if (!mounted) return;
+    // Turned off again while the location was being fetched.
+    if (!_nearMe) {
+      setState(() => _nearMePending = false);
+      return;
+    }
+    if (location == null) {
+      setState(() {
+        _nearMe = false;
+        _nearMePending = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Байршлыг авч чадсангүй. Байршлын зөвшөөрөл, тохиргоогоо шалгана уу.',
+          ),
+        ),
+      );
+      return;
+    }
+    setState(() => _location = (lat: location.lat, lng: location.lng));
+    await _loadResults();
+    if (mounted) setState(() => _nearMePending = false);
+  }
+
+  void _clearFilters() {
+    if (_activeFilterCount == 0) return;
+    setState(() {
+      _city = '';
+      _district = '';
+      _tag = '';
+      _nearMe = false;
+      _location = null;
+      _openNow = false;
+      _weekend = false;
+    });
+    _loadResults();
   }
 
   List<ServiceKey> get _selectedKeys =>
@@ -160,6 +379,76 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
     if (applied != null) _applySelection(applied);
   }
 
+  Widget _filterPanel() => BranchFilterPanel(
+    city: _city,
+    district: _district,
+    cities: _cities,
+    districts: _districts,
+    onCityChanged: _setCity,
+    onDistrictChanged: _setDistrict,
+    tag: _tag,
+    tagOptions: _tagOptions,
+    onTagChanged: _setTag,
+    nearMe: _nearMe,
+    openNow: _openNow,
+    weekend: _weekend,
+    nearMePending: _nearMePending,
+    openNowPending: _openNowPending,
+    weekendPending: _weekendPending,
+    onNearMeChanged: _setNearMe,
+    onOpenNowChanged: _setOpenNow,
+    onWeekendChanged: _setWeekend,
+  );
+
+  Future<void> _openFilters() => showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    showDragHandle: true,
+    builder: (sheetContext) => ValueListenableBuilder<int>(
+      valueListenable: _revision,
+      builder: (context, _, _) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Шүүлтүүр',
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  if (_activeFilterCount > 0)
+                    TextButton(
+                      key: const ValueKey('service-key-filters-clear'),
+                      onPressed: _clearFilters,
+                      child: const Text('Бүгдийг арилгах'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _filterPanel(),
+              const SizedBox(height: 16),
+              FilledButton(
+                key: const ValueKey('service-key-filters-done'),
+                onPressed: () => Navigator.of(sheetContext).pop(),
+                child: Text(switch (_resultsStatus) {
+                  _LoadStatus.loading => 'Хайж байна…',
+                  _LoadStatus.error => 'Хаах',
+                  _ => '${_results.length} салбар харуулах',
+                }),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+
   @override
   Widget build(BuildContext context) => AppShellBackground(
     child: SafeArea(
@@ -174,10 +463,29 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Ямар ажил хийлгэх гэж байна?',
-                      style: Theme.of(context).textTheme.headlineSmall
-                          ?.copyWith(fontWeight: FontWeight.w800),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Ямар ажил хийлгэх гэж байна?',
+                            style: Theme.of(context).textTheme.headlineSmall
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                        // Filters only narrow results, so they appear once
+                        // there is a selection to narrow.
+                        if (_selectedIds.isNotEmpty)
+                          IconButton(
+                            key: const ValueKey('service-key-filters'),
+                            tooltip: 'Шүүлтүүр',
+                            onPressed: _openFilters,
+                            icon: Badge(
+                              isLabelVisible: _activeFilterCount > 0,
+                              label: Text('$_activeFilterCount'),
+                              child: const Icon(Icons.tune_rounded),
+                            ),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 14),
                     _TagsBar(
@@ -203,12 +511,31 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
           return const [
             SliverFillRemaining(
               hasScrollBody: false,
-              child: _MessageState(
+              child: EmptyView(
                 icon: Icons.build_outlined,
                 title: 'Ажлын төрлөө сонгоно уу',
                 message:
-                    'Дээрх "Ажлын төрөл нэмэх" товчоор сонгоход тохирох '
-                    'салбарууд эндээс харагдана.',
+                    'Хийлгэх ажлаа сонгоход тэдгээрийг бүгдийг гүйцэтгэдэг '
+                    'салбарууд энд харагдана.',
+              ),
+            ),
+          ];
+        }
+        if (_activeFilterCount > 0 && _candidateBranches.isNotEmpty) {
+          return [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyView(
+                icon: Icons.filter_alt_off_outlined,
+                title: 'Шүүлтүүрт тохирох салбар алга',
+                message:
+                    'Сонгосон ажлуудыг хийдэг салбар бий, гэхдээ '
+                    'шүүлтүүрт таарахгүй байна.',
+                action: OutlinedButton(
+                  key: const ValueKey('service-key-empty-clear-filters'),
+                  onPressed: _clearFilters,
+                  child: const Text('Шүүлтүүр арилгах'),
+                ),
               ),
             ),
           ];
@@ -216,7 +543,7 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
         return const [
           SliverFillRemaining(
             hasScrollBody: false,
-            child: _MessageState(
+            child: EmptyView(
               icon: Icons.search_off,
               title: 'Салбар олдсонгүй',
               message:
@@ -231,29 +558,43 @@ class _ServiceKeyPickerScreenState extends State<ServiceKeyPickerScreen> {
         return [
           SliverFillRemaining(
             hasScrollBody: false,
-            child: _MessageState(
-              icon: Icons.cloud_off_outlined,
-              title: 'Мэдээлэл ачаалсангүй',
-              message: _resultsError ?? 'Дахин оролдоно уу.',
-              actionLabel: 'Дахин оролдох',
-              onAction: _loadResults,
+            child: ErrorView(
+              message: _resultsError ?? 'Мэдээлэл ачаалсангүй.',
+              onRetry: _loadResults,
             ),
           ),
         ];
       case _LoadStatus.data:
         return [
           SliverPadding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+            sliver: SliverToBoxAdapter(
+              child: Text(
+                '${_results.length} салбар олдлоо',
+                key: const ValueKey('service-key-result-count'),
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ),
+          SliverPadding(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
             sliver: SliverList.separated(
               itemCount: _results.length,
-              separatorBuilder: (_, _) => const SizedBox(height: 10),
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final (org, branch) = _results[index];
-                return _BranchResultCard(
-                  organization: org,
-                  branch: branch,
-                  onTap: () =>
-                      widget.onBranchSelected(org, branch, _selectedKeys),
+                // Same card as Discovery so a branch looks identical in both
+                // lists; the wrapper keeps this screen's test key.
+                return KeyedSubtree(
+                  key: ValueKey('service-key-result-${branch.id}'),
+                  child: BranchCard(
+                    organization: org,
+                    branch: branch,
+                    onTap: () =>
+                        widget.onBranchSelected(org, branch, _selectedKeys),
+                  ),
                 );
               },
             ),
@@ -277,6 +618,19 @@ class _TagsBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // Nothing picked yet: choosing is the only next step, so it gets the
+    // page's primary button. Once tags exist it shrinks into the tag row.
+    if (keys.isEmpty) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          key: const ValueKey('service-key-add'),
+          onPressed: onAdd,
+          icon: const Icon(Icons.add_rounded),
+          label: const Text('Ажлын төрөл сонгох'),
+        ),
+      );
+    }
     return Wrap(
       spacing: 8,
       runSpacing: 8,
@@ -289,16 +643,25 @@ class _TagsBar extends StatelessWidget {
             onDeleted: () => onRemove(key.id),
             deleteIcon: const Icon(Icons.close, size: 16),
             deleteIconColor: scheme.onSurfaceVariant,
+            deleteButtonTooltipMessage: 'Хасах',
+            materialTapTargetSize: MaterialTapTargetSize.padded,
             visualDensity: VisualDensity.compact,
             backgroundColor: scheme.primary.withValues(alpha: 0.1),
             side: BorderSide(color: scheme.primary.withValues(alpha: 0.3)),
           ),
         ActionChip(
           key: const ValueKey('service-key-add'),
-          avatar: const Icon(Icons.add_rounded, size: 16),
-          label: const Text('Ажлын төрөл нэмэх'),
+          avatar: Icon(Icons.add_rounded, size: 18, color: scheme.primary),
+          label: const Text('Нэмэх'),
+          labelStyle: TextStyle(
+            color: scheme.primary,
+            fontWeight: FontWeight.w700,
+          ),
           onPressed: onAdd,
+          materialTapTargetSize: MaterialTapTargetSize.padded,
           visualDensity: VisualDensity.compact,
+          backgroundColor: scheme.primary.withValues(alpha: 0.1),
+          side: BorderSide(color: scheme.primary.withValues(alpha: 0.5)),
         ),
       ],
     );
@@ -375,6 +738,7 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Хаах',
                     icon: const Icon(Icons.close_rounded),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
@@ -393,6 +757,7 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
                     suffixIcon: _query.isEmpty
                         ? null
                         : IconButton(
+                            tooltip: 'Цэвэрлэх',
                             icon: const Icon(Icons.close_rounded, size: 18),
                             onPressed: () => setState(() => _query = ''),
                           ),
@@ -426,15 +791,12 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
           ),
         );
       case _LoadStatus.error:
-        return _MessageState(
-          icon: Icons.cloud_off_outlined,
-          title: 'Мэдээлэл ачаалсангүй',
-          message: widget.keysError ?? 'Дахин оролдоно уу.',
-          actionLabel: 'Дахин оролдох',
-          onAction: widget.onRetry,
+        return ErrorView(
+          message: widget.keysError ?? 'Мэдээлэл ачаалсангүй.',
+          onRetry: widget.onRetry,
         );
       case _LoadStatus.empty:
-        return const _MessageState(
+        return const EmptyView(
           icon: Icons.build_outlined,
           title: 'Ажлын төрөл алга байна',
           message: 'Одоогоор сонгох ажлын төрөл бүртгэгдээгүй байна.',
@@ -442,7 +804,7 @@ class _CategoryPickerSheetState extends State<_CategoryPickerSheet> {
       case _LoadStatus.data:
         final filtered = _filtered;
         if (filtered.isEmpty) {
-          return _MessageState(
+          return EmptyView(
             icon: Icons.search_off,
             title: 'Олдсонгүй',
             message: '"$_query" гэсэн ажлын төрөл олдсонгүй.',
@@ -486,7 +848,7 @@ class _ApplyBar extends StatelessWidget {
       child: FilledButton(
         key: const ValueKey('service-key-apply'),
         onPressed: onApply,
-        child: Text(count > 0 ? 'Хэрэглэх ($count)' : 'Хэрэглэх'),
+        child: Text(count > 0 ? 'Хэрэглэх ($count)' : 'Сонголтыг цэвэрлэх'),
       ),
     ),
   );
@@ -506,141 +868,47 @@ class _ServiceKeyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return GlassSurface(
-      padding: EdgeInsets.zero,
-      child: InkWell(
-        key: ValueKey('service-key-${serviceKey.id}'),
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => onChanged(!selected),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-          child: Row(
-            children: [
-              Icon(
-                Icons.build_circle_outlined,
-                color: selected ? scheme.primary : scheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Text(
-                  serviceKey.name,
-                  style: const TextStyle(fontWeight: FontWeight.w600),
-                ),
-              ),
-              Checkbox(
-                value: selected,
-                onChanged: (value) => onChanged(value ?? false),
-              ),
-            ],
-          ),
+    final radius = BorderRadius.circular(AppRadii.large);
+    // Selected rows get a tinted surface and accent border so picks stand
+    // out when scanning a long list; the checkbox alone was too faint.
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      decoration: BoxDecoration(
+        borderRadius: radius,
+        color: selected ? scheme.primary.withValues(alpha: 0.1) : null,
+        border: Border.all(
+          color: selected
+              ? scheme.primary.withValues(alpha: 0.6)
+              : Colors.transparent,
         ),
       ),
-    );
-  }
-}
-
-class _BranchResultCard extends StatelessWidget {
-  const _BranchResultCard({
-    required this.organization,
-    required this.branch,
-    required this.onTap,
-  });
-
-  final Organization organization;
-  final Branch branch;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return GlassSurface(
-      padding: EdgeInsets.zero,
-      child: InkWell(
-        key: ValueKey('service-key-result-${branch.id}'),
-        borderRadius: BorderRadius.circular(16),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 12, 14),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  organization.name.isEmpty
-                      ? '?'
-                      : organization.name.characters.first.toUpperCase(),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: scheme.primary,
+      child: GlassSurface(
+        padding: EdgeInsets.zero,
+        child: InkWell(
+          key: ValueKey('service-key-${serviceKey.id}'),
+          borderRadius: radius,
+          onTap: () => onChanged(!selected),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 8, 6),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    serviceKey.name,
+                    style: TextStyle(
+                      fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      branch.name,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      organization.name,
-                      style: TextStyle(
-                        color: scheme.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
+                Checkbox(
+                  value: selected,
+                  onChanged: (value) => onChanged(value ?? false),
                 ),
-              ),
-              const Icon(Icons.chevron_right_rounded),
-            ],
+              ],
+            ),
           ),
         ),
       ),
     );
   }
-}
-
-class _MessageState extends StatelessWidget {
-  const _MessageState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(32),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 16),
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Text(message, textAlign: TextAlign.center),
-        if (actionLabel != null && onAction != null) ...[
-          const SizedBox(height: 18),
-          FilledButton(onPressed: onAction, child: Text(actionLabel!)),
-        ],
-      ],
-    ),
-  );
 }

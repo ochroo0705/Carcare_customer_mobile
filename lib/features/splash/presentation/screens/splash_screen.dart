@@ -47,11 +47,16 @@ class _Wordmark extends StatelessWidget {
         decoration: TextDecoration.none,
       ),
       children: [
-        const TextSpan(text: 'Car', style: TextStyle(color: AppColors.accent)),
+        TextSpan(
+          text: 'Car',
+          style: TextStyle(
+            color: dark ? AppColors.accent : AppColors.accentLightText,
+          ),
+        ),
         TextSpan(
           text: 'service',
           style: TextStyle(
-            color: dark ? Colors.white : const Color(0xFF3A342B),
+            color: dark ? Colors.white : AppColors.lightText,
           ),
         ),
       ],

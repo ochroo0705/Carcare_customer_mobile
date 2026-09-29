@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/history/domain/diagnostic_report_summary.dart';
 import 'package:flutter/material.dart';
 
@@ -21,7 +22,7 @@ class DiagnosticReportRow extends StatelessWidget {
         : date;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(AppRadii.medium),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(

@@ -11,6 +11,7 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/controll
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_card.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_filter_panel.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/location_permission_banner.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/device_location_service.dart';
@@ -279,7 +280,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                     margin: const EdgeInsets.only(bottom: 14),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(99),
+                      borderRadius: BorderRadius.circular(AppRadii.pill),
                     ),
                   ),
                 ),
@@ -596,65 +597,69 @@ class _FiltersPanel extends StatelessWidget {
 
   final DiscoveryController controller;
 
+  Future<void> _toggleNearMe(BuildContext context, bool selected) async {
+    // Optimistic: chip тэр даруй сонгогдоно; байршил авч чадаагүй бол буцна.
+    final ok = await controller.setNearMe(
+      selected,
+      locate: selected
+          ? () async {
+              final location = await const GeolocatorDeviceLocationService()
+                  .current();
+              return location == null
+                  ? null
+                  : (lat: location.lat, lng: location.lng);
+            }
+          : null,
+    );
+    if (!ok && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Байршлыг авч чадсангүй. Байршлын зөвшөөрөл, тохиргоогоо шалгана уу.',
+          ),
+        ),
+      );
+    }
+  }
+
+  // controller.cities/districts одоо сүүлийн ШҮҮЛТГҮЙ каталогоос тооцогддог
+  // тул идэвхтэй сервер шүүлт 0 илэрцтэй болсон ч хоосрохгүй. Chip мөрийг
+  // `hasCatalog`-оор харуулдаг нь шүүлтийг унтраах үед reload дуустал мөр
+  // алга болохоос сэргийлнэ (дэлгэрэнгүйг DiscoveryController.hasCatalog).
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      // controller.cities/districts одоо сүүлийн ШҮҮЛТГҮЙ каталогоос
-      // тооцогддог тул идэвхтэй сервер шүүлт 0 илэрцтэй болсон ч хоосрохгүй
-      // — гэхдээ анхны ачаалалт өмнө (өгөгдөл огт ирээгүй) хоёуланг нь
-      // шалгасаар байна.
-      if (controller.cities.isNotEmpty) ...[
-        Row(
-          children: [
-            Expanded(
-              child: _LocationFilter(
-                value: controller.city,
-                hint: 'Хот / аймаг',
-                icon: Icons.location_city_outlined,
-                values: controller.cities,
-                onChanged: controller.setCity,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _LocationFilter(
-                value: controller.district,
-                hint: 'Дүүрэг / сум',
-                icon: Icons.place_outlined,
-                values: controller.districts,
-                onChanged: controller.setDistrict,
-              ),
-            ),
-          ],
+  Widget build(BuildContext context) => BranchFilterPanel(
+    city: controller.city,
+    district: controller.district,
+    cities: controller.cities,
+    districts: controller.districts,
+    onCityChanged: controller.setCity,
+    onDistrictChanged: controller.setDistrict,
+    tag: controller.tag,
+    tagOptions: controller.tagOptions,
+    onTagChanged: (id, name) => controller.setTag(id, name: name),
+    nearMe: controller.nearMe,
+    openNow: controller.openNow,
+    weekend: controller.weekend,
+    nearMePending: controller.nearMePending,
+    openNowPending: controller.openNowPending,
+    weekendPending: controller.weekendPending,
+    onNearMeChanged: (selected) => _toggleNearMe(context, selected),
+    onOpenNowChanged: controller.setOpenNow,
+    onWeekendChanged: controller.setWeekend,
+    showChips: controller.hasCatalog || controller.hasActiveFilters,
+    leadingChips: [
+      if (controller.serviceKey.isNotEmpty)
+        InputChip(
+          key: const ValueKey('discovery-service-key-chip'),
+          label: Text(
+            controller.serviceKeyName.isEmpty
+                ? 'Сонгосон ажил'
+                : controller.serviceKeyName,
+          ),
+          avatar: const Icon(Icons.build_outlined, size: 18),
+          onDeleted: () => controller.setServiceKey(''),
+          deleteButtonTooltipMessage: 'Хасах',
         ),
-      ],
-      // Бизнесийн төрлийн шошго (жиш: "Угаалгын газар") — олон болоход
-      // хэвтээ chip мөр хэт өргөсдөг тул dropdown болгов (нэг дор зөвхөн
-      // нэг сонголт хэвээр, харах: DiscoveryController.setTag).
-      // Ачаалагдаагүй/хоосон үед юу ч харуулахгүй.
-      if (controller.tagOptions.isNotEmpty) ...[
-        const SizedBox(height: 10),
-        _TagFilter(
-          value: controller.tag,
-          options: controller.tagOptions,
-          onChanged: (id, name) => controller.setTag(id, name: name),
-        ),
-      ],
-      // Сервер шүүлтийн chip-үүд (ойролцоо/одоо нээлттэй/амралтын өдөр) нь
-      // одоогийн үр дүнгээс ХАРААТГҮЙ — идэвхтэй шүүлт байвал (тэр байтугай
-      // 0 илэрцтэй үед ч) харагдаж байх ёстой, эс бөгөөс хэрэглэгч буцааж
-      // унтраах товчгүй үлдэнэ. `state.organizations` биш
-      // `controller.hasCatalog` ашигласан нь чухал: шүүлтийг унтраахад
-      // `load()` шинэ хариу авах хүртэл `state.organizations` өмнөх (0
-      // байсан) утгаараа "loading" төлөвт хадгалагдсан хэвээр байдаг тул
-      // унтраасан даруйдаа chip мөр түр зуур бүр алга болдог байсан
-      // (`hasActiveFilters` мөн шууд false болчихсон учир хоёулаа false
-      // болно) — `hasCatalog` нь сүүлийн шүүлтгүй ачаалалтаас тооцогддог
-      // тул reload-ын үед өөрчлөгддөггүй.
-      if (controller.hasCatalog || controller.hasActiveFilters) ...[
-        const SizedBox(height: 8),
-        _ServerFilterChips(controller: controller),
-      ],
     ],
   );
 }
@@ -753,8 +758,8 @@ class _RoundMapButton extends StatelessWidget {
       customBorder: const CircleBorder(),
       onTap: onPressed,
       child: SizedBox(
-        width: 44,
-        height: 44,
+        width: 48,
+        height: 48,
         child: Center(
           child: Badge(
             isLabelVisible: badgeCount > 0,
@@ -780,7 +785,7 @@ class _MapZoomButtonGroup extends StatelessWidget {
     return Material(
       color: scheme.surface,
       elevation: 4,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: BorderRadius.circular(AppRadii.extraLarge),
       clipBehavior: Clip.antiAlias,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -789,8 +794,8 @@ class _MapZoomButtonGroup extends StatelessWidget {
             key: const ValueKey('discovery-map-zoom-in'),
             onTap: () => mapKey.currentState?.zoomIn(),
             child: const SizedBox(
-              width: 44,
-              height: 40,
+              width: 48,
+              height: 48,
               child: Center(child: Icon(Icons.add, size: 20)),
             ),
           ),
@@ -799,8 +804,8 @@ class _MapZoomButtonGroup extends StatelessWidget {
             key: const ValueKey('discovery-map-zoom-out'),
             onTap: () => mapKey.currentState?.zoomOut(),
             child: const SizedBox(
-              width: 44,
-              height: 40,
+              width: 48,
+              height: 48,
               child: Center(child: Icon(Icons.remove, size: 20)),
             ),
           ),
@@ -868,113 +873,6 @@ class _CompactDiscoveryBar extends StatelessWidget {
   );
 }
 
-class _LocationFilter extends StatelessWidget {
-  const _LocationFilter({
-    required this.value,
-    required this.hint,
-    required this.icon,
-    required this.values,
-    required this.onChanged,
-  });
-
-  final String value;
-  final String hint;
-  final IconData icon;
-  final List<String> values;
-  final ValueChanged<String?> onChanged;
-
-  @override
-  Widget build(BuildContext context) => DropdownButtonFormField<String>(
-    initialValue: value,
-    isExpanded: true,
-    decoration: InputDecoration(
-      prefixIcon: Icon(icon, size: 19),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-    ),
-    hint: Text(hint, maxLines: 1, overflow: TextOverflow.ellipsis),
-    items: [
-      // `hint` дээрх зорилготой ижил текст — `value` хоосон ('') үед `hint`
-      // widget биш яг ЭНЭ item-ийн текст харагддаг (DropdownButtonFormField-
-      // ийн зан төлөв: `initialValue`-д тохирох item байвал үргэлж түүнийг
-      // харуулна, `hint`-ийг зөвхөн утга null үед ашиглана). "Бүгд" гэсэн
-      // ерөнхий үг оронд аль шүүлтүүр вэ (Хот, Дүүрэг г.м.) гэдгийг харуулж,
-      // ялгаагүй гурван dropdown "Бүгд" гэж харагдахаас сэргийлнэ.
-      DropdownMenuItem(
-        value: '',
-        child: Text(hint, maxLines: 1, overflow: TextOverflow.ellipsis),
-      ),
-      ...values.map(
-        (value) => DropdownMenuItem(
-          value: value,
-          child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
-        ),
-      ),
-    ],
-    onChanged: onChanged,
-  );
-}
-
-/// Бизнесийн төрлийн шошгын (жиш: "Угаалгын газар") сонголт — `_LocationFilter`-
-/// тэй ижил dropdown хэлбэр, гагцхүү утга нь id/нэр хос (`BranchTagOption`)
-/// тул сонгоход нэрийг нь давхар дамжуулна (`DiscoveryController.setTag`-д
-/// шаардлагатай, дэлгэц/chip дээр харуулах нэрийг тусад нь хадгалдаг тул).
-class _TagFilter extends StatelessWidget {
-  const _TagFilter({
-    required this.value,
-    required this.options,
-    required this.onChanged,
-  });
-
-  final String value;
-  final List<BranchTagOption> options;
-  final void Function(String id, String name) onChanged;
-
-  @override
-  Widget build(BuildContext context) => DropdownButtonFormField<String>(
-    initialValue: value,
-    isExpanded: true,
-    decoration: const InputDecoration(
-      prefixIcon: Icon(Icons.sell_outlined, size: 19),
-      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-    ),
-    hint: const Text(
-      'Салбарын төрөл',
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    ),
-    items: [
-      const DropdownMenuItem(
-        value: '',
-        child: Text(
-          'Салбарын төрөл',
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ),
-      ...options.map(
-        (option) => DropdownMenuItem(
-          value: option.id,
-          child: Text(
-            option.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ),
-    ],
-    onChanged: (id) {
-      if (id == null) return;
-      final name = options
-          .firstWhere(
-            (o) => o.id == id,
-            orElse: () => const BranchTagOption(id: '', name: ''),
-          )
-          .name;
-      onChanged(id, name);
-    },
-  );
-}
-
 class _AmbientOrb extends StatelessWidget {
   const _AmbientOrb({required this.color, this.size = 150});
 
@@ -1023,96 +921,4 @@ class _MessageState extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// Booking v2 — серверийн "ойролцоо" / "одоо нээлттэй" шүүлтийн toggle-ууд.
-class _ServerFilterChips extends StatelessWidget {
-  const _ServerFilterChips({required this.controller});
-
-  final DiscoveryController controller;
-
-  Future<void> _toggleNearMe(BuildContext context, bool selected) async {
-    // Optimistic: chip тэр даруй сонгогдоно; байршил авч чадаагүй бол буцна.
-    final ok = await controller.setNearMe(
-      selected,
-      locate: selected
-          ? () async {
-              final location = await const GeolocatorDeviceLocationService()
-                  .current();
-              return location == null
-                  ? null
-                  : (lat: location.lat, lng: location.lng);
-            }
-          : null,
-    );
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Байршлыг авч чадсангүй. Байршлын зөвшөөрөл, тохиргоогоо шалгана уу.',
-          ),
-        ),
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // 3 chip-тэй болсноор нарийн дэлгэц дээр Row дүүрч болзошгүй тул Wrap
-    // ашиглав — багтахгүй бол дараагийн chip доод мөрөнд бүрэн харагдана,
-    // хэрэглэгч анзаарахгүй өнгөрч болзошгүй хэвтээ гүйдлээс илүү.
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        if (controller.serviceKey.isNotEmpty)
-          InputChip(
-            key: const ValueKey('discovery-service-key-chip'),
-            label: Text(
-              controller.serviceKeyName.isEmpty
-                  ? 'Сонгосон ажил'
-                  : controller.serviceKeyName,
-            ),
-            avatar: const Icon(Icons.build_outlined, size: 18),
-            onDeleted: () => controller.setServiceKey(''),
-          ),
-        FilterChip(
-          label: const Text('Ойролцоо'),
-          avatar: _chipAvatar(
-            Icons.near_me_outlined,
-            pending: controller.nearMePending,
-          ),
-          selected: controller.nearMe,
-          onSelected: (selected) => _toggleNearMe(context, selected),
-        ),
-        FilterChip(
-          label: const Text('Одоо нээлттэй'),
-          avatar: _chipAvatar(
-            Icons.schedule_outlined,
-            pending: controller.openNowPending,
-          ),
-          selected: controller.openNow,
-          onSelected: controller.setOpenNow,
-        ),
-        FilterChip(
-          label: const Text('Амралтын өдөр ажилладаг'),
-          avatar: _chipAvatar(
-            Icons.weekend_outlined,
-            pending: controller.weekendPending,
-          ),
-          selected: controller.weekend,
-          onSelected: controller.setWeekend,
-        ),
-      ],
-    );
-  }
-
-  Widget _chipAvatar(IconData icon, {required bool pending}) {
-    if (!pending) return Icon(icon, size: 18);
-    return const SizedBox(
-      width: 16,
-      height: 16,
-      child: CircularProgressIndicator(strokeWidth: 2),
-    );
-  }
 }

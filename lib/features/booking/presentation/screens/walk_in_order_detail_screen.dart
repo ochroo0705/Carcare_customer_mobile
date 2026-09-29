@@ -132,9 +132,8 @@ class _NotFound extends StatelessWidget {
           const SizedBox(height: 16),
           Text(
             'Захиалга олдсонгүй',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            style: Theme.of(context).textTheme.titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 16),
           OutlinedButton(onPressed: onBack, child: const Text('Буцах')),

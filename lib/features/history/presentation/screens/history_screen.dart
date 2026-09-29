@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/core/widgets/coming_soon_view.dart';
 import 'package:carcare_customer_mobile/core/widgets/animations.dart';
@@ -16,6 +17,7 @@ import 'package:carcare_customer_mobile/features/history/presentation/format_amo
 import 'package:carcare_customer_mobile/features/history/presentation/widgets/service_order_status_chip.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:carcare_customer_mobile/core/widgets/state_views.dart';
 
 class HistoryScreen extends StatelessWidget {
   const HistoryScreen({
@@ -222,11 +224,16 @@ class _AppointmentHistoryTab extends StatelessWidget {
               label: 'Түүхийг ачаалж байна',
               child: const SkeletonCardList(showTrailing: true),
             ),
-            HistoryStatus.error => _ErrorView(
+            HistoryStatus.error => ErrorView(
               message: state.message ?? 'Тодорхойгүй алдаа гарлаа.',
               onRetry: controller.load,
+              retryKey: const ValueKey('history-retry'),
             ),
-            HistoryStatus.empty => const _EmptyHistory(),
+            HistoryStatus.empty => const EmptyView(
+              icon: Icons.receipt_long_outlined,
+              title: 'Засварын түүх алга',
+              message: 'Үйлчилгээ авсны дараа энд харагдана.',
+            ),
             HistoryStatus.unavailable => const ComingSoonView(
               icon: Icons.receipt_long_outlined,
               title: 'Тун удахгүй',
@@ -241,78 +248,6 @@ class _AppointmentHistoryTab extends StatelessWidget {
       ],
     );
   }
-}
-
-class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
-
-  final String message;
-  final Future<void> Function() onRetry;
-
-  @override
-  Widget build(BuildContext context) => Semantics(
-    container: true,
-    liveRegion: true,
-    label: message,
-    child: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.error_outline_rounded,
-              size: 52,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            const SizedBox(height: 16),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            OutlinedButton(
-              key: const ValueKey('history-retry'),
-              onPressed: onRetry,
-              child: const Text('Дахин оролдох'),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-class _EmptyHistory extends StatelessWidget {
-  const _EmptyHistory();
-
-  @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.receipt_long_outlined,
-            size: 58,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-          const SizedBox(height: 18),
-          Text(
-            'Засварын түүх алга',
-            style: Theme.of(context).textTheme.titleLarge
-                ?.copyWith(fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Үйлчилгээ авсны дараа энд харагдана.',
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 class _HistoryList extends StatefulWidget {
@@ -510,7 +445,7 @@ class _OrderCard extends StatelessWidget {
   Widget build(BuildContext context) => InkWell(
     key: ValueKey('history-order-${order.id}'),
     onTap: onTap,
-    borderRadius: BorderRadius.circular(20),
+    borderRadius: BorderRadius.circular(AppRadii.extraLarge),
     child: GlassSurface(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

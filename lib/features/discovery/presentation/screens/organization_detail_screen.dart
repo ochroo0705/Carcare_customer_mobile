@@ -10,6 +10,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:carcare_customer_mobile/core/widgets/state_views.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/branch_open_style.dart';
 
 class OrganizationDetailScreen extends StatelessWidget {
   const OrganizationDetailScreen({
@@ -206,7 +208,9 @@ class _OrganizationHero extends StatelessWidget {
                                   key: ValueKey(
                                     'detail-copy-phone-${organization.slug}',
                                   ),
-                                  borderRadius: BorderRadius.circular(99),
+                                  borderRadius: BorderRadius.circular(
+                                    AppRadii.pill,
+                                  ),
                                   onTap: () async {
                                     await Clipboard.setData(
                                       ClipboardData(text: organization.phone!),
@@ -472,8 +476,8 @@ class _HoursDisclosureState extends State<_HoursDisclosure> {
     // a full-width tinted/bordered toggle whose bottom corners square off
     // when open, directly attached to a panel of the same tint below it.
     final toggleRadius = _expanded
-        ? const BorderRadius.vertical(top: Radius.circular(14))
-        : BorderRadius.circular(14);
+        ? const BorderRadius.vertical(top: Radius.circular(AppRadii.medium))
+        : BorderRadius.circular(AppRadii.medium);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -502,11 +506,8 @@ class _HoursDisclosureState extends State<_HoursDisclosure> {
                 children: [
                   Text(
                     'Бүтэн долоо хоногийн хуваарь',
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: color, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(width: 6),
                   AnimatedRotation(
@@ -530,7 +531,7 @@ class _HoursDisclosureState extends State<_HoursDisclosure> {
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.05),
               borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(14),
+                bottom: Radius.circular(AppRadii.medium),
               ),
               border: Border(
                 left: BorderSide(color: color.withValues(alpha: 0.3)),
@@ -708,7 +709,7 @@ class _CategoryChipRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.09),
-              borderRadius: BorderRadius.circular(99),
+              borderRadius: BorderRadius.circular(AppRadii.pill),
               border: Border.all(color: color.withValues(alpha: 0.16)),
             ),
             child: Text(
@@ -741,13 +742,17 @@ class _InfoPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
         border: Border.all(color: color.withValues(alpha: 0.16)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: color),
+          Icon(
+            icon,
+            size: 14,
+            color: AppColors.readable(color, Theme.of(context).brightness),
+          ),
           const SizedBox(width: 5),
           Text(label, style: Theme.of(context).textTheme.labelSmall),
         ],
@@ -763,18 +768,12 @@ class _OpenBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = switch (status) {
-      BranchOpenStatus.open => AppColors.green,
-      BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
-      BranchOpenStatus.unknown => Theme.of(
-        context,
-      ).colorScheme.onSurfaceVariant,
-    };
+    final color = branchOpenColor(status, context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: BorderRadius.circular(AppRadii.pill),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
@@ -788,8 +787,9 @@ class _OpenBadge extends StatelessWidget {
               BranchOpenStatus.closed => 'Хаалттай',
               BranchOpenStatus.unknown => 'Төлөв тодорхойгүй',
             },
-            style: Theme.of(context).textTheme.labelSmall
-                ?.copyWith(color: color),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: AppColors.readable(color, Theme.of(context).brightness),
+            ),
           ),
         ],
       ),
@@ -807,13 +807,7 @@ class _StatusDot extends StatelessWidget {
     width: 8,
     height: 8,
     decoration: BoxDecoration(
-      color: switch (status) {
-        BranchOpenStatus.open => AppColors.green,
-        BranchOpenStatus.closed => Theme.of(context).colorScheme.error,
-        BranchOpenStatus.unknown => Theme.of(
-          context,
-        ).colorScheme.onSurfaceVariant,
-      },
+      color: branchOpenColor(status, context),
       shape: BoxShape.circle,
     ),
   );
@@ -901,19 +895,6 @@ class OrganizationLoadError extends StatelessWidget {
   final VoidCallback onRetry;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(32),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.cloud_off_outlined, size: 48),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 16),
-          FilledButton(onPressed: onRetry, child: const Text('Дахин оролдох')),
-        ],
-      ),
-    ),
-  );
+  Widget build(BuildContext context) =>
+      ErrorView(message: message, onRetry: onRetry);
 }

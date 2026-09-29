@@ -102,7 +102,7 @@ void main() {
           .style
           ?.foregroundColor
           ?.resolve(<WidgetState>{}),
-      AppColors.red,
+      AppColors.readable(AppColors.red, Brightness.light),
     );
     await tester.tap(cancelButton);
     await tester.pumpAndSettle();

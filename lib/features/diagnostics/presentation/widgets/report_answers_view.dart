@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/app_surfaces.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/report_severity.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/template_schema.dart';
@@ -105,13 +106,18 @@ class _SectionCard extends StatelessWidget {
       return matches(data.entryFor(item.id), item.type);
     }
     return positions.any(
-      (pos) => matches(data.entryFor(positionedKey(item.id, pos.code)), item.type),
+      (pos) =>
+          matches(data.entryFor(positionedKey(item.id, pos.code)), item.type),
     );
   }
 }
 
 class _ItemView extends StatelessWidget {
-  const _ItemView({required this.item, required this.data, required this.matches});
+  const _ItemView({
+    required this.item,
+    required this.data,
+    required this.matches,
+  });
 
   final TemplateItem item;
   final ReportData data;
@@ -121,16 +127,20 @@ class _ItemView extends StatelessWidget {
   Widget build(BuildContext context) {
     final positions = item.positions;
     final visiblePositions = positions
-        ?.where((pos) => matches(data.entryFor(positionedKey(item.id, pos.code)), item.type))
+        ?.where(
+          (pos) => matches(
+            data.entryFor(positionedKey(item.id, pos.code)),
+            item.type,
+          ),
+        )
         .toList(growable: false);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           item.label,
-          style: Theme.of(
-            context,
-          ).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: Theme.of(context).textTheme.bodySmall
+              ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
         const SizedBox(height: 6),
         if (visiblePositions != null)
@@ -185,7 +195,7 @@ class _EntryView extends StatelessWidget {
             children: [
               for (final photo in entry.photos)
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(AppRadii.medium),
                   child: Image.network(
                     photo,
                     width: 84,
@@ -199,8 +209,13 @@ class _EntryView extends StatelessWidget {
         if (itemType == 'signature' && value is String && value.isNotEmpty) ...[
           const SizedBox(height: 6),
           ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: Image.network(value, width: 180, height: 90, fit: BoxFit.contain),
+            borderRadius: BorderRadius.circular(AppRadii.medium),
+            child: Image.network(
+              value,
+              width: 180,
+              height: 90,
+              fit: BoxFit.contain,
+            ),
           ),
         ],
         if (entry.note != null && entry.note!.trim().isNotEmpty) ...[
@@ -231,7 +246,8 @@ class _EntryView extends StatelessWidget {
     }
     return Text(
       value.toString(),
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+      style: Theme.of(context).textTheme.bodyMedium
+          ?.copyWith(fontWeight: FontWeight.w600),
     );
   }
 }

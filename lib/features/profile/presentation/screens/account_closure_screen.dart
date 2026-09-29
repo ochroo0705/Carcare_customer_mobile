@@ -5,6 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+final _destructiveStyle = FilledButton.styleFrom(
+  backgroundColor: AppColors.red,
+  foregroundColor: Colors.white,
+);
+
 /// Self-service account closure: deactivate (reversible by logging back in)
 /// or delete forever (anonymize, irreversible). Both require an OTP sent to
 /// the account's own phone (see `AuthController.requestClosureOtp` /
@@ -104,10 +109,7 @@ class _AccountClosureScreenState extends State<AccountClosureScreen> {
               child: const Text('Үгүй'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.red,
-                foregroundColor: Colors.white,
-              ),
+              style: _destructiveStyle,
               onPressed: () => Navigator.of(context).pop(true),
               child: const Text('Тийм, устгах'),
             ),
@@ -263,12 +265,7 @@ class _ClosureStep extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                style: _delete
-                    ? FilledButton.styleFrom(
-                        backgroundColor: AppColors.red,
-                        foregroundColor: Colors.white,
-                      )
-                    : null,
+                style: _delete ? _destructiveStyle : null,
                 onPressed: isBusy ? null : onRequestOtp,
                 child: isBusy
                     ? const SizedBox.square(
@@ -286,11 +283,8 @@ class _ClosureStep extends StatelessWidget {
               keyboardType: TextInputType.number,
               textAlign: TextAlign.center,
               autofillHints: const [AutofillHints.oneTimeCode],
-              style: const TextStyle(
-                fontSize: 20,
-                letterSpacing: 8,
-                fontWeight: FontWeight.w700,
-              ),
+              style: Theme.of(context).textTheme.titleLarge
+                  ?.copyWith(letterSpacing: 8, fontWeight: FontWeight.w700),
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
                 LengthLimitingTextInputFormatter(6),
@@ -308,12 +302,7 @@ class _ClosureStep extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                style: _delete
-                    ? FilledButton.styleFrom(
-                        backgroundColor: AppColors.red,
-                        foregroundColor: Colors.white,
-                      )
-                    : null,
+                style: _delete ? _destructiveStyle : null,
                 onPressed: isBusy ? null : onConfirm,
                 child: isBusy
                     ? const SizedBox.square(

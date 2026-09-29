@@ -1,3 +1,4 @@
+import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
 import 'package:flutter/material.dart';
 
@@ -40,7 +41,7 @@ class LocationPermissionBanner extends StatelessWidget {
       child: Material(
         color: Theme.of(context).colorScheme.surface,
         elevation: 5,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(AppRadii.medium),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
           child: largeText
