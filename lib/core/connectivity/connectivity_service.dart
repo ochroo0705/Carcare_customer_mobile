@@ -1,7 +1,7 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 /// Reports whether the device currently has network connectivity, injectable
-/// so `CustomerRouterDelegate` (and the widget tests that construct
+/// so `CustomerAppServices` (and the widget tests that construct
 /// `CarCareCustomerApp` directly, bypassing `main()`) never touch the real
 /// `connectivity_plus` platform channel unless explicitly given a
 /// [PlatformConnectivityService] — mirrors [RemotePushService]'s pattern.

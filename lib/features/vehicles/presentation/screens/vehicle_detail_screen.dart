@@ -15,7 +15,7 @@ import 'package:provider/provider.dart';
 /// only the vehicle's id.
 ///
 /// It used to take the vehicle, its appointments, its orders and two loading
-/// flags as constructor arguments, which meant `CustomerRouterDelegate` had to
+/// flags as constructor arguments, which meant the old router delegate had to
 /// listen to three controllers and rebuild the **entire** page stack whenever
 /// any of them changed — every tab, on every appointment reload. Reading them
 /// here confines that rebuild to this page. Same pattern as

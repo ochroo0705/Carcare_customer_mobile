@@ -3,7 +3,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
 /// Thin wrapper around `FirebaseMessaging.instance`, injectable so
-/// `CustomerRouterDelegate` (and the widget tests that construct
+/// `CustomerAppServices` (and the widget tests that construct
 /// `CarCareCustomerApp` directly, bypassing `main()`/`Firebase.initializeApp()`)
 /// never touch the real plugin unless explicitly given a
 /// [FirebaseRemotePushService].

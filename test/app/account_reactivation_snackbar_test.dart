@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Covers `AppRouter._onAuthChanged` (`lib/app/router.dart`) — the one-time
+/// Covers `CustomerAppServices._onAuthChanged` (`lib/app/customer_app_services.dart`) — the one-time
 /// "Бүртгэл тань сэргээгдлээ" SnackBar shown right after a sign-in whose
 /// `verifyOtp` reported the server's `reactivated` flag, and the flag being
 /// reset so it can never fire twice for the same sign-in.

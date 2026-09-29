@@ -127,6 +127,7 @@ class _AccountClosureScreenState extends State<AccountClosureScreen> {
       if (onClosed != null) {
         onClosed();
       } else {
+        // Only reached when embedded without a router callback (tests).
         Navigator.of(context).popUntil((route) => route.isFirst);
       }
     }

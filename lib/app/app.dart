@@ -1,4 +1,6 @@
-import 'package:carcare_customer_mobile/app/router.dart';
+import 'package:carcare_customer_mobile/app/customer_app_services.dart';
+import 'package:carcare_customer_mobile/app/customer_navigation.dart';
+import 'package:carcare_customer_mobile/app/customer_router.dart';
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/app/theme/theme_controller.dart';
 import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
@@ -23,6 +25,7 @@ import 'package:carcare_customer_mobile/features/splash/presentation/splash_gate
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class CarCareCustomerApp extends StatefulWidget {
@@ -73,30 +76,37 @@ class CarCareCustomerApp extends StatefulWidget {
 }
 
 class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
-  late final CustomerRouterDelegate _routerDelegate;
+  late final CustomerAppServices _services;
+  late final CustomerNavigation _navigation;
+  late final GoRouter _router;
   late final ThemeController _themeController;
-  final _parser = CustomerRouteInformationParser();
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
 
   @override
   void initState() {
     super.initState();
     _themeController = ThemeController()..addListener(_onThemeChanged);
     _themeController.load();
-    _routerDelegate = CustomerRouterDelegate(
-      widget.organizationRepository,
-      _themeController,
-      widget.authRepository,
-      widget.appointmentRepository,
-      widget.vehicleRepository,
-      widget.historyRepository,
-      widget.diagnosticsRepository,
-      widget.notificationsRepository,
-      widget.deviceRepository,
-      widget.remotePushService,
-      widget.deviceIdStore,
-      widget.connectivityService,
-      widget.cacheStore,
+    _services = CustomerAppServices(
+      organizationRepository: widget.organizationRepository,
+      authRepository: widget.authRepository,
+      appointmentRepository: widget.appointmentRepository,
+      vehicleRepository: widget.vehicleRepository,
+      historyRepository: widget.historyRepository,
+      diagnosticsRepository: widget.diagnosticsRepository,
+      notificationsRepository: widget.notificationsRepository,
+      deviceRepository: widget.deviceRepository,
+      remotePushService: widget.remotePushService,
+      deviceIdStore: widget.deviceIdStore,
+      connectivityService: widget.connectivityService,
+      cacheStore: widget.cacheStore,
     );
+    _services.showMessage = (m) =>
+        _messengerKey.currentState?.showSnackBar(SnackBar(content: Text(m)));
+    _navigation = CustomerNavigation(_services);
+    _router = buildCustomerRouter(_services, _navigation);
+    _navigation.router = _router;
+    _services.onNotificationTap = _navigation.openFromPush;
   }
 
   void _onThemeChanged() => setState(() {});
@@ -106,7 +116,8 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
     _themeController
       ..removeListener(_onThemeChanged)
       ..dispose();
-    _routerDelegate.dispose();
+    _router.dispose();
+    _services.dispose();
     super.dispose();
   }
 
@@ -114,19 +125,15 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
   Widget build(BuildContext context) => MultiProvider(
     providers: [
       ChangeNotifierProvider.value(value: _themeController),
-      ChangeNotifierProvider.value(value: _routerDelegate.discoveryController),
+      ChangeNotifierProvider.value(value: _services.discoveryController),
       ChangeNotifierProvider.value(
-        value: _routerDelegate.organizationDetailController,
+        value: _services.organizationDetailController,
       ),
-      ChangeNotifierProvider.value(value: _routerDelegate.authController),
-      ChangeNotifierProvider.value(
-        value: _routerDelegate.appointmentsController,
-      ),
-      ChangeNotifierProvider.value(value: _routerDelegate.vehiclesController),
-      ChangeNotifierProvider.value(value: _routerDelegate.historyController),
-      ChangeNotifierProvider.value(
-        value: _routerDelegate.notificationsController,
-      ),
+      ChangeNotifierProvider.value(value: _services.authController),
+      ChangeNotifierProvider.value(value: _services.appointmentsController),
+      ChangeNotifierProvider.value(value: _services.vehiclesController),
+      ChangeNotifierProvider.value(value: _services.historyController),
+      ChangeNotifierProvider.value(value: _services.notificationsController),
     ],
     child: MaterialApp.router(
       title: 'Carservice',
@@ -134,11 +141,11 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: _themeController.mode,
-      routerDelegate: _routerDelegate,
-      routeInformationParser: _parser,
+      scaffoldMessengerKey: _messengerKey,
+      routerConfig: _router,
       builder: (context, child) => SplashGate(
         child: OnboardingGate(
-          onRequestLogin: _routerDelegate.requestLogin,
+          onRequestLogin: _navigation.requestLogin,
           child: child ?? const SizedBox.shrink(),
         ),
       ),
