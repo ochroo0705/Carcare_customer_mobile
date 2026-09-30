@@ -90,7 +90,10 @@ class DiagnosticsController extends ChangeNotifier {
           page: append ? _pagination.page + 1 : 1,
         ),
       );
-      if (generation != _generation) return;
+      if (generation != _generation) {
+        _isLoadingMore = false;
+        return;
+      }
       _message = null;
       _resultsStale = false;
       _reports = append ? [..._reports, ...result.reports] : result.reports;

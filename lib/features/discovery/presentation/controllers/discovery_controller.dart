@@ -132,6 +132,10 @@ class DiscoveryController extends ChangeNotifier {
   Timer? _queryDebounce;
   Timer? _mapDebounce;
   int _requestGeneration = 0;
+  // True while the organizations on screen came from a successful network
+  // load (not the disk cache). A failed refresh must then keep them rather
+  // than swap them for an older cached copy or an error screen.
+  bool _hasLiveData = false;
   int _mapGeneration = 0;
   String? _mapRequestKey;
   String? _mapInFlightKey;
@@ -468,6 +472,7 @@ class DiscoveryController extends ChangeNotifier {
         pagination: result.pagination,
         facets: result.facets,
       );
+      _hasLiveData = _state.status == DiscoveryStatus.data;
       if (!append) {
         // `state.organizations` gets blanked to `[]` the instant a filter
         // changes (see _invalidateCurrentResults) so a slow, stale response
@@ -506,7 +511,14 @@ class DiscoveryController extends ChangeNotifier {
           loadMoreMessage: failure.message,
         );
       } else {
-        _state = await _fallbackToCache(failure.message);
+        if (_keepLiveData(failure.message)) {
+          notifyListeners();
+          return;
+        }
+        final fallback = await _fallbackToCache(failure.message);
+        if (generation != _requestGeneration) return;
+        _state = fallback;
+        _hasLiveData = false;
       }
     } catch (_) {
       if (generation != _requestGeneration) return;
@@ -519,7 +531,14 @@ class DiscoveryController extends ChangeNotifier {
           loadMoreMessage: 'Тодорхойгүй алдаа гарлаа.',
         );
       } else {
-        _state = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+        if (_keepLiveData('Тодорхойгүй алдаа гарлаа.')) {
+          notifyListeners();
+          return;
+        }
+        final fallback = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+        if (generation != _requestGeneration) return;
+        _state = fallback;
+        _hasLiveData = false;
       }
     }
     notifyListeners();
@@ -686,6 +705,20 @@ class DiscoveryController extends ChangeNotifier {
       if (organization.slug == slug) return organization;
     }
     return null;
+  }
+
+  /// Keeps the live list on screen after a failed refresh; returns false when
+  /// nothing live is showing and the cache/error fallback should apply.
+  bool _keepLiveData(String failureMessage) {
+    if (!_hasLiveData || _state.organizations.isEmpty) return false;
+    _state = DiscoveryState(
+      status: DiscoveryStatus.data,
+      organizations: _state.organizations,
+      pagination: _state.pagination,
+      facets: _state.facets,
+      message: failureMessage,
+    );
+    return true;
   }
 
   Future<DiscoveryState> _fallbackToCache(String failureMessage) async {

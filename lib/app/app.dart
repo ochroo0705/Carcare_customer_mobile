@@ -1,3 +1,6 @@
+import 'package:carcare_customer_mobile/core/notifications/local_push_service.dart';
+import 'package:carcare_customer_mobile/app/app_dependencies.dart';
+import 'package:carcare_customer_mobile/core/widgets/network_status_strip.dart';
 import 'package:carcare_customer_mobile/core/analytics/analytics_service.dart';
 import 'package:carcare_customer_mobile/app/customer_app_services.dart';
 import 'package:carcare_customer_mobile/app/customer_navigation.dart';
@@ -30,6 +33,26 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 class CarCareCustomerApp extends StatefulWidget {
+  /// Production entry point: every dependency comes from the composition root.
+  CarCareCustomerApp.fromDependencies(AppDependencies dependencies, {Key? key})
+    : this(
+        organizationRepository: dependencies.organizationRepository,
+        authRepository: dependencies.authRepository,
+        appointmentRepository: dependencies.appointmentRepository,
+        vehicleRepository: dependencies.vehicleRepository,
+        historyRepository: dependencies.historyRepository,
+        diagnosticsRepository: dependencies.diagnosticsRepository,
+        notificationsRepository: dependencies.notificationsRepository,
+        deviceRepository: dependencies.deviceRepository,
+        remotePushService: dependencies.remotePushService,
+        analytics: dependencies.analytics,
+        connectivityService: dependencies.connectivityService,
+        cacheStore: dependencies.cacheStore,
+        key: key,
+      );
+
+  /// The Fake/Noop defaults below exist for widget tests only; production goes
+  /// through [CarCareCustomerApp.fromDependencies] and passes everything.
   CarCareCustomerApp({
     required this.organizationRepository,
     AuthRepository? authRepository,
@@ -111,6 +134,8 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
     _router = buildCustomerRouter(_services, _navigation);
     _navigation.router = _router;
     _services.onNotificationTap = _navigation.openFromPush;
+    // Local foreground banners route exactly like OS push taps.
+    LocalPushService.instance.onTap = _services.push.handleTap;
   }
 
   void _onThemeChanged() => setState(() {});
@@ -120,6 +145,7 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
     _themeController
       ..removeListener(_onThemeChanged)
       ..dispose();
+    LocalPushService.instance.onTap = null;
     _router.dispose();
     _services.dispose();
     super.dispose();
@@ -151,7 +177,10 @@ class _CarCareCustomerAppState extends State<CarCareCustomerApp> {
         child: OnboardingGate(
           onRequestLogin: _navigation.requestLogin,
           analytics: widget.analytics,
-          child: child ?? const SizedBox.shrink(),
+          child: NetworkStatusStrip(
+            isOnline: _services.isOnline,
+            child: child ?? const SizedBox.shrink(),
+          ),
         ),
       ),
     ),

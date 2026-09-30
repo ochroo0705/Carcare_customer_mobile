@@ -40,8 +40,11 @@ DayAvailability _fakeAvailability() => DayAvailability(
   ],
 );
 
-class _CapturingAppointmentRepository extends Fake implements AppointmentRepository {
+class _CapturingAppointmentRepository extends Fake
+    implements AppointmentRepository {
   bool called = false;
+  int createCalls = 0;
+  Completer<void>? createGate;
   String? capturedVehicleId;
 
   @override
@@ -60,7 +63,9 @@ class _CapturingAppointmentRepository extends Fake implements AppointmentReposit
     List<String> categoryIds = const [],
   }) async {
     called = true;
+    createCalls += 1;
     capturedVehicleId = accountVehicleId;
+    await createGate?.future;
     return CreatedAppointment(
       id: 'apt-1',
       status: 'PENDING',
@@ -90,7 +95,8 @@ class _CapturingAppointmentRepository extends Fake implements AppointmentReposit
 }
 
 /// Rejects the booking with a 409-style conflict (slot already taken).
-class _ConflictAppointmentRepository extends Fake implements AppointmentRepository {
+class _ConflictAppointmentRepository extends Fake
+    implements AppointmentRepository {
   @override
   Future<DayAvailability> getAvailability({
     required String branchId,
@@ -125,7 +131,8 @@ class _ConflictAppointmentRepository extends Fake implements AppointmentReposito
 /// Lets a test control exactly when each `getAvailability` call resolves, to
 /// reproduce out-of-order network responses (a later-fired request's response
 /// arriving before an earlier one's).
-class _RaceAvailabilityRepository extends Fake implements AppointmentRepository {
+class _RaceAvailabilityRepository extends Fake
+    implements AppointmentRepository {
   final List<Completer<DayAvailability>> completers = [];
   final List<DateTime> requestedDates = [];
 
@@ -159,7 +166,8 @@ DayAvailability _availabilityWithSlot(int hour, int minute) => DayAvailability(
 /// Returns 09:00 on the first `getAvailability` call and 11:00 on every call
 /// after — simulates the slot the customer picked getting taken (or the
 /// schedule changing) while the app was backgrounded.
-class _CountingAvailabilityRepository extends Fake implements AppointmentRepository {
+class _CountingAvailabilityRepository extends Fake
+    implements AppointmentRepository {
   int calls = 0;
 
   @override
@@ -331,6 +339,44 @@ void main() {
       expect(repository.capturedVehicleId, isNull);
     },
   );
+
+  testWidgets('two rapid taps on submit create only one appointment', (
+    tester,
+  ) async {
+    await _useTallSurface(tester);
+    final repository = _CapturingAppointmentRepository()
+      ..createGate = Completer<void>();
+    final vehiclesController = VehiclesController(FakeVehicleRepository());
+    await vehiclesController.load();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: vehiclesController,
+        child: MaterialApp(
+          theme: AppTheme.light,
+          home: BookingRequestScreen(
+            organization: _organization,
+            repository: repository,
+            onAddVehicle: () {},
+            onBack: () {},
+            onCompleted: (_) {},
+            onUnauthenticated: () {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _acceptDefaultDateTime(tester);
+
+    // Two taps with no frame between them: the button is still enabled for
+    // the second one, so only the submit guard can stop a duplicate.
+    await tester.tap(find.byKey(const ValueKey('submit-booking')));
+    await tester.tap(find.byKey(const ValueKey('submit-booking')));
+    repository.createGate!.complete();
+    await tester.pumpAndSettle();
+
+    expect(repository.createCalls, 1);
+  });
 
   testWidgets('offers an add-vehicle link when the customer has none yet', (
     tester,

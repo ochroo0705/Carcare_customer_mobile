@@ -58,33 +58,37 @@ void main() {
     cacheStore: const NoopCacheStore(),
   );
 
-  test('loading data-only controllers does not rebuild the page stack', () async {
-    final services = buildServices();
-    // The constructor kicks off discovery load + session restore; let those
-    // settle before counting, so the test measures our own calls.
-    await pumpEventQueue();
+  test(
+    'loading data-only controllers does not rebuild the page stack',
+    () async {
+      final services = buildServices();
+      // The constructor kicks off discovery load + session restore; let those
+      // settle before counting, so the test measures our own calls.
+      await pumpEventQueue();
 
-    var rebuilds = 0;
-    void count() => rebuilds++;
-    services.routerRefresh.addListener(count);
+      var rebuilds = 0;
+      void count() => rebuilds++;
+      services.routerRefresh.addListener(count);
 
-    await services.discoveryController.load();
-    await services.notificationsController.load();
-    await services.appointmentsController.load();
-    await services.vehiclesController.load();
-    await services.historyController.load();
-    await pumpEventQueue();
+      await services.discoveryController.load();
+      await services.notificationsController.load();
+      await services.appointmentsController.load();
+      await services.vehiclesController.load();
+      await services.historyController.load();
+      await pumpEventQueue();
 
-    expect(
-      rebuilds,
-      0,
-      reason: 'Screens read these through Provider and rebuild themselves; '
-          'the router must not rebuild every page for them.',
-    );
+      expect(
+        rebuilds,
+        0,
+        reason:
+            'Screens read these through Provider and rebuild themselves; '
+            'the router must not rebuild every page for them.',
+      );
 
-    services.routerRefresh.removeListener(count);
-    services.dispose();
-  });
+      services.routerRefresh.removeListener(count);
+      services.dispose();
+    },
+  );
 
   test('auth changes still rebuild — the page stack depends on them', () async {
     final services = buildServices();
@@ -94,25 +98,31 @@ void main() {
     void count() => rebuilds++;
     services.routerRefresh.addListener(count);
 
+    // Signing in and out changes the account identity; the page stack
+    // depends on it. (Signing out while already signed out changes nothing.)
+    await services.authController.requestOtp('99112233');
+    await services.authController.verifyOtp('123456');
     await services.authController.signOut();
     await pumpEventQueue();
 
-    expect(rebuilds, greaterThan(0));
+    expect(rebuilds, 2);
 
     services.routerRefresh.removeListener(count);
     services.dispose();
   });
 
-  testWidgets('a discovery load does not rebuild the router pages',
-      (tester) async {
+  testWidgets('a discovery load does not rebuild the router pages', (
+    tester,
+  ) async {
     await pumpApp(tester);
     final router = GoRouter.of(tester.element(find.byType(CustomerShell)));
     var notifications = 0;
     void count() => notifications++;
     router.routerDelegate.addListener(count);
 
-    final discovery =
-        tester.element(find.byType(CustomerShell)).read<DiscoveryController>();
+    final discovery = tester
+        .element(find.byType(CustomerShell))
+        .read<DiscoveryController>();
     await discovery.load();
     await tester.pumpAndSettle();
 

@@ -80,10 +80,32 @@ class _EmittingClosureRepo extends Fake implements AuthRepository {
       const Account(id: 'a', phone: '99112233');
 
   @override
+  Future<void> signOut() async => _invalidated.add(null);
+
+  @override
   Future<void> deactivateAccount(String code) async {
     _invalidated.add(null);
     if (fail401) throw Exception('401');
   }
+}
+
+class _FlowRepo extends Fake implements AuthRepository {
+  @override
+  Stream<void> get onSessionInvalidated => const Stream.empty();
+
+  @override
+  Future<void> requestOtp(String phone) async {}
+
+  @override
+  Future<({Account account, bool reactivated})> verifyOtp({
+    required String phone,
+    required String code,
+    String? name,
+  }) async =>
+      (account: const Account(id: 'a', phone: '99112233'), reactivated: false);
+
+  @override
+  Future<void> signOut() async {}
 }
 
 ApiClient _client({
@@ -212,7 +234,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(ok, isTrue);
       expect(controller.isAuthenticated, isFalse);
-      expect(controller.justClosedAccount, isFalse);
+      expect(controller.sessionEvent, SessionEvent.deactivated);
     });
 
     test('a closure that 401s still signs out, without a notice', () async {
@@ -225,7 +247,129 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(ok, isFalse);
       expect(controller.isAuthenticated, isFalse);
-      expect(controller.justClosedAccount, isNull);
+      expect(controller.sessionEvent, isNull);
+    });
+  });
+
+  group('SecureSessionStore cache', () {
+    late _MockStorage storage;
+    setUp(() {
+      SharedPreferences.setMockInitialValues({'onboarding_done': true});
+      storage = _MockStorage();
+      when(() => storage.deleteAll()).thenAnswer((_) async {});
+      when(
+        () => storage.write(
+          key: any(named: 'key'),
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((_) async {});
+      when(() => storage.delete(key: any(named: 'key')))
+          .thenAnswer((_) async {});
+    });
+
+    test('reads hit storage once, save updates, clear invalidates', () async {
+      var reads = 0;
+      when(() => storage.readAll()).thenAnswer((_) async {
+        reads++;
+        return {
+          'account_access_token': 't',
+          'account_id': 'a',
+          'account_phone': '99112233',
+        };
+      });
+      final store = SecureSessionStore(storage: storage);
+      expect(await store.readToken(), 't');
+      expect(await store.readToken(), 't');
+      expect((await store.readAccount())?.id, 'a');
+      expect(reads, 1);
+
+      await store.save(
+        token: 't2',
+        account: const Account(id: 'b', phone: '88112233'),
+      );
+      expect(await store.readToken(), 't2');
+      expect((await store.readAccount())?.id, 'b');
+      expect(reads, 1);
+
+      await store.clear();
+      await store.readToken();
+      expect(reads, 2);
+    });
+  });
+
+  test('a read racing clear() cannot cache the pre-clear session', () async {
+    SharedPreferences.setMockInitialValues({'onboarding_done': true});
+    final storage = _MockStorage();
+    final deleteGate = Completer<void>();
+    var stored = true;
+    when(() => storage.deleteAll()).thenAnswer((_) async {
+      await deleteGate.future;
+      stored = false;
+    });
+    when(() => storage.readAll()).thenAnswer(
+      (_) async => stored
+          ? {
+              'account_access_token': 't',
+              'account_id': 'a',
+              'account_phone': '99112233',
+            }
+          : <String, String>{},
+    );
+    final store = SecureSessionStore(storage: storage);
+    final clearing = store.clear();
+    await pumpEventQueue();
+    // Read while the delete is in flight: sees (and would cache) old data.
+    expect(await store.readToken(), 't');
+    deleteGate.complete();
+    await clearing;
+    expect(await store.readToken(), isNull);
+  });
+
+  group('AuthController session flow', () {
+    test(
+      'remote closure flag is set before the sign-out listener fires',
+      () async {
+        final repo = _EmittingClosureRepo();
+        final controller = AuthController(repo);
+        await controller.restore();
+        SessionEvent? seen;
+        controller.addListener(() {
+          if (controller.account == null) {
+            seen = controller.sessionEvent;
+          }
+        });
+        await controller.handleRemoteAccountClosed(deleted: true);
+        expect(seen, SessionEvent.remoteDeleted);
+      },
+    );
+
+    test('verifyOtp and signOut reset the login flow', () async {
+      final controller = AuthController(_FlowRepo());
+      expect(await controller.requestOtp('99112233'), isTrue);
+      expect(controller.step, AuthStep.otp);
+      expect(await controller.verifyOtp('123456'), isTrue);
+      expect(controller.step, AuthStep.phone);
+      expect(controller.phone, '');
+
+      controller.step = AuthStep.otp;
+      controller.phone = '99112233';
+      await controller.signOut();
+      expect(controller.step, AuthStep.phone);
+      expect(controller.phone, '');
+    });
+
+    test('sign-outs that ran device removal mark it handled', () async {
+      var removals = 0;
+      final controller = AuthController(_FlowRepo())
+        ..beforeSignOut = () async => removals++;
+      await controller.signOut();
+      expect(removals, 1);
+      expect(controller.takeSessionEvent(), SessionEvent.deviceRemovalHandled);
+
+      await controller.clearConfirmedUnauthorized();
+      // Same rule for both paths: removal ran once, so it is marked handled.
+      expect(removals, 2);
+      expect(controller.takeSessionEvent(), SessionEvent.deviceRemovalHandled);
     });
   });
 

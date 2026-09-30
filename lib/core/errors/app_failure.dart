@@ -43,6 +43,12 @@ class ServerFailure extends AppFailure {
   const ServerFailure([super.message = 'Серверийн алдаа гарлаа.']);
 }
 
+/// The request was cancelled on purpose (e.g. a `CancelToken`). Not a server
+/// fault: callers should ignore it rather than show an error.
+class RequestCancelledFailure extends AppFailure {
+  const RequestCancelledFailure([super.message = 'Хүсэлт цуцлагдлаа.']);
+}
+
 class UnexpectedFailure extends AppFailure {
   const UnexpectedFailure([super.message = 'Тодорхойгүй алдаа гарлаа.']);
 }

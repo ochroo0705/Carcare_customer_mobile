@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
@@ -7,6 +9,7 @@ import 'package:carcare_customer_mobile/features/booking/domain/appointment_stat
 import 'package:carcare_customer_mobile/features/booking/domain/service_progress.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/walk_in_order.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
+import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/screens/appointment_detail_screen.dart';
 import 'package:carcare_customer_mobile/features/discovery/data/fake_organization_repository.dart';
 import 'package:flutter/material.dart';
@@ -36,6 +39,14 @@ class _OneAppointmentRepo extends Fake implements AppointmentRepository {
   Future<AppointmentPayment?> getPayment(String id) async => null;
   @override
   Future<AppointmentPayment?> retryPayment(String id) async => null;
+}
+
+class _GatedRepo extends _OneAppointmentRepo {
+  _GatedRepo(List<Appointment> seeded, this._next) : super(seeded.first);
+  final Future<List<Appointment>> Function() _next;
+
+  @override
+  Future<List<Appointment>> getAppointments() => _next();
 }
 
 Future<void> _pump(
@@ -397,5 +408,31 @@ void main() {
           'оос өнгөөрөө ялгарах ёстой',
     );
     controller.dispose();
+  });
+
+  testWidgets('the 25s poll refreshes silently: no loading state, no '
+      'overlapping request', (tester) async {
+    final seeded = await FakeAppointmentRepository().getAppointments();
+    final gate = Completer<List<Appointment>>();
+    var calls = 0;
+    final repo = _GatedRepo(seeded, () {
+      calls++;
+      return calls == 1 ? Future.value(seeded) : gate.future;
+    });
+    final controller = AppointmentsController(repo);
+    await controller.load();
+    final statuses = <AppointmentsStatus>[];
+    controller.addListener(() => statuses.add(controller.state.status));
+    await _pump(tester, controller, seeded.first.id);
+
+    await tester.pump(const Duration(seconds: 26));
+    await tester.pump(const Duration(seconds: 25));
+
+    expect(calls, 2, reason: 'second tick skipped while first is in flight');
+    expect(statuses, isNot(contains(AppointmentsStatus.loading)));
+    gate.complete(seeded);
+    await tester.pump();
+    // Unmount so the periodic timer is cancelled.
+    await tester.pumpWidget(const SizedBox());
   });
 }

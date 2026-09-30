@@ -3,7 +3,6 @@ import 'package:carcare_customer_mobile/app/theme/app_theme.dart';
 import 'package:carcare_customer_mobile/core/widgets/animations.dart';
 import 'package:carcare_customer_mobile/core/widgets/offline_banner.dart';
 import 'package:carcare_customer_mobile/core/widgets/skeletons.dart';
-import 'package:carcare_customer_mobile/features/auth/presentation/auth_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/branch.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
@@ -11,12 +10,12 @@ import 'package:carcare_customer_mobile/features/discovery/presentation/controll
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_card.dart';
-import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/branch_filter_panel.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_header.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_list_parts.dart';
+import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map_controls.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/discovery_map.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/widgets/location_permission_banner.dart';
-import 'package:carcare_customer_mobile/features/discovery/services/device_location_service.dart';
 import 'package:carcare_customer_mobile/features/discovery/services/location_permission_service.dart';
-import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -90,7 +89,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(20, 18, 20, 10),
           sliver: SliverToBoxAdapter(
-            child: _DiscoveryHeader(
+            child: DiscoveryHeader(
               controller: controller,
               searchController: _searchController,
               filtersExpanded: _filtersExpanded,
@@ -104,6 +103,33 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     ),
   );
 
+  // The map's organizations are re-derived only when the source list
+  // instance (or which source is in use) changes — not on every controller
+  // notification — so the map keeps receiving the same list and skips its
+  // own marker work.
+  List<Organization>? _mapOrganizations;
+  Object? _mapOrganizationsSource;
+  bool? _mapOrganizationsLoaded;
+
+  List<Organization> _mapOrganizationsFor(DiscoveryController controller) {
+    final loaded = controller.mapLoaded;
+    final Object source = loaded
+        ? controller.mapMarkers
+        : controller.mapFallbackOrganizations;
+    if (_mapOrganizations != null &&
+        _mapOrganizationsLoaded == loaded &&
+        identical(_mapOrganizationsSource, source)) {
+      return _mapOrganizations!;
+    }
+    _mapOrganizationsLoaded = loaded;
+    _mapOrganizationsSource = source;
+    return _mapOrganizations = loaded
+        ? controller.mapMarkers
+              .map((marker) => marker.toOrganization())
+              .toList()
+        : controller.mapFallbackOrganizations;
+  }
+
   /// Map-first Discover (2026-09-17): the map fills the whole screen (the
   /// shell hides its AppBar for this tab in this mode — see
   /// CustomerShell), with search, filters, and the notifications/list/zoom/
@@ -113,13 +139,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   /// primary way most people reach the list, via the action stack's toggle.
   Widget _buildMapBody(DiscoveryController controller) {
     final detailController = context.read<OrganizationDetailController>();
-    final mapOrganizations = controller.mapLoaded
-        ? controller.mapMarkers
-              .map((marker) => marker.toOrganization())
-              .toList()
-        : controller.mapFallbackOrganizations;
-    final account = context.watch<AuthController>().account;
-    final unreadCount = context.watch<NotificationsController>().unreadCount;
+    final mapOrganizations = _mapOrganizationsFor(controller);
     return LayoutBuilder(
       builder: (context, constraints) => Stack(
         children: [
@@ -161,7 +181,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Column(
                   children: [
-                    _CompactDiscoveryBar(
+                    CompactDiscoveryBar(
                       controller: controller,
                       searchController: _searchController,
                       onOpenFilters: () => _openFiltersSheet(controller),
@@ -190,7 +210,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                         padding: EdgeInsets.only(top: 10),
                         child: Align(
                           alignment: Alignment.centerLeft,
-                          child: _MapRefreshSpinner(),
+                          child: MapRefreshSpinner(),
                         ),
                       ),
                     if (controller.mapError != null &&
@@ -242,10 +262,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             right: 16,
             bottom: 16,
             child: SafeArea(
-              child: _MapActionStack(
+              child: MapActionStack(
                 mapKey: _mapKey,
-                showNotifications: account != null,
-                unreadCount: unreadCount,
                 onNotificationsRequested: widget.onNotificationsRequested,
                 onToggleList: () => controller.setMapView(false),
               ),
@@ -309,7 +327,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 ListenableBuilder(
                   listenable: controller,
                   builder: (context, _) =>
-                      _FiltersPanel(controller: controller),
+                      DiscoveryFiltersPanel(controller: controller),
                 ),
               ],
             ),
@@ -371,7 +389,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       DiscoveryStatus.empty => const [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _MessageState(
+          child: DiscoveryMessageState(
             icon: Icons.storefront_outlined,
             title: 'Авто сервис олдсонгүй',
             message: 'Одоогоор цаг захиалга авч буй байгууллага алга байна.',
@@ -381,7 +399,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       DiscoveryStatus.error => [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _MessageState(
+          child: DiscoveryMessageState(
             icon: Icons.cloud_off_outlined,
             title: 'Мэдээлэл ачаалсангүй',
             message: state.message ?? 'Дахин оролдоно уу.',
@@ -393,7 +411,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       DiscoveryStatus.data when branchEntries.isEmpty => [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: _MessageState(
+          child: DiscoveryMessageState(
             icon: Icons.search_off_rounded,
             title: 'Илэрц олдсонгүй',
             message: 'Хайлт эсвэл байршлын шүүлтүүрээ өөрчилж үзээрэй.',
@@ -429,7 +447,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             state.loadMoreMessage != null ||
             state.pagination.hasNext)
           SliverToBoxAdapter(
-            child: _LoadMoreFooter(state: state, onRetry: controller.loadMore),
+            child: LoadMoreFooter(state: state, onRetry: controller.loadMore),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: 32)),
       ],
@@ -437,488 +455,3 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   }
 }
 
-class _LoadMoreFooter extends StatelessWidget {
-  const _LoadMoreFooter({required this.state, required this.onRetry});
-
-  final DiscoveryState state;
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    if (state.isLoadingMore) {
-      return const Padding(
-        padding: EdgeInsets.all(20),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (state.loadMoreMessage != null) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-        child: Center(
-          child: OutlinedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Дахин ачаалах'),
-          ),
-        ),
-      );
-    }
-    return const Padding(
-      padding: EdgeInsets.all(12),
-      child: SizedBox(height: 1),
-    );
-  }
-}
-
-class _DiscoveryHeader extends StatelessWidget {
-  const _DiscoveryHeader({
-    required this.controller,
-    required this.searchController,
-    required this.filtersExpanded,
-    required this.onFiltersExpandedChanged,
-  });
-
-  final DiscoveryController controller;
-  final TextEditingController searchController;
-  final bool filtersExpanded;
-  final ValueChanged<bool> onFiltersExpandedChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // Идэвхтэй шүүлт байвал хэрэглэгч түүнийг далдлагдсан хэсэгт
-    // "мартахгүйн" тулд үргэлж дэлгэсэн байлгана — гар аргаар хаасан ч.
-    final showFilters = filtersExpanded || controller.hasActiveFilters;
-
-    return Column(
-      children: [
-        GlassSurface(
-          padding: EdgeInsets.zero,
-          child: Stack(
-            children: [
-              Positioned(
-                right: -54,
-                top: -68,
-                child: _AmbientOrb(
-                  color: scheme.primary.withValues(alpha: 0.2),
-                ),
-              ),
-              Positioned(
-                left: -76,
-                bottom: -92,
-                child: _AmbientOrb(
-                  color: AppColors.blue.withValues(alpha: 0.13),
-                  size: 180,
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
-                child: Column(
-                  children: [
-                    TextField(
-                      controller: searchController,
-                      onChanged: controller.setQuery,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: (_) => FocusScope.of(context).unfocus(),
-                      decoration: InputDecoration(
-                        hintText: 'Нэр, хот эсвэл дүүргээр хайх',
-                        prefixIcon: IconButton(
-                          key: const ValueKey('discovery-search-submit'),
-                          onPressed: () => FocusScope.of(context).unfocus(),
-                          tooltip: 'Хайх',
-                          icon: const Icon(Icons.search),
-                        ),
-                        suffixIcon: controller.hasActiveFilters
-                            ? IconButton(
-                                onPressed: () {
-                                  searchController.clear();
-                                  controller.clearFilters();
-                                },
-                                tooltip: 'Шүүлтүүр цэвэрлэх',
-                                icon: const Icon(Icons.close_rounded),
-                              )
-                            : null,
-                      ),
-                    ),
-                    // Хайлтын мөрийн зэрэгцээ дан icon товч байсан нь
-                    // "хайх" товч мэт андуурагдах эрсдэлтэй тул хайлтын мөртэй
-                    // адил өргөнтэй, тодорхой бичигтэй товч болгов — далд
-                    // байдлаар анхны төлөвт хаалттай (хот/дүүрэг, ойролцоо/
-                    // нээлттэй/амралтын өдөр хайлтын мөрийг бөглөрүүлж
-                    // байсан); идэвхтэй шүүлттэй үед автоматаар дэлгэгдсэн
-                    // хэвээр үлдэнэ (`showFilters`).
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.tonalIcon(
-                        key: const ValueKey('discovery-filters-toggle'),
-                        onPressed: () =>
-                            onFiltersExpandedChanged(!filtersExpanded),
-                        icon: Icon(
-                          filtersExpanded
-                              ? Icons.expand_less_rounded
-                              : Icons.tune_rounded,
-                        ),
-                        label: Text(
-                          filtersExpanded
-                              ? 'Шүүлтүүрүүд нуух'
-                              : 'Шүүлтүүрүүд харуулах',
-                        ),
-                      ),
-                    ),
-                    AnimatedSize(
-                      duration: const Duration(milliseconds: 200),
-                      curve: Curves.easeInOut,
-                      alignment: Alignment.topCenter,
-                      child: !showFilters
-                          ? const SizedBox.shrink()
-                          : Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: _FiltersPanel(controller: controller),
-                            ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// The filter controls (city/district, business-type tag, server chips)
-/// shared between the list header's expandable section and the map view's
-/// bottom sheet — kept as one widget so a filter added in one place is never
-/// forgotten in the other.
-class _FiltersPanel extends StatelessWidget {
-  const _FiltersPanel({required this.controller});
-
-  final DiscoveryController controller;
-
-  Future<void> _toggleNearMe(BuildContext context, bool selected) async {
-    // Optimistic: chip тэр даруй сонгогдоно; байршил авч чадаагүй бол буцна.
-    final ok = await controller.setNearMe(
-      selected,
-      locate: selected
-          ? () async {
-              final location = await const GeolocatorDeviceLocationService()
-                  .current();
-              return location == null
-                  ? null
-                  : (lat: location.lat, lng: location.lng);
-            }
-          : null,
-    );
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Байршлыг авч чадсангүй. Байршлын зөвшөөрөл, тохиргоогоо шалгана уу.',
-          ),
-        ),
-      );
-    }
-  }
-
-  // controller.cities/districts одоо сүүлийн ШҮҮЛТГҮЙ каталогоос тооцогддог
-  // тул идэвхтэй сервер шүүлт 0 илэрцтэй болсон ч хоосрохгүй. Chip мөрийг
-  // `hasCatalog`-оор харуулдаг нь шүүлтийг унтраах үед reload дуустал мөр
-  // алга болохоос сэргийлнэ (дэлгэрэнгүйг DiscoveryController.hasCatalog).
-  @override
-  Widget build(BuildContext context) => BranchFilterPanel(
-    city: controller.city,
-    district: controller.district,
-    cities: controller.cities,
-    districts: controller.districts,
-    onCityChanged: controller.setCity,
-    onDistrictChanged: controller.setDistrict,
-    tag: controller.tag,
-    tagOptions: controller.tagOptions,
-    onTagChanged: (id, name) => controller.setTag(id, name: name),
-    nearMe: controller.nearMe,
-    openNow: controller.openNow,
-    weekend: controller.weekend,
-    nearMePending: controller.nearMePending,
-    openNowPending: controller.openNowPending,
-    weekendPending: controller.weekendPending,
-    onNearMeChanged: (selected) => _toggleNearMe(context, selected),
-    onOpenNowChanged: controller.setOpenNow,
-    onWeekendChanged: controller.setWeekend,
-    showChips: controller.hasCatalog || controller.hasActiveFilters,
-    leadingChips: [
-      if (controller.serviceKey.isNotEmpty)
-        InputChip(
-          key: const ValueKey('discovery-service-key-chip'),
-          label: Text(
-            controller.serviceKeyName.isEmpty
-                ? 'Сонгосон ажил'
-                : controller.serviceKeyName,
-          ),
-          avatar: const Icon(Icons.build_outlined, size: 18),
-          onDeleted: () => controller.setServiceKey(''),
-          deleteButtonTooltipMessage: 'Хасах',
-        ),
-    ],
-  );
-}
-
-/// A bare, unobtrusive spinner over the map's top-left corner, shown while a
-/// filter/search change is re-fetching markers for the on-screen viewport.
-/// Deliberately not a banner with text — the map itself is the content here.
-class _MapRefreshSpinner extends StatelessWidget {
-  const _MapRefreshSpinner();
-
-  @override
-  Widget build(BuildContext context) => Container(
-    key: const ValueKey('discovery-map-refreshing'),
-    width: 30,
-    height: 30,
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.9),
-      shape: BoxShape.circle,
-      boxShadow: [
-        BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 6),
-      ],
-    ),
-    padding: const EdgeInsets.all(6),
-    child: const CircularProgressIndicator(strokeWidth: 2.5),
-  );
-}
-
-/// Everything that would otherwise be Google Maps' own platform controls
-/// (zoom, locate-me) plus the shell's notifications bell and map/list
-/// toggle, combined into one compact stack — the platform controls can't be
-/// repositioned or restyled, and with the AppBar hidden in map mode the
-/// notifications bell needs a new home anyway.
-class _MapActionStack extends StatelessWidget {
-  const _MapActionStack({
-    required this.mapKey,
-    required this.showNotifications,
-    required this.unreadCount,
-    required this.onNotificationsRequested,
-    required this.onToggleList,
-  });
-
-  final GlobalKey<DiscoveryMapState> mapKey;
-  final bool showNotifications;
-  final int unreadCount;
-  final VoidCallback onNotificationsRequested;
-  final VoidCallback onToggleList;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      if (showNotifications) ...[
-        _RoundMapButton(
-          key: const ValueKey('discovery-map-notifications'),
-          icon: Icons.notifications_outlined,
-          badgeCount: unreadCount,
-          onPressed: onNotificationsRequested,
-        ),
-        const SizedBox(height: 10),
-      ],
-      _RoundMapButton(
-        key: const ValueKey('discovery-map-list-toggle'),
-        icon: Icons.view_list_outlined,
-        onPressed: onToggleList,
-      ),
-      const SizedBox(height: 10),
-      _MapZoomButtonGroup(mapKey: mapKey),
-      const SizedBox(height: 10),
-      _RoundMapButton(
-        key: const ValueKey('discovery-map-locate-me'),
-        icon: Icons.my_location_rounded,
-        onPressed: () => mapKey.currentState?.locateMe(),
-      ),
-    ],
-  );
-}
-
-class _RoundMapButton extends StatelessWidget {
-  const _RoundMapButton({
-    required this.icon,
-    required this.onPressed,
-    this.badgeCount = 0,
-    super.key,
-  });
-
-  final IconData icon;
-  final VoidCallback onPressed;
-  final int badgeCount;
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: Theme.of(context).colorScheme.surface,
-    shape: const CircleBorder(),
-    elevation: 4,
-    child: InkWell(
-      customBorder: const CircleBorder(),
-      onTap: onPressed,
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: Center(
-          child: Badge(
-            isLabelVisible: badgeCount > 0,
-            label: Text(badgeCount > 9 ? '9+' : '$badgeCount'),
-            child: Icon(icon, size: 22),
-          ),
-        ),
-      ),
-    ),
-  );
-}
-
-/// Stand-in for the platform zoom control, which Google Maps always pins to
-/// the bottom-right and can't be moved or restyled.
-class _MapZoomButtonGroup extends StatelessWidget {
-  const _MapZoomButtonGroup({required this.mapKey});
-
-  final GlobalKey<DiscoveryMapState> mapKey;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.surface,
-      elevation: 4,
-      borderRadius: BorderRadius.circular(AppRadii.extraLarge),
-      clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            key: const ValueKey('discovery-map-zoom-in'),
-            onTap: () => mapKey.currentState?.zoomIn(),
-            child: const SizedBox(
-              width: 48,
-              height: 48,
-              child: Center(child: Icon(Icons.add, size: 20)),
-            ),
-          ),
-          Divider(height: 1, color: scheme.outlineVariant),
-          InkWell(
-            key: const ValueKey('discovery-map-zoom-out'),
-            onTap: () => mapKey.currentState?.zoomOut(),
-            child: const SizedBox(
-              width: 48,
-              height: 48,
-              child: Center(child: Icon(Icons.remove, size: 20)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Compact search + filters bar for map mode — a floating pill instead of
-/// the list header's tall glass card, so the map underneath keeps most of
-/// the screen.
-class _CompactDiscoveryBar extends StatelessWidget {
-  const _CompactDiscoveryBar({
-    required this.controller,
-    required this.searchController,
-    required this.onOpenFilters,
-  });
-
-  final DiscoveryController controller;
-  final TextEditingController searchController;
-  final VoidCallback onOpenFilters;
-
-  @override
-  Widget build(BuildContext context) => GlassSurface(
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-    child: Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: searchController,
-            onChanged: controller.setQuery,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => FocusScope.of(context).unfocus(),
-            decoration: InputDecoration(
-              isDense: true,
-              border: InputBorder.none,
-              hintText: 'Нэр, хот эсвэл дүүргээр хайх',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              suffixIcon: controller.hasActiveFilters
-                  ? IconButton(
-                      onPressed: () {
-                        searchController.clear();
-                        controller.clearFilters();
-                      },
-                      tooltip: 'Шүүлтүүр цэвэрлэх',
-                      icon: const Icon(Icons.close_rounded, size: 20),
-                    )
-                  : null,
-            ),
-          ),
-        ),
-        IconButton(
-          key: const ValueKey('discovery-map-filters-toggle'),
-          onPressed: onOpenFilters,
-          tooltip: 'Шүүлтүүрүүд',
-          icon: Badge(
-            isLabelVisible: controller.hasActiveFilters,
-            smallSize: 8,
-            child: const Icon(Icons.tune_rounded),
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-class _AmbientOrb extends StatelessWidget {
-  const _AmbientOrb({required this.color, this.size = 150});
-
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) => IgnorePointer(
-    child: Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-    ),
-  );
-}
-
-class _MessageState extends StatelessWidget {
-  const _MessageState({
-    required this.icon,
-    required this.title,
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
-  final IconData icon;
-  final String title;
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.all(32),
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, size: 48, color: Theme.of(context).colorScheme.primary),
-        const SizedBox(height: 16),
-        Text(title, style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 8),
-        Text(message, textAlign: TextAlign.center),
-        if (actionLabel != null && onAction != null) ...[
-          const SizedBox(height: 18),
-          FilledButton(onPressed: onAction, child: Text(actionLabel!)),
-        ],
-      ],
-    ),
-  );
-}

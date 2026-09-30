@@ -23,6 +23,16 @@ class AppointmentsController extends ChangeNotifier {
   // sign-out puts the previous account's appointments back.
   int _generation = 0;
 
+  // Bumped ONLY by [reset]. Tells a sign-out apart from a merely superseded
+  // load: the former must wipe the disk cache, the latter must leave it alone
+  // (the newer load's fresh write lives there).
+  int _epoch = 0;
+
+  // True while the lists on screen came from a successful network load (not
+  // the disk cache). A failed refresh must then keep them rather than swap
+  // them for an older cached copy or an error screen.
+  bool _hasLiveData = false;
+
   /// Fired after a cancel succeeds server-side. The router wires this to
   /// `historyController.load()`.
   ///
@@ -153,13 +163,43 @@ class AppointmentsController extends ChangeNotifier {
     return [...active, ...inactive];
   }
 
-  Future<void> load() async {
+  Future<void> load() => _load(silent: false);
+
+  /// Background refresh for pollers: no `loading` transition, and listeners
+  /// are notified only when what is on screen actually changed. Skipped
+  /// entirely while another load is in flight so slow polls cannot pile up.
+  /// Failure handling is the same as [load] (live data is kept).
+  Future<void> refreshSilently() async {
+    if (_inFlight > 0) return;
+    await _load(silent: true);
+  }
+
+  Future<void> _load({required bool silent}) async {
     final generation = ++_generation;
-    _state = AppointmentsState(
-      status: AppointmentsStatus.loading,
-      appointments: _state.appointments,
-    );
-    notifyListeners();
+    final epoch = _epoch;
+    _inFlight++;
+    try {
+      await _loadBody(generation, epoch, silent: silent);
+    } finally {
+      _inFlight--;
+    }
+  }
+
+  Future<void> _loadBody(
+    int generation,
+    int epoch, {
+    required bool silent,
+  }) async {
+    if (!silent) {
+      _state = AppointmentsState(
+        status: AppointmentsStatus.loading,
+        appointments: _state.appointments,
+        walkInOrders: _state.walkInOrders,
+      );
+      notifyListeners();
+    }
+    final previous = _state;
+    var changed = true;
     try {
       // Network амжилттай үед cache-г бүхэлд нь солих нь өмнөх Account-ийн
       // үлдэгдэл болон шинэ response холилдохоос сэргийлнэ. walkInOrders
@@ -180,21 +220,109 @@ class AppointmentsController extends ChangeNotifier {
         appointments: appointments,
         walkInOrders: walkInOrders,
       );
+      _hasLiveData = _state.status == AppointmentsStatus.data;
+      changed = !silent || !_sameContent(previous, _state);
       await _cache.writeAppointments(appointments);
+      if (epoch != _epoch) {
+        // Signed out during the write: do not leave this account's
+        // appointments on disk, and do not notify.
+        await _cache.clearAppointments();
+        return;
+      }
+      // Superseded by a newer load: its cache write is the current one, so
+      // neither clear nor notify.
+      if (generation != _generation) return;
     } on AppFailure catch (failure) {
       if (generation != _generation) return;
+      if (_keepLiveData(failure.message)) {
+        if (!silent || !_sameContent(previous, _state)) notifyListeners();
+        return;
+      }
       // Cache нь source of truth биш: зөвхөн сүүлийн амжилттай fetch-ийг
       // offline үед харуулна, failure message-г state дээр хадгална.
       final fallback = await _fallbackToCache(failure.message);
       if (generation != _generation) return;
       _state = fallback;
+      _hasLiveData = false;
     } catch (_) {
       if (generation != _generation) return;
+      if (_keepLiveData('Тодорхойгүй алдаа гарлаа.')) {
+        if (!silent || !_sameContent(previous, _state)) notifyListeners();
+        return;
+      }
       final fallback = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
       if (generation != _generation) return;
       _state = fallback;
+      _hasLiveData = false;
     }
-    notifyListeners();
+    if (changed) notifyListeners();
+  }
+
+  // Loads currently running (silent or not); guards [refreshSilently].
+  int _inFlight = 0;
+
+  // The domain models have no value equality, so unchanged-data detection
+  // compares a field-by-field fingerprint of everything the UI renders.
+  bool _sameContent(AppointmentsState a, AppointmentsState b) =>
+      a.status == b.status &&
+      a.message == b.message &&
+      a.isFromCache == b.isFromCache &&
+      _fingerprint(a) == _fingerprint(b);
+
+  String _fingerprint(AppointmentsState s) {
+    final buffer = StringBuffer();
+    for (final a in s.appointments) {
+      buffer
+        ..write('A|${a.id}|${a.status.name}|${a.requestedAt.toIso8601String()}')
+        ..write('|${a.tenantName}|${a.tenantSlug}|${a.branchName}|${a.note}')
+        ..write('|${a.categoryNames.join(',')}|${a.vehiclePlate}');
+      final p = a.payment;
+      if (p != null) {
+        buffer.write(
+          '|pay:${p.status.name},${p.amount},${p.currency},'
+          '${p.underpaidAmount},${p.qrText},${p.qrImageBase64.hashCode},'
+          '${p.urls.map((u) => '${u.name}~${u.nameMn}~${u.link}~${u.logo.hashCode}~${u.description}').join(';')}',
+        );
+      }
+      _writeProgress(buffer, a.serviceProgress);
+      buffer.writeln();
+    }
+    for (final w in s.walkInOrders) {
+      buffer.write('W|${w.tenantName}|${w.tenantSlug}|${w.branchName}');
+      _writeProgress(buffer, w.progress);
+      buffer.writeln();
+    }
+    return buffer.toString();
+  }
+
+  void _writeProgress(StringBuffer b, AppointmentServiceProgress? p) {
+    if (p == null) return;
+    b.write(
+      '|sp:${p.id},${p.number},${p.status.name},${p.paymentStatus.name},'
+      '${p.scheduledAt?.toIso8601String()},${p.startedAt?.toIso8601String()},'
+      '${p.completedAt?.toIso8601String()},${p.estimatedDurationMinutes},'
+      '${p.expectedFinishAt?.toIso8601String()},${p.totalAmount},'
+      '${p.paidAmount},${p.vehiclePlate},${p.vehicleMake},${p.vehicleModel},'
+      '${p.vehicleYear},${p.scheduledReturnAt?.toIso8601String()}',
+    );
+    for (final i in p.items) {
+      b.write(
+        '|it:${i.id},${i.name},${i.status.name},${i.kind.name},${i.quantity},'
+        '${i.unitPrice},${i.total}',
+      );
+    }
+    for (final h in p.statusHistory) {
+      b.write(
+        '|h:${h.id},${h.fromStatus?.name},${h.toStatus.name},'
+        '${h.reasonTag?.name},${h.createdAt.toIso8601String()}',
+      );
+    }
+    for (final r in p.reports) {
+      b.write(
+        '|r:${r.id},${r.templateName},${r.type},'
+        '${r.createdAt.toIso8601String()},${r.mileageAtReport}',
+      );
+    }
   }
 
   /// Resets to the initial state and clears the on-disk cache, e.g. after
@@ -202,6 +330,8 @@ class AppointmentsController extends ChangeNotifier {
   /// cached appointments.
   Future<void> reset() async {
     _generation++;
+    _epoch++;
+    _hasLiveData = false;
     _state = const AppointmentsState();
     _cancellingIds.clear();
     _searchQuery = '';
@@ -211,9 +341,25 @@ class AppointmentsController extends ChangeNotifier {
     await _cache.clearAppointments();
   }
 
+  /// Keeps the live lists on screen after a failed refresh; returns false
+  /// when nothing live is showing and the cache/error fallback should apply.
+  bool _keepLiveData(String failureMessage) {
+    if (!_hasLiveData) return false;
+    _state = AppointmentsState(
+      status: AppointmentsStatus.data,
+      appointments: _state.appointments,
+      walkInOrders: _state.walkInOrders,
+      message: failureMessage,
+    );
+    return true;
+  }
+
   Future<AppointmentsState> _fallbackToCache(String failureMessage) async {
-    final cached = await _cache.readAppointments();
-    if (cached == null || cached.isEmpty) {
+    final cached = await _cache.readAppointments() ?? const <Appointment>[];
+    // The cache holds appointments only; walk-ins already in memory are
+    // carried over so they do not vanish on a failed refresh.
+    final walkInOrders = _state.walkInOrders;
+    if (cached.isEmpty && walkInOrders.isEmpty) {
       return AppointmentsState(
         status: AppointmentsStatus.error,
         message: failureMessage,
@@ -222,6 +368,7 @@ class AppointmentsController extends ChangeNotifier {
     return AppointmentsState(
       status: AppointmentsStatus.data,
       appointments: cached,
+      walkInOrders: walkInOrders,
       isFromCache: true,
       message: failureMessage,
     );

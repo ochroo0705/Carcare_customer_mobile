@@ -53,4 +53,12 @@ class OrganizationDetailController extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Re-runs the last [load] if it failed — used on network reconnect so an
+  /// open detail/booking page recovers without a manual retry.
+  Future<void> retryIfFailed() async {
+    final slug = _requestedSlug;
+    if (slug == null || status != OrganizationDetailStatus.error) return;
+    await load(slug);
+  }
 }

@@ -25,6 +25,7 @@ class HistoryScreen extends StatelessWidget {
     required this.onOrderSelected,
     required this.diagnosticsRepository,
     required this.onDiagnosticReportSelected,
+    this.reconnects,
     super.key,
   });
 
@@ -34,6 +35,9 @@ class HistoryScreen extends StatelessWidget {
   /// "Оношилгооны жагсаалт" tab data source.
   final DiagnosticsRepository diagnosticsRepository;
   final ValueChanged<String> onDiagnosticReportSelected;
+
+  /// Ticks on network reconnect; the diagnostics tab retries a failed load.
+  final Listenable? reconnects;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,7 @@ class HistoryScreen extends StatelessWidget {
                 onOrderSelected: onOrderSelected,
                 diagnosticsRepository: diagnosticsRepository,
                 onDiagnosticReportSelected: onDiagnosticReportSelected,
+                reconnects: reconnects,
               )
             : _UnauthenticatedPrompt(onLoginRequested: onLoginRequested),
       ),
@@ -110,12 +115,14 @@ class _HistoryBody extends StatefulWidget {
     required this.onOrderSelected,
     required this.diagnosticsRepository,
     required this.onDiagnosticReportSelected,
+    this.reconnects,
   });
 
   final HistoryController controller;
   final ValueChanged<String> onOrderSelected;
   final DiagnosticsRepository diagnosticsRepository;
   final ValueChanged<String> onDiagnosticReportSelected;
+  final Listenable? reconnects;
 
   @override
   State<_HistoryBody> createState() => _HistoryBodyState();
@@ -131,10 +138,27 @@ class _HistoryBodyState extends State<_HistoryBody>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    widget.reconnects?.addListener(_onReconnect);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HistoryBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.reconnects != widget.reconnects) {
+      oldWidget.reconnects?.removeListener(_onReconnect);
+      widget.reconnects?.addListener(_onReconnect);
+    }
+  }
+
+  void _onReconnect() {
+    if (_diagnosticsController.status == DiagnosticsStatus.error) {
+      _diagnosticsController.load();
+    }
   }
 
   @override
   void dispose() {
+    widget.reconnects?.removeListener(_onReconnect);
     _tabController.dispose();
     _diagnosticsController.dispose();
     super.dispose();

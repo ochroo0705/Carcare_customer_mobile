@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
+import 'package:carcare_customer_mobile/data/cache/in_memory_cache_store.dart';
 import 'package:carcare_customer_mobile/features/vehicles/data/fake_vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
@@ -25,8 +27,22 @@ class _RaceVehicleRepository extends Fake implements VehicleRepository {
   Future<void> deleteVehicle(String id) async {}
 }
 
-Vehicle _vehicle(String id) =>
-    Vehicle(id: id, plate: id, make: 'Toyota', model: 'Prius');
+Vehicle _vehicle(String id, {String make = 'Toyota'}) =>
+    Vehicle(id: id, plate: id, make: make, model: 'Prius');
+
+class _ScriptedVehicleRepository extends Fake implements VehicleRepository {
+  bool failLoad = false;
+  Completer<Vehicle>? refreshCompleter;
+
+  @override
+  Future<List<Vehicle>> getVehicles() async {
+    if (failLoad) throw const NetworkFailure('offline');
+    return [_vehicle('live')];
+  }
+
+  @override
+  Future<Vehicle> refreshFromHur(String id) => refreshCompleter!.future;
+}
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -95,5 +111,74 @@ void main() {
 
     // The stale response must not clobber the newer result.
     expect(controller.state.vehicles.single.id, 'newer');
+  });
+
+  test(
+    'a failed reload keeps live vehicles on screen and sets the message',
+    () async {
+      final repository = _ScriptedVehicleRepository();
+      final cache = InMemoryCacheStore();
+      final controller = VehiclesController(repository, cache: cache);
+      await controller.load();
+      await cache.writeVehicles([_vehicle('cached')]);
+      repository.failLoad = true;
+
+      await controller.load();
+
+      expect(controller.state.status, VehiclesStatus.data);
+      expect(controller.state.isFromCache, isFalse);
+      expect(controller.state.message, isNotNull);
+      expect(controller.state.vehicles.single.id, 'live');
+    },
+  );
+
+  test('refresh(id) drops a result that finishes after reset()', () async {
+    final repository = _ScriptedVehicleRepository();
+    final cache = InMemoryCacheStore();
+    final controller = VehiclesController(repository, cache: cache);
+    await controller.load();
+    repository.refreshCompleter = Completer<Vehicle>();
+    final pending = controller.refresh('live');
+    await controller.reset();
+    repository.refreshCompleter!.complete(_vehicle('live', make: 'Old'));
+    await pending;
+
+    expect(controller.state.status, VehiclesStatus.initial);
+    expect(controller.state.vehicles, isEmpty);
+    expect(await cache.readVehicles(), isNull);
+    expect(controller.isRefreshing('live'), isFalse);
+  });
+
+  test('refresh(id) preserves the state message', () async {
+    final repository = _ScriptedVehicleRepository();
+    final controller = VehiclesController(
+      repository,
+      cache: InMemoryCacheStore(),
+    );
+    await controller.load();
+    repository.failLoad = true;
+    await controller.load(); // live kept, message set
+    final message = controller.state.message;
+    expect(message, isNotNull);
+    repository.refreshCompleter = Completer<Vehicle>()
+      ..complete(_vehicle('live', make: 'New'));
+
+    await controller.refresh('live');
+
+    expect(controller.state.message, message);
+    expect(controller.state.vehicles.single.make, 'New');
+  });
+
+  test('reset() clears refreshing ids', () async {
+    final repository = _ScriptedVehicleRepository();
+    final controller = VehiclesController(repository);
+    await controller.load();
+    repository.refreshCompleter = Completer<Vehicle>();
+    unawaited(controller.refresh('live'));
+    expect(controller.isRefreshing('live'), isTrue);
+
+    await controller.reset();
+
+    expect(controller.isRefreshing('live'), isFalse);
   });
 }

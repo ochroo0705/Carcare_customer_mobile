@@ -82,7 +82,9 @@ class _AppointmentDetailScreenState extends State<AppointmentDetailScreen>
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(_pollInterval, (_) {
       if (!mounted) return;
-      context.read<AppointmentsController>().load();
+      // Silent + guarded: no loading flash, and a tick is skipped while a
+      // previous load is still in flight.
+      context.read<AppointmentsController>().refreshSilently();
     });
   }
 

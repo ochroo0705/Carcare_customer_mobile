@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:dio/dio.dart';
 
@@ -20,6 +22,7 @@ class ApiClient {
              BaseOptions(
                baseUrl: _normalizeBaseUrl(baseUrl),
                connectTimeout: const Duration(seconds: 10),
+               sendTimeout: const Duration(seconds: 10),
                receiveTimeout: const Duration(seconds: 15),
                headers: const {'Accept': 'application/json'},
              ),
@@ -31,64 +34,36 @@ class ApiClient {
 
   /// JSON object буцаадаг GET endpoint дуудна.
   /// API-ийн хариу object биш байвал partial data-г цааш дамжуулахгүй.
-  Future<Map<String, dynamic>> getJson(String path) async {
-    try {
-      final response = await _dio.get<Object?>(path, options: await _options());
-      final data = response.data;
-      if (data is! Map) throw const UnexpectedFailure();
-      return Map<String, dynamic>.from(data);
-    } on DioException catch (error) {
-      await _handleUnauthorized(error);
-      throw _mapDioFailure(error);
-    }
-  }
+  Future<Map<String, dynamic>> getJson(String path) => _send('GET', path);
 
   /// JSON object body-той POST endpoint дуудна.
   Future<Map<String, dynamic>> postJson(
     String path,
     Map<String, dynamic> body,
-  ) async {
-    try {
-      final response = await _dio.post<Object?>(
-        path,
-        data: body,
-        options: await _options(),
-      );
-      final data = response.data;
-      if (data is! Map) throw const UnexpectedFailure();
-      return Map<String, dynamic>.from(data);
-    } on DioException catch (error) {
-      await _handleUnauthorized(error);
-      throw _mapDioFailure(error);
-    }
-  }
+  ) => _send('POST', path, body: body);
 
   /// JSON object body-той PATCH endpoint дуудна.
   Future<Map<String, dynamic>> patchJson(
     String path,
     Map<String, dynamic> body,
-  ) async {
-    try {
-      final response = await _dio.patch<Object?>(
-        path,
-        data: body,
-        options: await _options(),
-      );
-      final data = response.data;
-      if (data is! Map) throw const UnexpectedFailure();
-      return Map<String, dynamic>.from(data);
-    } on DioException catch (error) {
-      await _handleUnauthorized(error);
-      throw _mapDioFailure(error);
-    }
-  }
+  ) => _send('PATCH', path, body: body);
 
   /// JSON object буцаадаг DELETE endpoint дуудна.
-  Future<Map<String, dynamic>> deleteJson(String path) async {
+  Future<Map<String, dynamic>> deleteJson(String path) => _send('DELETE', path);
+
+  Future<Map<String, dynamic>> _send(
+    String method,
+    String path, {
+    Map<String, dynamic>? body,
+    Map<String, dynamic>? query,
+  }) async {
     try {
-      final response = await _dio.delete<Object?>(
+      final options = await _options();
+      final response = await _dio.request<Object?>(
         path,
-        options: await _options(),
+        data: body,
+        queryParameters: query,
+        options: (options ?? Options()).copyWith(method: method),
       );
       final data = response.data;
       if (data is! Map) throw const UnexpectedFailure();
@@ -137,7 +112,13 @@ String _normalizeBaseUrl(String value) {
 /// Backend-ийн `{ "error": "..." }` гэрээгээр хүний унших message-г
 /// хадгална; танихгүй response бол аюулгүй ерөнхий мессеж рүү унана.
 AppFailure _mapDioFailure(DioException error) {
-  if (error.type == DioExceptionType.connectionError ||
+  if (error.type == DioExceptionType.cancel) {
+    return const RequestCancelledFailure();
+  }
+  if (error.type == DioExceptionType.badCertificate ||
+      (error.type == DioExceptionType.unknown &&
+          error.error is SocketException) ||
+      error.type == DioExceptionType.connectionError ||
       error.type == DioExceptionType.connectionTimeout ||
       error.type == DioExceptionType.receiveTimeout ||
       error.type == DioExceptionType.sendTimeout) {

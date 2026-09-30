@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:carcare_customer_mobile/core/errors/app_failure.dart';
 import 'package:carcare_customer_mobile/features/notifications/data/fake_notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notification_type.dart';
@@ -12,7 +13,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// Lets a test control exactly when each `getNotifications` call resolves,
 /// to reproduce out-of-order responses (e.g. a pull-to-refresh's `load()`
 /// resolving after a `markRead`-triggered `load()` that started later).
-class _RaceNotificationsRepository extends Fake implements NotificationsRepository {
+class _RaceNotificationsRepository extends Fake
+    implements NotificationsRepository {
   final List<Completer<NotificationsPage>> completers = [];
 
   @override
@@ -20,6 +22,28 @@ class _RaceNotificationsRepository extends Fake implements NotificationsReposito
     final completer = Completer<NotificationsPage>();
     completers.add(completer);
     return completer.future;
+  }
+}
+
+class _ScriptedNotificationsRepository extends Fake
+    implements NotificationsRepository {
+  bool failLoad = false;
+  bool throwRaw = false;
+
+  @override
+  Future<NotificationsPage> getNotifications() async {
+    if (failLoad) throw const NetworkFailure('offline');
+    return _page([_notification('a')]);
+  }
+
+  @override
+  Future<void> markRead(String id) async {
+    if (throwRaw) throw StateError('boom');
+  }
+
+  @override
+  Future<void> markAllRead() async {
+    if (throwRaw) throw StateError('boom');
   }
 }
 
@@ -88,29 +112,26 @@ void main() {
     },
   );
 
-  test(
-    'handleIncomingPush maps a staff phone-in booking push (appointment_booked_by_staff)',
-    () async {
-      final controller = NotificationsController(FakeNotificationsRepository());
-      await controller.load();
-      final before = controller.unreadCount;
+  test('handleIncomingPush maps a staff phone-in booking push (appointment_booked_by_staff)', () async {
+    final controller = NotificationsController(FakeNotificationsRepository());
+    await controller.load();
+    final before = controller.unreadCount;
 
-      await controller.handleIncomingPush(
-        title: 'Шинэ цаг захиалга',
-        body: 'Инфосистемс таны нэр дээр 2026.09.28 08:00-д цаг бүртгэлээ.',
-        data: const {
-          'type': 'appointment_booked_by_staff',
-          'appointmentId': '456',
-        },
-      );
+    await controller.handleIncomingPush(
+      title: 'Шинэ цаг захиалга',
+      body: 'Инфосистемс таны нэр дээр 2026.09.28 08:00-д цаг бүртгэлээ.',
+      data: const {
+        'type': 'appointment_booked_by_staff',
+        'appointmentId': '456',
+      },
+    );
 
-      expect(controller.unreadCount, before + 1);
-      final newest = controller.state.notifications.first;
-      expect(newest.title, 'Шинэ цаг захиалга');
-      expect(newest.type, NotificationType.appointmentBookedByStaff);
-      expect(newest.isRead, isFalse);
-    },
-  );
+    expect(controller.unreadCount, before + 1);
+    final newest = controller.state.notifications.first;
+    expect(newest.title, 'Шинэ цаг захиалга');
+    expect(newest.type, NotificationType.appointmentBookedByStaff);
+    expect(newest.isRead, isFalse);
+  });
 
   test(
     'handleIncomingPush falls back to broadcast for an unknown or missing type',
@@ -161,5 +182,38 @@ void main() {
 
     // The stale response must not clobber the newer result.
     expect(controller.state.notifications.single.id, 'newer');
+  });
+
+  test('a failed reload keeps live notifications on screen', () async {
+    final repository = _ScriptedNotificationsRepository();
+    final controller = NotificationsController(repository);
+    await controller.load();
+    repository.failLoad = true;
+
+    await controller.load();
+
+    expect(controller.state.status, NotificationsStatus.data);
+    expect(controller.state.notifications.single.id, 'a');
+    expect(controller.state.message, isNotNull);
+  });
+
+  test('markRead does not blank the list when the reload fails', () async {
+    final repository = _ScriptedNotificationsRepository();
+    final controller = NotificationsController(repository);
+    await controller.load();
+    repository.failLoad = true;
+
+    await controller.markRead('a');
+
+    expect(controller.state.notifications.single.id, 'a');
+    expect(controller.state.status, NotificationsStatus.data);
+  });
+
+  test('markRead and markAllRead swallow non-AppFailure errors', () async {
+    final repository = _ScriptedNotificationsRepository()..throwRaw = true;
+    final controller = NotificationsController(repository);
+
+    await controller.markRead('a');
+    await controller.markAllRead();
   });
 }

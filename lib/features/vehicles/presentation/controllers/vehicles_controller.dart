@@ -23,6 +23,10 @@ class VehiclesController extends ChangeNotifier {
   /// that is still the latest may apply.
   int _loadRequestId = 0;
 
+  // True while the list on screen came from a successful network load (not
+  // the disk cache); a failed refresh then keeps it instead of falling back.
+  bool _hasLiveData = false;
+
   VehiclesState get state => _state;
 
   bool isDeleting(String id) => _deletingIds.contains(id);
@@ -47,11 +51,12 @@ class VehiclesController extends ChangeNotifier {
       );
       await _cache.writeVehicles(vehicles);
     } on AppFailure catch (failure) {
-      result = await _fallbackToCache(failure.message);
+      result = await _resultAfterFailure(failure.message);
     } catch (_) {
-      result = await _fallbackToCache('Тодорхойгүй алдаа гарлаа.');
+      result = await _resultAfterFailure('Тодорхойгүй алдаа гарлаа.');
     }
     if (requestId != _loadRequestId) return;
+    _hasLiveData = result.status == VehiclesStatus.data && !result.isFromCache;
     _state = result;
     notifyListeners();
   }
@@ -61,10 +66,23 @@ class VehiclesController extends ChangeNotifier {
   /// cached vehicles.
   Future<void> reset() async {
     _loadRequestId++;
+    _hasLiveData = false;
     _state = const VehiclesState();
     _deletingIds.clear();
+    _refreshingIds.clear();
     notifyListeners();
     await _cache.clearVehicles();
+  }
+
+  Future<VehiclesState> _resultAfterFailure(String failureMessage) async {
+    if (_hasLiveData) {
+      return VehiclesState(
+        status: VehiclesStatus.data,
+        vehicles: _state.vehicles,
+        message: failureMessage,
+      );
+    }
+    return _fallbackToCache(failureMessage);
   }
 
   Future<VehiclesState> _fallbackToCache(String failureMessage) async {
@@ -110,14 +128,18 @@ class VehiclesController extends ChangeNotifier {
     if (_refreshingIds.contains(id)) return null;
     _refreshingIds.add(id);
     notifyListeners();
+    final requestId = _loadRequestId;
     try {
       final updated = await _repository.refreshFromHur(id);
+      // A load or reset that ran meanwhile owns the state (and the cache).
+      if (requestId != _loadRequestId) return null;
       _state = VehiclesState(
         status: _state.status,
         vehicles: [
           for (final v in _state.vehicles)
             if (v.id == id) updated else v,
         ],
+        message: _state.message,
         isFromCache: _state.isFromCache,
       );
       await _cache.writeVehicles(_state.vehicles);

@@ -23,6 +23,10 @@ class NotificationsController extends ChangeNotifier {
   /// every `load()`; only the call that is still the latest may apply.
   int _loadRequestId = 0;
 
+  // True while a successful load's data is on screen; a failed reload then
+  // keeps it (with a message) rather than replacing it with an error state.
+  bool _hasLiveData = false;
+
   NotificationsState get state => _state;
 
   /// The server's unread total, not a count over the loaded page — the list
@@ -57,24 +61,35 @@ class NotificationsController extends ChangeNotifier {
         status: NotificationsStatus.unavailable,
       );
     } on AppFailure catch (failure) {
-      result = NotificationsState(
-        status: NotificationsStatus.error,
-        message: failure.message,
-      );
+      result = _resultAfterFailure(failure.message);
     } catch (_) {
-      result = const NotificationsState(
-        status: NotificationsStatus.error,
-        message: 'Тодорхойгүй алдаа гарлаа.',
-      );
+      result = _resultAfterFailure('Тодорхойгүй алдаа гарлаа.');
     }
     if (requestId != _loadRequestId) return;
+    _hasLiveData = result.status == NotificationsStatus.data;
     _state = result;
     notifyListeners();
+  }
+
+  NotificationsState _resultAfterFailure(String message) {
+    if (_hasLiveData) {
+      return NotificationsState(
+        status: NotificationsStatus.data,
+        notifications: _state.notifications,
+        unreadCount: _state.unreadCount,
+        message: message,
+      );
+    }
+    return NotificationsState(
+      status: NotificationsStatus.error,
+      message: message,
+    );
   }
 
   /// Resets to the initial state, e.g. after the customer signs out.
   void reset() {
     _loadRequestId++;
+    _hasLiveData = false;
     _state = const NotificationsState();
     notifyListeners();
   }
@@ -83,7 +98,7 @@ class NotificationsController extends ChangeNotifier {
     try {
       await _repository.markRead(id);
       await load();
-    } on AppFailure {
+    } catch (_) {
       // Best-effort; a failed mark-read isn't worth surfacing an error for.
     }
   }
@@ -92,7 +107,7 @@ class NotificationsController extends ChangeNotifier {
     try {
       await _repository.markAllRead();
       await load();
-    } on AppFailure {
+    } catch (_) {
       // Best-effort; a failed mark-all-read isn't worth surfacing an error for.
     }
   }
@@ -110,7 +125,9 @@ class NotificationsController extends ChangeNotifier {
   }) async {
     final notification = AppNotification(
       id: 'push-${DateTime.now().microsecondsSinceEpoch}',
-      type: notificationTypeFromPushData(data['type'] as String?),
+      type: notificationTypeFromPushData(
+        data['type'] is String ? data['type'] as String : null,
+      ),
       title: title ?? 'Мэдэгдэл',
       message: body ?? '',
       createdAt: DateTime.now(),

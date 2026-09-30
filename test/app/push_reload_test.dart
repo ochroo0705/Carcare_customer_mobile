@@ -1,5 +1,6 @@
 import 'package:carcare_customer_mobile/app/bootstrap_flags.dart';
 import 'package:carcare_customer_mobile/app/app.dart';
+import 'package:carcare_customer_mobile/app/reload_coordinator.dart';
 import 'package:carcare_customer_mobile/features/booking/data/fake_appointment_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment.dart';
 import 'package:carcare_customer_mobile/features/booking/domain/appointment_payment.dart';
@@ -246,6 +247,12 @@ void main() {
 
       final appointmentsBefore = appointments.getAppointmentsCallCount;
       final historyBefore = history.getServiceHistoryCallCount;
+
+      // Resume reloads are throttled to 30s after a successful load, so move
+      // the coordinator's clock past that window (the startup load just ran).
+      final start = DateTime.now();
+      reloadClock = () => start.add(const Duration(minutes: 1));
+      addTearDown(() => reloadClock = DateTime.now);
 
       // Simulate the app going to background and coming back — no push
       // involved at all, this is the missed-push safety net.

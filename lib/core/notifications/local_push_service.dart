@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:carcare_customer_mobile/features/notifications/domain/app_notification.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -11,6 +13,10 @@ class LocalPushService {
 
   final _plugin = FlutterLocalNotificationsPlugin();
   var _initialized = false;
+
+  /// Called with the routable push data when the user taps a local banner.
+  /// Set by the app once navigation exists; a tap before then is dropped.
+  void Function(Map<String, dynamic> data)? onTap;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -30,8 +36,20 @@ class LocalPushService {
         android: androidSettings,
         iOS: iosSettings,
       ),
+      onDidReceiveNotificationResponse: _onResponse,
     );
     _initialized = true;
+  }
+
+  void _onResponse(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map<String, dynamic>) onTap?.call(decoded);
+    } catch (_) {
+      // A malformed payload is ignored rather than crashing the tap.
+    }
   }
 
   Future<void> show(AppNotification notification) async {
@@ -50,6 +68,7 @@ class LocalPushService {
       title: notification.title,
       body: notification.message,
       notificationDetails: details,
+      payload: jsonEncode(notification.data),
     );
   }
 }

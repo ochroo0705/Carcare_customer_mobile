@@ -12,7 +12,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// the backend's push-before-HTTP-response race.
 class _SlowClosureRepo extends Fake implements AuthRepository {
   _SlowClosureRepo({Account? account})
-    : _account = account ?? const Account(id: 'fake-account', phone: '99112233');
+    : _account =
+          account ?? const Account(id: 'fake-account', phone: '99112233');
 
   Account? _account;
   final _gate = Completer<void>();
@@ -81,38 +82,50 @@ void main() {
     expect(c.account, isNull);
   });
 
-  test('closeAccount skips device removal and flags the closure kind', () async {
-    for (final deleteForever in [false, true]) {
-      final repo = FakeAuthRepository(signedIn: true);
-      var removalCalls = 0;
-      final c = AuthController(repo)
-        ..beforeSignOut = () async => removalCalls++;
-      await c.restore();
+  test(
+    'closeAccount skips device removal and flags the closure kind',
+    () async {
+      for (final deleteForever in [false, true]) {
+        final repo = FakeAuthRepository(signedIn: true);
+        var removalCalls = 0;
+        final c = AuthController(repo)
+          ..beforeSignOut = () async => removalCalls++;
+        await c.restore();
 
-      await c.closeAccount(deleteForever: deleteForever, code: '123456');
-      expect(removalCalls, 0);
-      expect(c.justClosedAccount, deleteForever);
-    }
-  });
+        await c.closeAccount(deleteForever: deleteForever, code: '123456');
+        expect(removalCalls, 0);
+        expect(
+          c.sessionEvent,
+          deleteForever ? SessionEvent.deleted : SessionEvent.deactivated,
+        );
+      }
+    },
+  );
 
-  test('failed closeAccount leaves justClosedAccount unset', () async {
+  test('failed closeAccount leaves sessionEvent unset', () async {
     final repo = FakeAuthRepository(signedIn: true)..closureShouldFail = true;
     final c = AuthController(repo);
     await c.restore();
 
     await c.closeAccount(deleteForever: false, code: '000000');
-    expect(c.justClosedAccount, isNull);
+    expect(c.sessionEvent, isNull);
   });
 
-  test('closeAccount with wrong code keeps session and exposes error', () async {
-    final repo = FakeAuthRepository(signedIn: true)..closureShouldFail = true;
-    final c = AuthController(repo);
-    await c.restore();
+  test(
+    'closeAccount with wrong code keeps session and exposes error',
+    () async {
+      final repo = FakeAuthRepository(signedIn: true)..closureShouldFail = true;
+      final c = AuthController(repo);
+      await c.restore();
 
-    expect(await c.closeAccount(deleteForever: true, code: '000000'), isFalse);
-    expect(c.account, isNotNull);
-    expect(c.errorMessage, isNotNull);
-  });
+      expect(
+        await c.closeAccount(deleteForever: true, code: '000000'),
+        isFalse,
+      );
+      expect(c.account, isNotNull);
+      expect(c.errorMessage, isNotNull);
+    },
+  );
 
   test('requestClosureOtp returns masked phone', () async {
     final repo = FakeAuthRepository(signedIn: true);
@@ -128,7 +141,7 @@ void main() {
 
     await c.requestOtp('99112233');
     expect(await c.verifyOtp('123456'), isTrue);
-    expect(c.justReactivated, isTrue);
+    expect(c.sessionEvent, SessionEvent.reactivated);
   });
 
   test('verifyOtp defaults reactivated to false', () async {
@@ -137,7 +150,7 @@ void main() {
 
     await c.requestOtp('99112233');
     expect(await c.verifyOtp('123456'), isTrue);
-    expect(c.justReactivated, isFalse);
+    expect(c.sessionEvent, isNull);
   });
 
   test('handleRemoteAccountClosed(deleted: true) signs out locally and flags deleted', () async {
@@ -149,12 +162,10 @@ void main() {
     await c.handleRemoteAccountClosed(deleted: true);
 
     expect(c.account, isNull);
-    expect(c.justRemoteClosedAccount, 'deleted');
+    expect(c.sessionEvent, SessionEvent.remoteDeleted);
     // No device-removal call — the server already revoked the token, so a
     // call here would only 401.
     expect(removalCalls, 0);
-    // The in-app closure flag (this device's own flow) must stay untouched.
-    expect(c.justClosedAccount, isNull);
   });
 
   test('handleRemoteAccountClosed(deleted: false) flags deactivated', () async {
@@ -165,49 +176,48 @@ void main() {
     await c.handleRemoteAccountClosed(deleted: false);
 
     expect(c.account, isNull);
-    expect(c.justRemoteClosedAccount, 'deactivated');
-  });
-
-  test('handleRemoteAccountClosed is a no-op when already signed out', () async {
-    final repo = FakeAuthRepository();
-    final c = AuthController(repo);
-    await c.restore();
-    expect(c.isAuthenticated, isFalse);
-
-    await c.handleRemoteAccountClosed(deleted: true);
-
-    expect(c.justRemoteClosedAccount, isNull);
+    expect(c.sessionEvent, SessionEvent.remoteDeactivated);
   });
 
   test(
-    'a remote account_closed push arriving mid-closeAccount is a no-op: '
-    'exactly one sign-out, justClosedAccount set (not stale), and the remote '
-    'flag never set',
+    'handleRemoteAccountClosed is a no-op when already signed out',
     () async {
-      final repo = _SlowClosureRepo();
+      final repo = FakeAuthRepository();
       final c = AuthController(repo);
       await c.restore();
-      expect(c.isAuthenticated, isTrue);
+      expect(c.isAuthenticated, isFalse);
 
-      final closeFuture = c.closeAccount(deleteForever: true, code: '123456');
-      // closeAccount is now awaiting the server — fire this device's own
-      // account_closed push, exactly like the backend's early delivery.
       await c.handleRemoteAccountClosed(deleted: true);
-      // The push must have been ignored: closeAccount still owns the flow.
-      expect(c.isAuthenticated, isTrue);
-      expect(c.justRemoteClosedAccount, isNull);
 
-      repo.releaseClosure();
-      expect(await closeFuture, isTrue);
-
-      // Exactly one sign-out, caused by closeAccount, with a fresh (not
-      // stale) flag.
-      expect(repo.signOutCalls, 0); // closeAccount doesn't call signOut()
-      expect(c.account, isNull);
-      expect(c.justClosedAccount, isTrue);
-      expect(c.justRemoteClosedAccount, isNull);
+      expect(c.sessionEvent, isNull);
     },
   );
+
+  test('a remote account_closed push arriving mid-closeAccount is a no-op: '
+      'exactly one sign-out, justClosedAccount set (not stale), and the remote '
+      'flag never set', () async {
+    final repo = _SlowClosureRepo();
+    final c = AuthController(repo);
+    await c.restore();
+    expect(c.isAuthenticated, isTrue);
+
+    final closeFuture = c.closeAccount(deleteForever: true, code: '123456');
+    // closeAccount is now awaiting the server — fire this device's own
+    // account_closed push, exactly like the backend's early delivery.
+    await c.handleRemoteAccountClosed(deleted: true);
+    // The push must have been ignored: closeAccount still owns the flow.
+    expect(c.isAuthenticated, isTrue);
+    expect(c.sessionEvent, isNull);
+
+    repo.releaseClosure();
+    expect(await closeFuture, isTrue);
+
+    // Exactly one sign-out, caused by closeAccount, with a fresh (not
+    // stale) flag.
+    expect(repo.signOutCalls, 0); // closeAccount doesn't call signOut()
+    expect(c.account, isNull);
+    expect(c.sessionEvent, SessionEvent.deleted);
+  });
 
   test(
     'a remote push arriving mid-closeAccount does not leak a stale flag into '
@@ -222,16 +232,15 @@ void main() {
       repo.releaseClosure();
       await closeFuture;
 
-      expect(c.justClosedAccount, isFalse);
-      // Consume it, as the router would.
-      c.justClosedAccount = null;
+      expect(c.sessionEvent, SessionEvent.deactivated);
+      // Consume it, as the services would.
+      c.takeSessionEvent();
 
       // A later remote push (e.g. this device's own push arriving very late)
       // must still be a no-op now that the session is already gone, and must
       // not resurrect justClosedAccount.
       await c.handleRemoteAccountClosed(deleted: true);
-      expect(c.justClosedAccount, isNull);
-      expect(c.justRemoteClosedAccount, isNull);
+      expect(c.sessionEvent, isNull);
     },
   );
 }

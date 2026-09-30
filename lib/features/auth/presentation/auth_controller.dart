@@ -7,6 +7,44 @@ import 'package:flutter/foundation.dart';
 
 enum AuthStep { phone, otp }
 
+/// Why the session just started or ended, so `CustomerAppServices` can show
+/// the right notice (and decide about device removal) exactly once. Set
+/// BEFORE the state change it describes, so change listeners already see it.
+enum SessionEvent {
+  /// Sign-in cleared a previous self-service deactivation.
+  reactivated,
+
+  /// This device deactivated the account in-app.
+  deactivated,
+
+  /// This device deleted the account in-app.
+  deleted,
+
+  /// The account was deactivated elsewhere (learned via silent push).
+  remoteDeactivated,
+
+  /// The account was deleted elsewhere (learned via silent push).
+  remoteDeleted,
+
+  /// A sign-out that already ran [AuthController.beforeSignOut] (device
+  /// removal), so the listener must not deregister the device again.
+  deviceRemovalHandled,
+}
+
+/// Notifies only when the authenticated account identity changes.
+class _SessionNotifier extends ChangeNotifier {
+  String? _id;
+  bool _signedIn = false;
+
+  void update(Account? account) {
+    final signedIn = account != null;
+    if (signedIn == _signedIn && account?.id == _id) return;
+    _signedIn = signedIn;
+    _id = account?.id;
+    notifyListeners();
+  }
+}
+
 /// Account realm-ийн OTP flow болон app-ийн authenticated state-г удирдана.
 /// UI зөвхөн энэ state-ийг ажиглана; token хадгалалт, server contract-ийг
 /// [AuthRepository] хэрэгжүүлдэг.
@@ -21,6 +59,11 @@ class AuthController extends ChangeNotifier {
   }
 
   final AuthRepository _repository;
+  final _SessionNotifier _session = _SessionNotifier();
+
+  /// Fires only when the signed-in account changes (sign in / out / swap),
+  /// never on busy, error or login-step changes. The router refreshes on this.
+  Listenable get session => _session;
   late final StreamSubscription<void> _invalidatedSubscription;
 
   /// Runs, while the session is still valid, right before [signOut] clears
@@ -28,31 +71,31 @@ class AuthController extends ChangeNotifier {
   /// side effects that need the still-live token (see `AppRouter`); signing
   /// out after a 401 skips this since the token is already invalid there.
   Future<void> Function()? beforeSignOut;
-  Account? account;
+  Account? _account;
+  Account? get account => _account;
+  set account(Account? value) {
+    _account = value;
+    _session.update(value);
+  }
+
   AuthStep step = AuthStep.phone;
   String phone = '';
   String? errorMessage;
   bool isBusy = false;
 
-  /// Set by [verifyOtp] from the server's `reactivated` flag: true when this
-  /// sign-in cleared a previous self-service deactivation. Not persisted —
-  /// only meaningful right after a successful [verifyOtp] call, for a
-  /// one-time "welcome back" notice.
-  bool justReactivated = false;
+  /// The pending session start/end reason; consumed once via
+  /// [takeSessionEvent]. Reactivation comes from the server's `reactivated`
+  /// flag on [verifyOtp]; closures from [closeAccount] (local) and
+  /// [handleRemoteAccountClosed] (remote, distinct wording); a user sign-out
+  /// records that device removal was already handled.
+  SessionEvent? sessionEvent;
 
-  /// Set by [closeAccount] on success: `false` = deactivated, `true` =
-  /// deleted forever, `null` = the last sign-out was not a closure. The
-  /// router consumes it once to show a notice and to skip the device-removal
-  /// call (the server already dropped the devices and the token is dead).
-  bool? justClosedAccount;
-
-  /// Set by [handleRemoteAccountClosed]: `'deleted'` or `'deactivated'` when
-  /// this device's still-signed-in session just learned (via a silent push)
-  /// that the account was closed elsewhere — e.g. from the website. Distinct
-  /// from [justClosedAccount], which is this device's own in-app closure
-  /// flow; the router uses the two to pick between "Бүртгэл тань ..." (remote)
-  /// and "Бүртгэл ... боллоо/лээ" (local) wording. Consumed once by the router.
-  String? justRemoteClosedAccount;
+  /// Returns and clears [sessionEvent].
+  SessionEvent? takeSessionEvent() {
+    final event = sessionEvent;
+    sessionEvent = null;
+    return event;
+  }
 
   /// True for the duration of this device's own [closeAccount] call. The
   /// backend sends the `account_closed` push right after its DB transaction
@@ -61,7 +104,7 @@ class AuthController extends ChangeNotifier {
   /// `closeAccount` is still awaiting that response. Without this guard,
   /// [handleRemoteAccountClosed] would run mid-`closeAccount`, sign out and
   /// show the remote snackbar, and then `closeAccount` would resume and set
-  /// [justClosedAccount] after the sign-out transition already fired — a
+  /// [sessionEvent] after the sign-out transition already fired — a
   /// flag nobody ever consumes, left to leak into the *next* sign-out as a
   /// stale "Бүртгэл устгагдлаа" notice.
   bool _closingAccount = false;
@@ -84,8 +127,12 @@ class AuthController extends ChangeNotifier {
   Future<void> handleRemoteAccountClosed({required bool deleted}) async {
     if (_closingAccount) return;
     if (!isAuthenticated) return;
+    // Set before signing out: the storage clear fires the invalidation stream
+    // and listeners may observe `account == null` before this method resumes.
+    sessionEvent = deleted
+        ? SessionEvent.remoteDeleted
+        : SessionEvent.remoteDeactivated;
     await _repository.signOut();
-    justRemoteClosedAccount = deleted ? 'deleted' : 'deactivated';
     account = null;
     notifyListeners();
   }
@@ -127,7 +174,8 @@ class AuthController extends ChangeNotifier {
   Future<void> _verify(String code) async {
     final result = await _repository.verifyOtp(phone: phone, code: code);
     account = result.account;
-    justReactivated = result.reactivated;
+    sessionEvent = result.reactivated ? SessionEvent.reactivated : null;
+    _resetLoginFlow();
   }
 
   /// Account closure OTP хүсэж, masked утасны дугаар буцаана. Алдаа гарвал
@@ -177,7 +225,9 @@ class AuthController extends ChangeNotifier {
       // belt-and-suspenders check so a transition is never fired, and the
       // flag never set, for a sign-out this call didn't actually cause.
       if (account != null) {
-        justClosedAccount = deleteForever;
+        sessionEvent = deleteForever
+            ? SessionEvent.deleted
+            : SessionEvent.deactivated;
         account = null;
       }
     } finally {
@@ -198,7 +248,9 @@ class AuthController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void resetFlow() {
+  void resetFlow() => _resetLoginFlow();
+
+  void _resetLoginFlow() {
     step = AuthStep.phone;
     phone = '';
     errorMessage = null;
@@ -207,13 +259,20 @@ class AuthController extends ChangeNotifier {
     // alongside the first.
   }
 
-  Future<void> signOut() async {
+  Future<void> signOut() => _signOut();
+
+  Future<void> _signOut() async {
     // Must run before the token is cleared below — device deregistration
     // needs a still-valid Authorization header, otherwise the server 401s
     // the DELETE before it ever removes the row, leaving push notifications
     // arriving on a signed-out device indefinitely.
-    await beforeSignOut?.call();
+    final removal = beforeSignOut;
+    await removal?.call();
+    // Set before the sign-out so listeners fired by it already see it.
+    // Any earlier unconsumed reason is stale for a plain sign-out.
+    sessionEvent = removal != null ? SessionEvent.deviceRemovalHandled : null;
     await _repository.signOut();
+    _resetLoginFlow();
     account = null;
     notifyListeners();
   }
@@ -222,14 +281,14 @@ class AuthController extends ChangeNotifier {
   /// token is already invalid server-side at this point, so [beforeSignOut]
   /// (e.g. device deregistration) is expected to fail there too — kept as a
   /// separate name so call sites document why the session was cleared.
-  Future<void> clearConfirmedUnauthorized() => signOut();
+  Future<void> clearConfirmedUnauthorized() => _signOut();
 
   /// Storage has already been cleared by the repository that hit the 401 —
   /// this only needs to drop the in-memory `account` so the UI catches up.
   void _handleSessionInvalidated() {
     // The closure's own storage clear fires this too, and the event may land
     // before closeAccount resumes — nulling `account` here would make it
-    // skip `justClosedAccount`, losing the "Бүртгэл ... боллоо" notice.
+    // skip `sessionEvent`, losing the "Бүртгэл ... боллоо" notice.
     if (_closingAccount) {
       _invalidatedWhileClosing = true;
       return;

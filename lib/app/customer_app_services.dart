@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:carcare_customer_mobile/app/push_coordinator.dart';
+import 'package:carcare_customer_mobile/app/reload_coordinator.dart';
 import 'package:carcare_customer_mobile/core/connectivity/connectivity_service.dart';
 import 'package:carcare_customer_mobile/data/cache/cache_store.dart';
 import 'package:carcare_customer_mobile/core/notifications/remote_push_service.dart';
@@ -10,19 +12,15 @@ import 'package:carcare_customer_mobile/features/devices/data/device_id_store.da
 import 'package:carcare_customer_mobile/features/devices/domain/device_repository.dart';
 import 'package:carcare_customer_mobile/features/diagnostics/domain/diagnostics_repository.dart';
 import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_controller.dart';
-import 'package:carcare_customer_mobile/features/booking/presentation/controllers/appointments_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/domain/organization_repository.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_controller.dart';
-import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/discovery_state.dart';
 import 'package:carcare_customer_mobile/features/discovery/presentation/controllers/organization_detail_controller.dart';
 import 'package:carcare_customer_mobile/features/history/domain/service_history_repository.dart';
 import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_controller.dart';
-import 'package:carcare_customer_mobile/features/history/presentation/controllers/history_state.dart';
 import 'package:carcare_customer_mobile/features/notifications/domain/notifications_repository.dart';
 import 'package:carcare_customer_mobile/features/notifications/presentation/controllers/notifications_controller.dart';
 import 'package:carcare_customer_mobile/features/vehicles/domain/vehicle_repository.dart';
 import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_controller.dart';
-import 'package:carcare_customer_mobile/features/vehicles/presentation/controllers/vehicles_state.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -52,9 +50,12 @@ class CustomerAppServices with WidgetsBindingObserver {
     organizationDetailController = OrganizationDetailController(
       organizationRepository,
     );
-    authController = AuthController(authRepository)
-      ..restore()
-      ..beforeSignOut = _removeDeviceForPush;
+    authController = AuthController(authRepository);
+    final sessionRestored = authController.restore();
+    // Nobody awaits this unless a cold-start push tap needs it; a failed
+    // restore just means signed out, so it must not surface as unhandled.
+    // (Later awaiters of [sessionRestored] still observe the error.)
+    unawaited(sessionRestored.catchError((Object _) {}));
     appointmentsController = AppointmentsController(
       appointmentRepository,
       cache: cacheStore,
@@ -71,46 +72,30 @@ class CustomerAppServices with WidgetsBindingObserver {
     // booking stays independent of history (cf. `beforeSignOut` above).
     appointmentsController.onAppointmentCancelled = historyController.load;
     notificationsController = NotificationsController(notificationsRepository);
+    reload = ReloadCoordinator(
+      discovery: discoveryController,
+      organizationDetail: organizationDetailController,
+      appointments: appointmentsController,
+      vehicles: vehiclesController,
+      history: historyController,
+      notifications: notificationsController,
+      isAuthenticated: () => authController.isAuthenticated,
+    );
     authController.addListener(_onAuthChanged);
 
     WidgetsBinding.instance.addObserver(this);
-    _tokenRefreshSubscription = remotePushService.onTokenRefresh.listen(
-      _onTokenRefreshed,
+    push = PushCoordinator(
+      remotePushService: remotePushService,
+      deviceRepository: deviceRepository,
+      deviceIdStore: deviceIdStore,
+      authController: authController,
+      notificationsController: notificationsController,
+      reloadListsForPushType: reload.onPush,
+      sessionRestored: sessionRestored,
     );
-    _foregroundMessageSubscription = remotePushService.onMessage.listen((
-      message,
-    ) {
-      final type = message.data['type'] as String?;
-      // Silent, data-only account-closure push: never a visible/local
-      // notification, never appended to the in-app list, never routed —
-      // just force a local sign-out. Handled before
-      // `notificationsController.handleIncomingPush` so it can't leak in
-      // as a notification.
-      if (type == 'account_closed') {
-        authController.handleRemoteAccountClosed(
-          deleted: message.data['reason'] == 'deleted',
-        );
-        return;
-      }
-      notificationsController.handleIncomingPush(
-        title: message.notification?.title,
-        body: message.notification?.body,
-        data: message.data,
-      );
-      reloadListsForPushType(type);
-    });
+    authController.beforeSignOut = push.removeDeviceForSignOut;
     _connectivitySubscription = connectivityService.onConnectivityChanged
         .listen(_onConnectivityChanged);
-    // Deep-link a background notification tap into the relevant screen.
-    _notificationTapSubscription = remotePushService.onMessageOpenedApp.listen(
-      (message) => onNotificationTap?.call(message.data),
-    );
-    // A tap that cold-started the app: handle after the first frame so the
-    // shell exists and its tab can be selected.
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final initial = await remotePushService.getInitialMessage();
-      if (initial != null) onNotificationTap?.call(initial.data);
-    });
   }
 
   final DiscoveryController discoveryController;
@@ -131,19 +116,31 @@ class CustomerAppServices with WidgetsBindingObserver {
   final DeviceIdStore deviceIdStore;
   final ConnectivityService connectivityService;
   final CacheStore cacheStore;
-  late final StreamSubscription<String> _tokenRefreshSubscription;
-  late final StreamSubscription<dynamic> _foregroundMessageSubscription;
+  late final PushCoordinator push;
   late final StreamSubscription<bool> _connectivitySubscription;
-  late final StreamSubscription<dynamic> _notificationTapSubscription;
+  late final ReloadCoordinator reload;
+  final ValueNotifier<bool> _isOnline = ValueNotifier(true);
+
+  /// Whether the customer API is currently reachable (verified by the
+  /// [ConnectivityService] probe). Starts `true` so nothing flashes offline
+  /// before the first check. Drives the app-wide offline strip.
+  ValueListenable<bool> get isOnline => _isOnline;
+
+  /// Ticks each time the device regains connectivity. For screen-owned
+  /// controllers this class can't reach (e.g. the diagnostics list inside
+  /// `HistoryScreen`) so they can retry a failed load themselves.
+  ValueListenable<int> get reconnects => reload.reconnects;
   bool _wasAuthenticated = false;
-  bool _disposed = false;
 
   /// The ONLY listenable navigation may rebuild on (31dcc14 invariant).
-  Listenable get routerRefresh => authController;
+  Listenable get routerRefresh => authController.session;
 
   /// Set by the navigation layer; called for OS push taps (background +
   /// cold start). Services never navigates itself.
-  void Function(Map<String, dynamic> data)? onNotificationTap;
+  set onNotificationTap(void Function(Map<String, dynamic> data)? handler) =>
+      push.onNotificationTap = handler;
+  void Function(Map<String, dynamic> data)? get onNotificationTap =>
+      push.onNotificationTap;
 
   /// Shown after auth transitions (reactivated / closed / remote-closed).
   /// Set by the app to a ScaffoldMessenger-backed callback.
@@ -155,99 +152,53 @@ class CustomerAppServices with WidgetsBindingObserver {
   /// detail; anything else (broadcast) → the notifications list. Any transient
   /// overlays already on the stack are cleared first so the target lands
   /// cleanly on the shell.
-  // Terminal-status push types move an appointment/order OUT of the active
-  // Appointments list and INTO History (D-085: rejected/expired/no-show
-  // appointments and completed/cancelled orders all surface there) — those
-  // need both controllers reloaded. Everything else only ever changes a
-  // field on an already-active appointment/order, so Appointments alone
-  // covers it. `feedback_replied`/`broadcast`/unknown touch neither list.
-  static const _terminalPushTypes = {
-    'appointment_rejected',
-    'appointment_expired',
-    'appointment_no_show',
-    'order_completed',
-    'order_cancelled',
-  };
-  static const _activeOnlyPushTypes = {
-    'appointment_confirmed',
-    'appointment_booked_by_staff',
-    'appointment_reminder',
-    'appointment_rescheduled',
-    'order_in_progress',
-    'order_payment_received',
-    'order_rescheduled',
-    'expected_finish_revised',
-  };
-
-  /// Same body as today's `_reloadListsForPushType`. Public because the
-  /// navigation layer calls it on a push tap.
-  void reloadListsForPushType(String? type) {
-    if (!authController.isAuthenticated) return;
-    if (_terminalPushTypes.contains(type)) {
-      appointmentsController.load();
-      historyController.load();
-      // `GET /api/v1/app/vehicles` embeds per-vehicle `_count`s of completed
-      // service orders and diagnostic reports, and `VehicleDetailScreen` is a
-      // StatelessWidget rendering whatever `VehiclesController` already holds
-      // — it never refetches. There is also no vehicle push type at all (the
-      // backend's NOTIFICATION_REGISTRY has none), so without this the counts
-      // stay stale until sign-out/in, a cache/error-driven connectivity
-      // reload, or a vehicle CRUD action. A terminal order push is exactly
-      // the event that invalidates them.
-      vehiclesController.load();
-    } else if (_activeOnlyPushTypes.contains(type)) {
-      appointmentsController.load();
-    }
-    // feedback_replied / broadcast_account / unknown: no list is affected.
-  }
+  /// Public because the navigation layer calls it on a push tap.
+  void reloadListsForPushType(String? type) => reload.onPush(type);
 
   void _onAuthChanged() {
     final isAuthenticated = authController.isAuthenticated;
     if (isAuthenticated && !_wasAuthenticated) {
-      appointmentsController.load();
-      vehiclesController.load();
-      historyController.load();
-      notificationsController.load();
-      _registerDeviceForPush();
-      if (authController.justReactivated) {
-        authController.justReactivated = false;
+      reload.onSignIn();
+      push.registerDevice();
+      if (authController.takeSessionEvent() == SessionEvent.reactivated) {
         showMessage?.call('Бүртгэл тань сэргээгдлээ');
       }
     } else if (!isAuthenticated && _wasAuthenticated) {
       // Signed out (incl. a closure from this or another device): the closure
       // page only makes sense for a signed-in account.
+      reload.clearHistory();
       appointmentsController.reset();
       vehiclesController.reset();
       historyController.reset();
       notificationsController.reset();
-      final closedDeleteForever = authController.justClosedAccount;
-      final remoteClosedReason = authController.justRemoteClosedAccount;
-      if (closedDeleteForever != null) {
+      final event = authController.takeSessionEvent();
+      if (event == SessionEvent.deleted || event == SessionEvent.deactivated) {
         // Account closure: the server already removed the devices, so skip
         // the removal call below and just confirm the action.
-        authController.justClosedAccount = null;
         showMessage?.call(
-          closedDeleteForever
+          event == SessionEvent.deleted
               ? 'Бүртгэл устгагдлаа'
               : 'Бүртгэл идэвхгүй боллоо',
         );
-      } else if (remoteClosedReason != null) {
+      } else if (event == SessionEvent.remoteDeleted ||
+          event == SessionEvent.remoteDeactivated) {
         // Closed remotely (e.g. from the website) while this device was
         // still signed in — same skip-device-removal reasoning as above,
         // but distinct wording since this device didn't initiate it.
-        authController.justRemoteClosedAccount = null;
         showMessage?.call(
-          remoteClosedReason == 'deleted'
+          event == SessionEvent.remoteDeleted
               ? 'Бүртгэл тань устгагдсан'
               : 'Бүртгэл тань идэвхгүй болсон',
         );
+      } else if (event == SessionEvent.deviceRemovalHandled) {
+        // beforeSignOut already removed the device; don't repeat the call.
       } else {
         // Best-effort safety net for the 401-triggered path: `authController`
         // wires `_removeDeviceForPush` to run before an explicit sign-out
         // clears the token (see `beforeSignOut` above), but a 401 means the
         // token was already invalid server-side, so this call is expected to
         // fail there too — left in only in case removal was never attempted.
-        _removeDeviceForPush();
+        push.removeDeviceAfterUnhandledSignOut();
       }
     }
     _wasAuthenticated = isAuthenticated;
@@ -259,24 +210,8 @@ class CustomerAppServices with WidgetsBindingObserver {
   /// individually, and tabs they haven't visited yet stay stuck showing the
   /// last failure even after the network is back.
   void _onConnectivityChanged(bool online) {
-    if (!online) return;
-    if (discoveryController.state.isFromCache ||
-        discoveryController.state.status == DiscoveryStatus.error) {
-      discoveryController.load();
-    }
-    if (!authController.isAuthenticated) return;
-    if (appointmentsController.state.isFromCache ||
-        appointmentsController.state.status == AppointmentsStatus.error) {
-      appointmentsController.load();
-    }
-    if (vehiclesController.state.isFromCache ||
-        vehiclesController.state.status == VehiclesStatus.error) {
-      vehiclesController.load();
-    }
-    if (historyController.state.isFromCache ||
-        historyController.state.status == HistoryStatus.error) {
-      historyController.load();
-    }
+    _isOnline.value = online;
+    reload.onConnectivity(online);
   }
 
   @override
@@ -289,87 +224,16 @@ class CustomerAppServices with WidgetsBindingObserver {
     // unconditionally on every foreground return rather than waiting for
     // another unrelated push to happen to arrive.
     if (!authController.isAuthenticated) return;
-    appointmentsController.load();
-    historyController.load();
+    push.onResumed();
+    reload.onResume();
   }
-
-  /// Registers the current FCM token against `POST /api/v1/app/devices` (see
-  /// `CUSTOMER_API_CONTRACT.md` "Push device registration"). Best-effort: a
-  /// missing token (no Firebase configured, permission denied, or a platform
-  /// this app doesn't ship push on) or a failed request must never block
-  /// login.
-  Future<void> _registerDeviceForPush() async {
-    final account = authController.account;
-    if (account == null || _disposed) return;
-    try {
-      final token = await remotePushService.getToken();
-      if (token == null ||
-          _disposed ||
-          !identical(authController.account, account)) {
-        return;
-      }
-      final deviceId = await deviceIdStore.getOrCreate();
-      if (_disposed || !identical(authController.account, account)) return;
-      await deviceRepository.registerDevice(
-        deviceId: deviceId,
-        platform: _platformName,
-        firebaseToken: token,
-      );
-    } catch (_) {
-      // Best-effort — push registration failing must never block sign-in.
-      if (kDebugMode) {
-        debugPrint('Push device registration could not complete.');
-      }
-    }
-  }
-
-  Future<void> _removeDeviceForPush() async {
-    try {
-      final deviceId = await deviceIdStore.getOrCreate();
-      // Bounded: sign-out awaits this before clearing the token, and must
-      // not hang on a slow network.
-      await deviceRepository
-          .removeDevice(deviceId)
-          .timeout(const Duration(seconds: 4));
-    } catch (_) {
-      // Best-effort — matches the API doc's "call during logout when possible".
-    }
-    // Whether or not the DELETE landed, drop this install's FCM token so the
-    // signed-out account's pushes can't keep arriving here.
-    try {
-      await remotePushService.deleteToken().timeout(const Duration(seconds: 4));
-    } catch (_) {}
-  }
-
-  /// The API contract requires re-registering whenever the FCM token
-  /// refreshes, but only while signed in — there's no account to attach an
-  /// unauthenticated refresh to.
-  Future<void> _onTokenRefreshed(String token) async {
-    final account = authController.account;
-    if (account == null || _disposed) return;
-    try {
-      final deviceId = await deviceIdStore.getOrCreate();
-      if (_disposed || !identical(authController.account, account)) return;
-      await deviceRepository.registerDevice(
-        deviceId: deviceId,
-        platform: _platformName,
-        firebaseToken: token,
-      );
-    } catch (_) {
-      // Best-effort, same as _registerDeviceForPush.
-    }
-  }
-
-  String get _platformName =>
-      defaultTargetPlatform == TargetPlatform.iOS ? 'IOS' : 'ANDROID';
 
   void dispose() {
-    _disposed = true;
     WidgetsBinding.instance.removeObserver(this);
-    _tokenRefreshSubscription.cancel();
-    _foregroundMessageSubscription.cancel();
+    push.dispose();
     _connectivitySubscription.cancel();
-    _notificationTapSubscription.cancel();
+    reload.dispose();
+    _isOnline.dispose();
     authController.removeListener(_onAuthChanged);
     discoveryController.dispose();
     organizationDetailController.dispose();

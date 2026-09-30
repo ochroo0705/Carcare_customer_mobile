@@ -24,6 +24,13 @@ class SecureSessionStore {
   Future<void>? _installCheck;
   final _cleared = StreamController<void>.broadcast();
 
+  // In-memory copy of the stored session: every API request reads the token,
+  // and each read otherwise hits the platform keychain. Written through by
+  // [save], dropped by [clear]. [_generation] stops a read that was already
+  // in flight from re-populating the cache with pre-save/pre-clear data.
+  Map<String, String>? _cache;
+  int _generation = 0;
+
   /// Fires every time [clear] runs — a signout as well as a repository's
   /// `onUnauthorized` 401 handler both go through here, so anything holding
   /// authenticated UI state (see `AuthController`) can react regardless of
@@ -62,9 +69,14 @@ class SecureSessionStore {
   /// key didn't come along. That state can never recover, so it is wiped
   /// rather than crashing every launch and every request.
   Future<Map<String, String>> _readAll() async {
+    final cached = _cache;
+    if (cached != null) return cached;
     await (_installCheck ??= _discardIfReinstalled());
+    final generation = _generation;
     try {
-      return await _storage.readAll();
+      final values = await _storage.readAll();
+      if (generation == _generation) _cache = Map.unmodifiable(values);
+      return values;
     } catch (_) {
       await _deleteAllQuietly();
       return const {};
@@ -96,6 +108,8 @@ class SecureSessionStore {
   /// Session-ийн заавал байх талбаруудыг хадгална. Account-ийн нэр optional
   /// тул байхгүй үед storage-д бичихгүй.
   Future<void> save({required String token, required Account account}) async {
+    _generation++;
+    _cache = null;
     await Future.wait([
       _storage.write(key: _tokenKey, value: token),
       _storage.write(key: _idKey, value: account.id),
@@ -104,11 +118,23 @@ class SecureSessionStore {
           ? _storage.write(key: _nameKey, value: account.name)
           : _storage.delete(key: _nameKey),
     ]);
+    _generation++;
+    _cache = Map.unmodifiable({
+      _tokenKey: token,
+      _idKey: account.id,
+      _phoneKey: account.phone,
+      if (account.name != null) _nameKey: account.name!,
+    });
   }
 
   /// Logout/401-ийн дараа бүх session key-г хамтад нь устгана.
   Future<void> clear() async {
+    _generation++;
+    _cache = null;
     await _deleteAllQuietly();
+    // A read that started during the delete may have cached pre-delete data.
+    _generation++;
+    _cache = null;
     _cleared.add(null);
   }
 }

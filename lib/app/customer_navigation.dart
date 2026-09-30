@@ -27,7 +27,25 @@ class CustomerNavigation {
 
   /// Public entry point for showing the login screen — used by onboarding's
   /// "Бүртгэлдээ нэвтрэх" soft-login hand-off.
-  void requestLogin() => router.push(CustomerRoutes.login());
+  ///
+  /// Ignored while a login page is already open (a double tap, or a booking
+  /// 401 racing a tap); [from] is where a successful sign-in resumes.
+  void requestLogin({String? from}) {
+    // Derived from the router, not a flag cleared on the push's future:
+    // go_router drops that future on `pushReplacement`/`go`. `_pushing` only
+    // covers the same-frame window before the router state reflects the push.
+    if (_pushing || _loginOnTop) return;
+    _pushing = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pushing = false);
+    router.push<void>(CustomerRoutes.login(from: from));
+  }
+
+  bool _pushing = false;
+
+  bool get _loginOnTop {
+    final matches = router.routerDelegate.currentConfiguration.matches;
+    return matches.isNotEmpty && matches.last.matchedLocation == '/login';
+  }
 
   /// Opens an appointment's detail page and reloads the appointments list so
   /// the detail page resolves against the freshest state — same reasoning as
@@ -54,11 +72,22 @@ class CustomerNavigation {
   /// delegate's `_handleNotificationTap` (router.dart:607-629).
   void openFromPush(Map<String, dynamic> data, {bool fromList = false}) {
     final appointmentId = data['appointmentId'];
-    if (appointmentId is String &&
-        appointmentId.isNotEmpty &&
-        services.authController.isAuthenticated) {
+    final hasAppointment = appointmentId is String && appointmentId.isNotEmpty;
+    if (!services.authController.isAuthenticated) {
+      // Keep the destination: sign in, then land on it.
+      if (fromList) return;
+      router.go(CustomerRoutes.shell);
+      requestLogin(
+        from: hasAppointment
+            ? CustomerRoutes.appointment(appointmentId)
+            : CustomerRoutes.notifications,
+      );
+      return;
+    }
+    if (hasAppointment) {
       router.go(CustomerRoutes.shell); // == _clearOverlays
-      services.reloadListsForPushType(data['type'] as String?);
+      final type = data['type'];
+      services.reloadListsForPushType(type is String ? type : null);
       shellKey.currentState?.selectDestination(appointmentsTabIndex);
       openAppointment(appointmentId);
       return;
@@ -86,7 +115,10 @@ class CustomerNavigation {
     openAppointment(appointment.id);
     services.showMessage?.call('Цагийн хүсэлт амжилттай илгээгдлээ.');
     if (appointment.payment != null) {
-      router.push(CustomerRoutes.payment(appointment.id), extra: appointment.payment);
+      router.push(
+        CustomerRoutes.payment(appointment.id),
+        extra: appointment.payment,
+      );
     }
   }
 }

@@ -29,20 +29,28 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
-/// Pure function so it is unit-testable without a widget tree. Encodes the
-/// only two guards in the route table (booking requires auth; account
-/// closure requires auth) plus the `/login` forward-once-signed-in rule.
+/// Whether [uri] needs a signed-in customer. The single list of protected
+/// patterns: `customerRedirect` reads it, so a route is protected by adding
+/// it here, not by per-route code.
+bool isProtectedLocation(Uri uri) {
+  return switch (uri.pathSegments) {
+    ['organizations', _, 'book'] => true,
+    ['appointments', _] || ['appointments', _, 'pay'] => true,
+    ['vehicles', 'add'] => false,
+    ['vehicles', _] => true,
+    ['orders', _] || ['diagnostics', _] || ['walk-in-orders', _] => true,
+    ['notifications'] => true,
+    ['account', 'close'] => true,
+    _ => false,
+  };
+}
+
+/// Pure function so it is unit-testable without a widget tree. Sends a
+/// signed-out customer from any protected location to `/login?from=<it>`, and
+/// forwards `/login?from=` once signed in.
 String? customerRedirect({required bool isAuthenticated, required Uri uri}) {
-  final segments = uri.pathSegments;
-  final isBooking =
-      segments.length == 3 &&
-      segments[0] == 'organizations' &&
-      segments[2] == 'book';
-  if (isBooking && !isAuthenticated) {
+  if (!isAuthenticated && isProtectedLocation(uri)) {
     return CustomerRoutes.login(from: uri.toString());
-  }
-  if (uri.path == CustomerRoutes.accountClosure && !isAuthenticated) {
-    return CustomerRoutes.shell;
   }
   if (uri.path == '/login' && isAuthenticated) {
     return safeReturnLocation(uri.queryParameters['from']);
@@ -143,6 +151,7 @@ GoRouter buildCustomerRouter(
                 onLoginRequested: navigation.requestLogin,
                 onOrderSelected: (id) => context.push(CustomerRoutes.order(id)),
                 diagnosticsRepository: services.diagnosticsRepository,
+                reconnects: services.reconnects,
                 onDiagnosticReportSelected: (id) =>
                     context.push(CustomerRoutes.diagnostic(id)),
               ),
@@ -200,74 +209,56 @@ GoRouter buildCustomerRouter(
               : keysParam.split(',').toSet();
           return MaterialPage(
             key: state.pageKey,
-            child: _OrganizationScope(
-              slug: slug,
-              services: services,
-              builder: (context, c, reload) {
-                final organization = c.organization;
-                if (c.status == OrganizationDetailStatus.error) {
-                  return Scaffold(
-                    appBar: AppBar(leading: BackButton(onPressed: context.pop)),
-                    body: OrganizationLoadError(
-                      message: c.message ?? 'Мэдээлэл ачаалсангүй.',
-                      onRetry: reload,
-                    ),
+            child: _ProtectedRoute(
+              auth: services.authController,
+              onSessionEnded: (_) => navigation.requestLogin(),
+              child: _OrganizationScope(
+                slug: slug,
+                services: services,
+                builder: (context, c, reload) {
+                  final organization = c.organization;
+                  if (c.status == OrganizationDetailStatus.error) {
+                    return Scaffold(
+                      appBar: AppBar(
+                        leading: BackButton(onPressed: context.pop),
+                      ),
+                      body: OrganizationLoadError(
+                        message: c.message ?? 'Мэдээлэл ачаалсангүй.',
+                        onRetry: reload,
+                      ),
+                    );
+                  }
+                  if (organization == null || organization.slug != slug) {
+                    return Scaffold(
+                      appBar: AppBar(),
+                      body: const SkeletonDetail(),
+                    );
+                  }
+                  return BookingRequestScreen(
+                    organization: organization,
+                    initialBranchId: branchId,
+                    repository: services.appointmentRepository,
+                    onAddVehicle: () => context.push(CustomerRoutes.addVehicle),
+                    onBack: () => context.pop(),
+                    lockCategories: keyIds.isNotEmpty,
+                    lockBranch: lock == '1',
+                    initialCategoryIds: keyIds.isEmpty
+                        ? null
+                        : resolveLockedCategoryIds(
+                            organization,
+                            branchId,
+                            keyIds,
+                          ),
+                    // A 401 on submit: clear the session; the enclosing
+                    // `_ProtectedRoute` then pushes `/login` (without `from`,
+                    // so signing in pops back to this still-mounted page).
+                    onUnauthenticated: () {
+                      services.authController.clearConfirmedUnauthorized();
+                    },
+                    onCompleted: navigation.completeBooking,
                   );
-                }
-                if (organization == null || organization.slug != slug) {
-                  return Scaffold(
-                    appBar: AppBar(),
-                    body: const SkeletonDetail(),
-                  );
-                }
-                return BookingRequestScreen(
-                  organization: organization,
-                  initialBranchId: branchId,
-                  repository: services.appointmentRepository,
-                  onAddVehicle: () => context.push(CustomerRoutes.addVehicle),
-                  onBack: () => context.pop(),
-                  lockCategories: keyIds.isNotEmpty,
-                  lockBranch: lock == '1',
-                  initialCategoryIds: keyIds.isEmpty
-                      ? null
-                      : resolveLockedCategoryIds(
-                          organization,
-                          branchId,
-                          keyIds,
-                        ),
-                  // `BookingRequestScreen.onUnauthenticated` fires when a
-                  // `createAppointment` call comes back 401 while this page
-                  // is already showing (a session the client hadn't noticed
-                  // was invalid). Unlike the initial signed-out tap on
-                  // "Цаг захиалах" (caught by `customerRedirect`, since that
-                  // is a genuine navigation to this route), this happens
-                  // while already ON the booking route — `redirect`'s
-                  // `refreshListenable`-triggered re-evaluation only ever
-                  // reconsiders the base `go()` location, never a `push`ed
-                  // route's own URL, so signing out here would otherwise
-                  // strand the customer on a booking form with no
-                  // repository session and no way back to login. So this
-                  // navigates explicitly, same as the old delegate's
-                  // `_showLogin = true`. Unlike the redirect path (where
-                  // signing in has to resume TO this route because it was
-                  // never reached), this booking page is already mounted and
-                  // stays on the stack underneath — pushing `/login` WITHOUT
-                  // `from` means a successful sign-in's `onAuthenticated`
-                  // just `pop()`s back to this same still-live page, instead
-                  // of `pushReplacement`ing a second, duplicate booking page
-                  // on top of it.
-                  onUnauthenticated: () {
-                    services.authController.clearConfirmedUnauthorized().then((
-                      _,
-                    ) {
-                      if (context.mounted) {
-                        context.push(CustomerRoutes.login());
-                      }
-                    });
-                  },
-                  onCompleted: navigation.completeBooking,
-                );
-              },
+                },
+              ),
             ),
           );
         },
@@ -343,13 +334,17 @@ GoRouter buildCustomerRouter(
           }
           return MaterialPage(
             key: state.pageKey,
-            child: VehicleDetailScreen(
-              vehicleId: id,
-              fallbackVehicle: fallback,
-              onAppointmentSelected: (id) => navigation.openAppointment(id),
-              onOrderSelected: (id) => context.push(CustomerRoutes.order(id)),
-              onBack: () => context.pop(),
-              onRefreshHur: () => navigation.refreshVehicleFromHur(id),
+            child: _ProtectedRoute(
+              auth: services.authController,
+              onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+              child: VehicleDetailScreen(
+                vehicleId: id,
+                fallbackVehicle: fallback,
+                onAppointmentSelected: (id) => navigation.openAppointment(id),
+                onOrderSelected: (id) => context.push(CustomerRoutes.order(id)),
+                onBack: () => context.pop(),
+                onRefreshHur: () => navigation.refreshVehicleFromHur(id),
+              ),
             ),
           );
         },
@@ -358,16 +353,20 @@ GoRouter buildCustomerRouter(
         path: '/appointments/:id',
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: AppointmentDetailScreen(
-            appointmentId: state.pathParameters['id']!,
-            organizationRepository: services.organizationRepository,
-            onBack: () => context.pop(),
-            onPay: (appointment) => context.push(
-              CustomerRoutes.payment(appointment.id),
-              extra: appointment.payment,
+          child: _ProtectedRoute(
+            auth: services.authController,
+            onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+            child: AppointmentDetailScreen(
+              appointmentId: state.pathParameters['id']!,
+              organizationRepository: services.organizationRepository,
+              onBack: () => context.pop(),
+              onPay: (appointment) => context.push(
+                CustomerRoutes.payment(appointment.id),
+                extra: appointment.payment,
+              ),
+              onReportSelected: (id) =>
+                  context.push(CustomerRoutes.diagnostic(id)),
             ),
-            onReportSelected: (id) =>
-                context.push(CustomerRoutes.diagnostic(id)),
           ),
         ),
       ),
@@ -375,12 +374,16 @@ GoRouter buildCustomerRouter(
         path: '/appointments/:id/pay',
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: AppointmentPaymentScreen(
-            appointmentId: state.pathParameters['id']!,
-            repository: services.appointmentRepository,
-            initialPayment: state.extra as AppointmentPayment?,
-            onBack: () => context.pop(),
-            onPaymentUpdated: services.appointmentsController.load,
+          child: _ProtectedRoute(
+            auth: services.authController,
+            onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+            child: AppointmentPaymentScreen(
+              appointmentId: state.pathParameters['id']!,
+              repository: services.appointmentRepository,
+              initialPayment: state.extra as AppointmentPayment?,
+              onBack: () => context.pop(),
+              onPaymentUpdated: services.appointmentsController.load,
+            ),
           ),
         ),
       ),
@@ -388,11 +391,15 @@ GoRouter buildCustomerRouter(
         path: '/walk-in-orders/:id',
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: WalkInOrderDetailScreen(
-            orderId: state.pathParameters['id']!,
-            onBack: () => context.pop(),
-            onReportSelected: (id) =>
-                context.push(CustomerRoutes.diagnostic(id)),
+          child: _ProtectedRoute(
+            auth: services.authController,
+            onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+            child: WalkInOrderDetailScreen(
+              orderId: state.pathParameters['id']!,
+              onBack: () => context.pop(),
+              onReportSelected: (id) =>
+                  context.push(CustomerRoutes.diagnostic(id)),
+            ),
           ),
         ),
       ),
@@ -400,13 +407,17 @@ GoRouter buildCustomerRouter(
         path: '/orders/:id',
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: ServiceOrderDetailScreen(
-            repository: services.historyRepository,
-            orderId: state.pathParameters['id']!,
-            onBack: () => context.pop(),
-            historyController: services.historyController,
-            onReportSelected: (id) =>
-                context.push(CustomerRoutes.diagnostic(id)),
+          child: _ProtectedRoute(
+            auth: services.authController,
+            onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+            child: ServiceOrderDetailScreen(
+              repository: services.historyRepository,
+              orderId: state.pathParameters['id']!,
+              onBack: () => context.pop(),
+              historyController: services.historyController,
+              onReportSelected: (id) =>
+                  context.push(CustomerRoutes.diagnostic(id)),
+            ),
           ),
         ),
       ),
@@ -414,10 +425,14 @@ GoRouter buildCustomerRouter(
         path: '/diagnostics/:id',
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: DiagnosticDetailScreen(
-            repository: services.diagnosticsRepository,
-            reportId: state.pathParameters['id']!,
-            onBack: () => context.pop(),
+          child: _ProtectedRoute(
+            auth: services.authController,
+            onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+            child: DiagnosticDetailScreen(
+              repository: services.diagnosticsRepository,
+              reportId: state.pathParameters['id']!,
+              onBack: () => context.pop(),
+            ),
           ),
         ),
       ),
@@ -425,9 +440,13 @@ GoRouter buildCustomerRouter(
         path: CustomerRoutes.notifications,
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: NotificationsScreen(
-            onBack: () => context.pop(),
-            onOpen: (n) => navigation.openFromPush(n.data, fromList: true),
+          child: _ProtectedRoute(
+            auth: services.authController,
+            onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+            child: NotificationsScreen(
+              onBack: () => context.pop(),
+              onOpen: (n) => navigation.openFromPush(n.data, fromList: true),
+            ),
           ),
         ),
       ),
@@ -435,8 +454,12 @@ GoRouter buildCustomerRouter(
         path: CustomerRoutes.accountClosure,
         pageBuilder: (context, state) => MaterialPage(
           key: state.pageKey,
-          child: _AccountClosureRoute(
-            onClosed: () => context.go(CustomerRoutes.shell),
+          child: _ProtectedRoute(
+            auth: services.authController,
+            onSessionEnded: (context) => context.go(CustomerRoutes.shell),
+            child: AccountClosureScreen(
+              onClosed: () => context.go(CustomerRoutes.shell),
+            ),
           ),
         ),
       ),
@@ -444,42 +467,56 @@ GoRouter buildCustomerRouter(
   );
 }
 
-/// The account-closure page is reached with a `push`, and go_router's
-/// `refreshListenable`-triggered redirect re-evaluation only ever
-/// reconsiders the base `go()` location — never a `push`ed route's own URL
-/// (same limitation documented on the booking route's `onUnauthenticated`
-/// above). So `customerRedirect` alone never pops this page when the
-/// customer signs out while it's open; it only stops a *fresh* navigation
-/// to `/account/close` while already signed out. This widget closes that
-/// gap explicitly: it watches `AuthController` directly (a plain Provider
-/// rebuild, not a redirect race) and calls [onClosed] once
-/// `isAuthenticated` flips to false while this page is still mounted.
-/// Deferred to the next frame for the same reason the login route's
-/// `onAuthenticated` callback is: acting synchronously inside a listener
-/// callback that fires from the very same `notifyListeners()` go_router's
-/// own redirect re-evaluation is also reacting to can be silently lost.
-class _AccountClosureRoute extends StatefulWidget {
-  const _AccountClosureRoute({required this.onClosed});
+/// Guards a `push`ed protected page. go_router's redirect only reconsiders
+/// the base `go()` location, never a pushed page's own URL, so a detail page
+/// would otherwise stay on screen (with stale data) after sign-out. This
+/// listens to [AuthController.session] (identity changes only) and, once per
+/// session end, runs [onSessionEnded] on the next frame -- deferred for the
+/// same reason the login route's `onAuthenticated` is: acting inside the
+/// same `notifyListeners()` go_router is also reacting to can be lost.
+class _ProtectedRoute extends StatefulWidget {
+  const _ProtectedRoute({
+    required this.auth,
+    required this.onSessionEnded,
+    required this.child,
+  });
 
-  final VoidCallback onClosed;
+  final AuthController auth;
+  final void Function(BuildContext context) onSessionEnded;
+  final Widget child;
 
   @override
-  State<_AccountClosureRoute> createState() => _AccountClosureRouteState();
+  State<_ProtectedRoute> createState() => _ProtectedRouteState();
 }
 
-class _AccountClosureRouteState extends State<_AccountClosureRoute> {
+class _ProtectedRouteState extends State<_ProtectedRoute> {
+  bool _scheduled = false;
+
   @override
-  Widget build(BuildContext context) {
-    final isAuthenticated = context.select<AuthController, bool>(
-      (c) => c.isAuthenticated,
-    );
-    if (!isAuthenticated) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) widget.onClosed();
-      });
-    }
-    return AccountClosureScreen(onClosed: widget.onClosed);
+  void initState() {
+    super.initState();
+    widget.auth.session.addListener(_onSession);
   }
+
+  @override
+  void dispose() {
+    widget.auth.session.removeListener(_onSession);
+    super.dispose();
+  }
+
+  void _onSession() {
+    if (widget.auth.isAuthenticated || _scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (mounted && !widget.auth.isAuthenticated) {
+        widget.onSessionEnded(context);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 Vehicle? _findVehicle(CustomerAppServices services, String id) {
